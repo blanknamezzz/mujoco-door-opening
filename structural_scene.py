@@ -112,3 +112,37 @@ def structural_scenes():
         'front-only-blocked': StructuralDoor('front-only-blocked', hinge_min_deg=0., handle_faces=('front',),
                                             pillars=(pillar_at(50),)),
     }
+
+
+def structural_scene_from_spec(spec):
+    fields = {k: v for k, v in spec.items() if k not in ('split', 'family')}
+    fields['handle_faces'] = tuple(fields.get('handle_faces', ('front', 'back')))
+    fields['pillars'] = tuple(Pillar(**p) if isinstance(p, dict) else p for p in fields.get('pillars', ()))
+    return StructuralDoor(**fields)
+
+
+def structural_training_scenes(seed=20261017):
+    """Two train, one validation and one untouched test variant per family.
+
+    Hidden hinge-only direction changes are deliberately not supervised from
+    an identical closed image. Single-sided access provides observable cues.
+    """
+    from dataclasses import asdict
+    rng = np.random.default_rng(seed)
+    specs = []
+    for family in ['free-two-way', 'pillar-front', 'pillar-back', 'pillar-both',
+                   'front-access-only', 'back-access-only']:
+        for variant, split in enumerate(['train', 'train', 'val', 'test']):
+            front = pillar_at(float(rng.uniform(40, 70)), float(rng.uniform(.36, .5)))
+            back = pillar_at(float(rng.uniform(-70, -40)), float(rng.uniform(.36, .5)))
+            pillars = ((front,) if family == 'pillar-front' else (back,) if family == 'pillar-back'
+                       else (front, back) if family == 'pillar-both' else ())
+            scene = StructuralDoor(f'struct_{seed}_{family}_{variant}',
+                handle_x=float(rng.uniform(.76, .84)), handle_z=float(rng.uniform(.835, .865)),
+                friction=float(rng.uniform(.65, .9)), hinge_resistance=float(rng.uniform(.9, 1.4)),
+                hinge_min_deg=0. if family == 'front-access-only' else -90.,
+                hinge_max_deg=0. if family == 'back-access-only' else 90.,
+                handle_faces=('front',) if family == 'front-access-only' else
+                             ('back',) if family == 'back-access-only' else ('front', 'back'), pillars=pillars)
+            specs.append(dict(**asdict(scene), split=split, family=family))
+    return specs

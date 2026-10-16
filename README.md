@@ -50,9 +50,33 @@ candidate pool. See [structural results and physical states](docs/hjepa_structur
 .\.venv\Scripts\python.exe run_hjepa.py --scenario pillar-front --base-mode fixed --fixed-base-id 2 --method geometry --output runs/hjepa/structural_demo
 ```
 
-These are new structural tests of frozen checkpoints. The old training data
-contained only front-side operation; structural adaptation is not yet trained.
+These are historical structural tests of the original frozen checkpoints,
+whose training data contained only front-side operation.
 Geometry-based side selection/rejection in the report is a privileged reference.
+
+Train the complete model on fresh structural scene splits, with two-sided
+operation and an explicit refusal candidate:
+
+```powershell
+.\.venv\Scripts\python.exe collect_hjepa.py --structural --output runs/hjepa/structural_data --seed 20261017
+.\.venv\Scripts\python.exe train_hjepa.py --data runs/hjepa/structural_data --output runs/hjepa/structural_model --init-checkpoint runs/hjepa/official_model/selected.pt --epochs 9 --policy-updates 1000 --device cuda
+.\.venv\Scripts\python.exe refit_structural_position.py
+.\.venv\Scripts\python.exe evaluate_structural_training.py --device cuda
+.\.venv\Scripts\python.exe report_structural_training.py
+.\.venv\Scripts\python.exe run_hjepa.py --checkpoint runs/hjepa/structural_model/selected.pt --scenario pillar-front --output runs/hjepa/structural_trained_demo
+```
+
+Structural fine-tuning keeps the official architecture/batch/precision. The
+world checkpoint uses validation loss; frozen stage-policy updates use validation
+return for selection. The six new test scenes are evaluated after selection.
+The optional positioning refit probes the same full ViT before its JEPA
+projector, fits the original task head and accepts it only when validation
+return improves. Dynamics, value and grasp representations stay projected.
+
+The completed full-model structural run used 9 epochs / 1,053 steps on the
+RTX 3060 Laptop, with 2,848 MiB peak allocation. On six held-out scenes, opening
+improved from 3/5 to 4/5 feasible doors; the blocked two-pillar case was not
+rejected. See [training results and remaining failures](docs/hjepa_structural_training.md).
 
 基于 MuJoCo 的机械臂开门仿真：识别固定拉杆把手、选择抓取姿态、两指夹持、通过接触力开门，并检测滑移与脱手。
 

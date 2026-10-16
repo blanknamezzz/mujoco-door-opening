@@ -27,24 +27,40 @@ def select_and_execute(model, checkpoint, scene, method='world-model', horizon=1
         raise ValueError('Candidate budget exceeds the training collection; reduce --bases/--grasps.')
     base_pool = getattr(scene, 'base_candidates', BASE_CANDIDATES)[:bases]
     count = len(base_pool)
+    abstention = checkpoint.get('positioning_abstention', False)
+    if abstention and (not hasattr(scene, 'base_candidates') or count+1 > checkpoint.get('base_budget', 5)):
+        raise ValueError('Structural/refusal checkpoint requires a structural --scenario and at most four physical bases.')
     if not 0 <= fixed_base_id < count:
         raise ValueError('Fixed base ID is outside the scene candidate pool.')
     device = next(model.parameters()).device
     mean, std = checkpoint['state_mean'].to(device), checkpoint['state_std'].to(device)
     size = model.config['image_size']
 
-    def encode(exp, frame):
-        return model.encode(rgb_tensor(small_rgb(frame, size, model.is_official)[None], device),
+    def encode(exp, frame, position=False):
+        encoder = model.encode_position if position else model.encode
+        return encoder(rgb_tensor(small_rgb(frame, size, model.is_official)[None], device),
                             state_tensor(proprio(exp)[None], mean, std, device))
 
     start = time.perf_counter()
     initial = scene.experiment()
     initial_frame = observe(initial)
     with torch.no_grad():
-        latent = encode(initial, initial_frame)
+        latent = encode(initial, initial_frame, position=True)
         features = torch.tensor(np.stack([base_features(b) for b in base_pool]), device=device)
-        scores = model.position_policy(torch.cat([latent.expand(count, -1), features], -1)).flatten()
+        if abstention:
+            features = torch.cat([features, features.new_zeros(1, 4)])
+        scores = model.position_policy(torch.cat([latent.expand(len(features), -1), features], -1)).flatten()
         base_id = int(scores.argmax()) if base_mode == 'learned' else fixed_base_id
+    if abstention and base_id == count:
+        result = dict(outcome='E_policy_abstained', stop_reason='policy_abstention',
+                      final_angle_deg=0., max_angle_deg=0., grasp_acquired=False,
+                      executor_called=False)
+        plan = dict(scene=asdict(scene), method=method, horizon=horizon, base_mode=base_mode,
+                    base_id=None, grasp_id=None, base_scores=scores.cpu().tolist(),
+                    decision='abstain', fresh_arrival_observation=False,
+                    planning_time_s=time.perf_counter()-start, result=result,
+                    metrics=task_reward(result, []), upstream_commit=checkpoint['upstream_commit'])
+        return plan, [], []
     base = base_pool[base_id]
     reached = scene.experiment(base)
     # Predictor is refreshed with a real post-placement frame, not an imagined image.
@@ -57,6 +73,7 @@ def select_and_execute(model, checkpoint, scene, method='world-model', horizon=1
                       max_angle_deg=0., perception_error=str(error))
         plan = dict(scene=asdict(scene), method=method, horizon=horizon, base_mode=base_mode,
                     base_id=base_id, base_pose=list(base), grasp_id=None,
+                    operating_side=reached.operating_side, opening_direction=reached.opening_direction,
                     base_scores=scores.cpu().tolist(), fresh_arrival_observation=True,
                     planning_time_s=time.perf_counter()-start,
                     result=result, metrics=task_reward(result, []),
@@ -108,7 +125,8 @@ def select_and_execute(model, checkpoint, scene, method='world-model', horizon=1
                 placement='simulator reset; navigation not implemented',
                 operating_side=reached.operating_side, opening_direction=reached.opening_direction,
                 candidate_base_poses=[list(b) for b in base_pool],
-                candidate_pool_out_of_training_distribution=hasattr(scene, 'base_candidates'),
+                candidate_pool_out_of_training_distribution=(
+                    [list(b) for b in base_pool] != checkpoint.get('candidate_base_poses', [list(b) for b in BASE_CANDIDATES[:bases]])),
                 upstream_commit=checkpoint['upstream_commit'], inference_device=str(device))
     if not execute:
         return plan, [], []

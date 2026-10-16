@@ -90,6 +90,9 @@ def task_reward(result, rows, collision_weight=5., incomplete_weight=3.,
     collision. Grasp = acquired stable contact, gated by earlier milestones.
     Safe progress freezes at the first collision, slip or contact loss.
     """
+    if result['outcome'] == 'E_policy_abstained':
+        return dict(reward=0., safe_opening_fraction=0., success=False,
+                    collision=False, shortfall=1., milestones=[False, False, False])
     positioned = result['outcome'] != 'A_initial_unreachable'
     aligned = positioned and any(r['time_s'] >= 2.5 for r in rows)
     aligned = aligned and not any(r['unexpected_contact'] for r in rows if r['time_s'] <= 2.5)

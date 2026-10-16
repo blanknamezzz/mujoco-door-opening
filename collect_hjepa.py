@@ -21,17 +21,28 @@ def small_rgb(frame, size, square_camera=False):
 
 
 def collect(output, scenes=12, seed=42, bases=5, grasp_count=4, image_size=224, resume=False,
-            observation_interval=.1, mmap_pixels=True):
+            observation_interval=.1, mmap_pixels=True, structural=False):
     if not 1 <= bases <= 5 or not 1 <= grasp_count <= 4:
         raise ValueError('Use 1..5 bases and 1..4 grasps.')
     output = Path(output)
     if (output/'manifest.json').exists():
         raise FileExistsError('Use a new output directory to preserve the previous dataset.')
     output.mkdir(parents=True, exist_ok=True)
+    if structural:
+        from structural_scene import structural_training_scenes, STRUCTURAL_BASES
+        specs = structural_training_scenes(seed)
+        base_pool = STRUCTURAL_BASES
+        if bases != 5 or grasp_count != 4:
+            raise ValueError('Structural training uses four physical bases plus refusal, and four grasps.')
+    else:
+        specs, base_pool = scene_set(scenes, seed), BASE_CANDIDATES[:bases]
+    specs = json.loads(json.dumps(specs))  # normalize tuples for exact resume matching
     manifest = dict(schema_version=2 if mmap_pixels else 1, seed=seed, image_size=image_size,
                     base_budget=bases, grasp_budget=grasp_count,
                     observation_interval_s=observation_interval, upstream='https://github.com/kevinghst/H-JEPA',
-                    scenes=scene_set(scenes, seed), episodes=[],
+                    scenes=specs, episodes=[], structural=structural,
+                    candidate_base_poses=[list(b) for b in base_pool],
+                    positioning_abstention=structural, abstention_reward=0. if structural else None,
                     positioning='reset placement; no simulated navigation',
                     dynamics='physical contact; no weld or no-slip constraint')
     partial = output/'manifest.partial.json'
@@ -39,8 +50,8 @@ def collect(output, scenes=12, seed=42, bases=5, grasp_count=4, image_size=224, 
         if not resume:
             raise FileExistsError('Interrupted dataset exists; use --resume or a new output directory.')
         previous = json.loads(partial.read_text(encoding='utf-8'))
-        for key in ['seed', 'image_size', 'scenes', 'observation_interval_s']:
-            if previous[key] != manifest[key]:
+        for key in ['seed', 'image_size', 'scenes', 'observation_interval_s', 'structural']:
+            if previous.get(key, False) != manifest[key]:
                 raise ValueError(f'Cannot resume with changed {key}.')
         for key, budget in [('base_budget', bases), ('grasp_budget', grasp_count)]:
             if key in previous and previous[key] != budget:
@@ -48,17 +59,21 @@ def collect(output, scenes=12, seed=42, bases=5, grasp_count=4, image_size=224, 
         manifest['episodes'] = previous['episodes']
     completed = {ep['file'] for ep in manifest['episodes']}
     for spec in manifest['scenes']:
-        scene = DoorScene(**{k: v for k, v in spec.items() if k != 'split'})
+        if structural:
+            from structural_scene import structural_scene_from_spec
+            scene = structural_scene_from_spec(spec)
+        else:
+            scene = DoorScene(**{k: v for k, v in spec.items() if k != 'split'})
         initial = scene.experiment()
         initial_frame = observe(initial)
-        for bi, base in enumerate(BASE_CANDIDATES[:bases]):
+        for bi, base in enumerate(base_pool):
             reached = scene.experiment(base)
             # A new render after base placement is mandatory. Never reuse the
             # initial handle estimate for the grasp policy's observation.
             arrival_frame = observe(reached)
             try:
                 estimate = estimate_frame(arrival_frame)
-                candidates = grasps(estimate)[:grasp_count]
+                candidates = grasps(estimate, reached.grasp_yaw_offset, reached.grasp_yaw_sign)[:grasp_count]
                 perception_error = None
             except ValueError as error:
                 candidates = [(None, None)]*grasp_count
@@ -81,7 +96,8 @@ def collect(output, scenes=12, seed=42, bases=5, grasp_count=4, image_size=224, 
                         pixels.append(renderer.render().copy())
                         states.append(proprio(e))
                         times.append(float(e.d.time))
-                        actions.append(action_at(e.d.time, point, yaw, interval=observation_interval))
+                        actions.append(action_at(e.d.time, point, yaw, interval=observation_interval,
+                                                 opening_direction=e.opening_direction))
                     if point is None:
                         result, rows = dict(outcome='B_perception_failed', grasp_acquired=False,
                                             stop_reason='perception_failure', final_angle_deg=0.,
@@ -109,8 +125,28 @@ def collect(output, scenes=12, seed=42, bases=5, grasp_count=4, image_size=224, 
                                point_world_m=point.tolist() if point is not None else None,
                                yaw_offset_rad=yaw, grasp_observed=point is not None,
                                frames=len(times), pixels_file=pixels_file, result=result, **metrics)
+                episode.update(positioning_only=False, operating_side=exp.operating_side,
+                               opening_direction=exp.opening_direction,
+                               current_reachable=(point is not None and
+                                   exp.ik(point, np.pi/2+yaw) is not None and
+                                   exp.ik(point-.16*np.array([np.cos(np.pi/2+yaw), np.sin(np.pi/2+yaw), 0.]), np.pi/2+yaw) is not None))
                 manifest['episodes'].append(episode)
                 print(f'{name}: {result["outcome"]}, reward={metrics["reward"]:.3f}', flush=True)
+        if structural:
+            # An explicit no-execution action. Its fixed zero return does not
+            # consult an oracle about whether some other action could succeed.
+            name = f'{scene.scene_id}_reject.npz'
+            if name not in completed:
+                np.savez_compressed(output/name, pixels=np.empty((0, image_size, image_size, 3), np.uint8),
+                    proprio=np.empty((0, len(proprio(initial))), np.float32), action=np.empty((0, 6), np.float32),
+                    time_s=np.empty(0), initial_rgb=small_rgb(initial_frame, image_size, image_size == 224),
+                    initial_proprio=proprio(initial), arrival_rgb=small_rgb(initial_frame, image_size, image_size == 224),
+                    arrival_proprio=proprio(initial), base=np.zeros(4, np.float32), grasp=np.zeros(5, np.float32))
+                manifest['episodes'].append(dict(file=name, scene_id=scene.scene_id, split=spec['split'],
+                    base_id=4, grasp_id=0, frames=0, pixels_file=None, positioning_only=True, grasp_observed=False,
+                    result=dict(outcome='E_policy_abstained', stop_reason='policy_abstention'),
+                    reward=0., safe_opening_fraction=0., success=False, collision=False,
+                    shortfall=1., milestones=[False, False, False]))
         (output/'manifest.partial.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     (output/'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     return manifest
@@ -127,7 +163,8 @@ if __name__ == '__main__':
     p.add_argument('--image-size', type=int, default=224)
     p.add_argument('--observation-interval', type=float, default=.1)
     p.add_argument('--compressed-pixels', action='store_true', help='Legacy compact NPZ pixel storage')
+    p.add_argument('--structural', action='store_true', help='Collect scene-disjoint two-sided structural training data')
     args = p.parse_args()
     collect(args.output, args.scenes, args.seed, args.bases, args.grasps, image_size=args.image_size,
             resume=args.resume, observation_interval=args.observation_interval,
-            mmap_pixels=not args.compressed_pixels)
+            mmap_pixels=not args.compressed_pixels, structural=args.structural)

@@ -66,6 +66,8 @@ def stage_metrics(result, rows, target=90.):
     success = metrics['success']
     if success:
         failure = None
+    elif result['outcome'] == 'E_policy_abstained':
+        failure = 'policy_abstention'
     elif result['outcome'] == 'B_perception_failed':
         failure = 'arrival_perception'
     elif not positioned:
@@ -132,6 +134,8 @@ class Evaluator:
         self.pre, self.pre_ckpt = load_checkpoint(before, device)
         self.post, self.ckpt = load_checkpoint(after, device)
         verify_frozen_world(self.pre, self.post)
+        if self.pre.config.get('position_encoder', 'projected') != self.post.config.get('position_encoder', 'projected'):
+            raise ValueError('Position feature interfaces differ; use evaluate_structural_training.py for this comparison.')
         for name in ['state_mean', 'state_std']:
             if not torch.equal(self.pre_ckpt[name], self.ckpt[name]):
                 raise ValueError(f'Unmatched input normalization: {name}')

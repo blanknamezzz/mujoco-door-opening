@@ -357,3 +357,64 @@ snapshots, CSV and hashes remain in ignored `runs/hjepa/structural_evaluation/`.
 These canonical scenes are deterministic diagnostic examples, not an independent
 random generalization benchmark. No structural training or policy adaptation
 has been claimed for the old front-only checkpoint.
+
+## Structural training and refusal
+
+`collect_hjepa.py --structural` creates 24 randomized door scenes, with 12 train,
+6 validation and 6 held-out test scenes. Each of six observable families has
+two training variants and one variant per other split: free two-way doors,
+front/back pillars, two pillars and front/back-only handle access. Handle
+position, friction, hinge resistance and pillar angle/radius vary independently.
+One-way hinges with identical closed images remain ambiguity controls outside
+the supervised family set; no hidden permission bit is supplied to the encoder.
+
+Each scene has four physical base candidates, four grasps each and one virtual
+positioning refusal record. Refusal uses the feature `[0,0,0,0]`, distinct from
+physical yaw features with unit sin/cos norm. Its fixed return is zero regardless
+of whether a different action could have succeeded. It never produces a physical
+trajectory or a fictitious arrival observation for grasp training. Success,
+collision and slip returns remain measured through the existing simulator.
+The positioning warm start weights each base/refusal equally. The same policy
+head dimensions and complete 23.3M parameter model are retained.
+
+Fine-tuning loads the existing full model with a fresh optimizer, then trains
+all world-model weights using the official 224x224 / batch 128 / BF16 / 9-epoch
+profile and activation recomputation. State/action normalization uses training
+scenes only. The selected world checkpoint is the minimum validation loss.
+Up to 1,000 alternating offline policy updates then freeze that world model.
+Policy snapshots are compared every 100 updates using validation returns;
+the best pair is restored, with exact equality checks on frozen world weights.
+The encoder latents are cached only for these frozen-head updates.
+
+`evaluate_structural_training.py` selects actions from held-out current RGB-D
+and candidate features before looking up any measured outcomes. It compares
+the old checkpoint (using its own representation), the four pre/post stage-head
+combinations at a fixed new world model, and latent lookahead. Correct refusals
+are reported separately from opening successes. Final direct-policy choices
+are also replayed through live perception and contact dynamics on all six test
+scenes, with assertions against the matched candidate records.
+
+```powershell
+.\.venv\Scripts\python.exe collect_hjepa.py --structural --output runs/hjepa/structural_data --seed 20261017
+.\.venv\Scripts\python.exe train_hjepa.py --data runs/hjepa/structural_data --output runs/hjepa/structural_model --init-checkpoint runs/hjepa/official_model/selected.pt --epochs 9 --policy-updates 1000 --device cuda
+.\.venv\Scripts\python.exe evaluate_structural_training.py --device cuda
+```
+
+Use a structural `--scenario` when running this checkpoint: its four physical
+bases include both faces. Outputs stay in ignored `runs/hjepa/` and previous
+weights are preserved. Use a new output directory for a subsequent training run.
+
+Validation checks can additionally compare `refit_structural_position.py`:
+this freezes the complete world model and fits only the existing positioning
+MLP on the same ViT's pre-projector CLS features. Training-only affine feature
+standardization is folded into the MLP's existing first layer, so parameter
+counts and shapes do not change. Train returns supervise soft-label ranking
+(temperature 0.03 in return/15 units); validation return selects among 300
+updates, checked every 10 updates. The replacement is accepted only if it
+improves validation return. Original selected weights are archived before
+replacement, and every non-position tensor must remain exactly equal.
+
+Run this optional step **before** the first held-out evaluation. Policy
+comparisons record the positioning representation interface for each version;
+world-model/value/grasp latents continue using the official JEPA projection.
+This is a task-policy adaptation, not a change to the official world model.

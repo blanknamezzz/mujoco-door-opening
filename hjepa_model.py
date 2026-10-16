@@ -205,6 +205,18 @@ class DoorHJEPA(nn.Module):
             {'pixels': pixels[:, None], 'proprio': proprio[:, None]}, key='pixels')
         return out['embed']
 
+    def encode_position(self, pixels, proprio):
+        """Optional downstream probe of the same ViT before JEPA projection.
+
+        Dynamics/value/grasp latents remain the official projected embedding.
+        This adds no parameters and never changes world-model inference.
+        """
+        if self.config.get('position_encoder') == 'backbone_cls':
+            if not self.is_official:
+                raise ValueError('Backbone CLS positioning requires the official ViT.')
+            return self.model.get_level(1).encoder.encoder(self.normalize_pixels(pixels)).last_hidden_state[:, 0]
+        return self.encode(pixels, proprio)
+
     def imagine(self, latent, actions, level=1):
         """Finite candidate rollout, reusing official predictors/action encoders.
 

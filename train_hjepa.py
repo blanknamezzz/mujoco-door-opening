@@ -41,19 +41,23 @@ def state_tensor(array, mean, std, device):
 
 
 def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', policy_updates=0,
-          profile='official', epochs=None, activation_checkpointing=True):
+          profile='official', epochs=None, activation_checkpointing=True, init_checkpoint=None):
     started = time.perf_counter()
+    if any((output/name).exists() for name in ['best.pt', 'last.pt', 'selected.pt', 'training.json']):
+        raise FileExistsError('Training output already contains a run; choose a fresh --output.')
     if (steps is not None and steps < 1) or (batch_size is not None and batch_size < 2):
         raise ValueError('Use positive steps and batch_size >= 2 for SIGReg.')
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     # Small models are much faster without large CPU thread pools.
-    if device == 'cpu':
-        torch.set_num_threads(min(4, torch.get_num_threads()))
+    torch.set_num_threads(min(4, torch.get_num_threads()))
     manifest, records = read_data(data)
     budgets = dict(base_budget=manifest.get('base_budget', max(ep['base_id'] for ep, _ in records)+1),
                    grasp_budget=manifest.get('grasp_budget', max(ep['grasp_id'] for ep, _ in records)+1))
+    if manifest.get('positioning_abstention'):
+        budgets.update(positioning_abstention=True, candidate_base_poses=manifest['candidate_base_poses'],
+                       abstention_reward=manifest['abstention_reward'])
     training = [(ep, x) for ep, x in records if ep['split'] == 'train']
     state_arrays = [x['proprio'] for _, x in training if len(x['proprio'])]
     state_arrays += [x['initial_proprio'][None] for _, x in training]
@@ -67,7 +71,19 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
     raw_interval = config.get('raw_observation_interval_s', config['observation_interval_s'])
     if abs(manifest['observation_interval_s']-raw_interval) > 1e-6:
         raise ValueError(f'{profile} requires {raw_interval}s raw observation intervals.')
-    model = DoorHJEPA(config).to(device)
+    initialization = None
+    if init_checkpoint:
+        model, source = load_checkpoint(init_checkpoint, device)
+        if model.config.get('profile') != profile:
+            raise ValueError('Initialization checkpoint profile does not match requested architecture.')
+        config = model.config
+        import hashlib
+        with init_checkpoint.open('rb') as f:
+            initialization = dict(path=str(init_checkpoint), sha256=hashlib.file_digest(f, 'sha256').hexdigest(),
+                                  step=source.get('step'), optimizer_resumed=False)
+        del source
+    else:
+        model = DoorHJEPA(config).to(device)
     if model.is_official:
         actions = np.concatenate([x['action'] for _, x in training if len(x['action'])])
         model.action_mean.copy_(torch.tensor(actions.mean(0), device=device))
@@ -138,14 +154,20 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
             pool = [(ep, x) for ep, x in records if ep['split'] == split]
             for stage, head, feature in [('initial', model.position_policy, 'base'),
                                          ('arrival', model.grasp_policy, 'grasp')]:
-                stage_pool = pool if stage == 'initial' else [(ep, x) for ep, x in pool if ep.get('grasp_observed', True)]
+                if stage == 'initial':
+                    # One initial example per base, so a single refusal record
+                    # has equal weight to a base with four grasp records.
+                    stage_pool = list({(ep['scene_id'], ep['base_id']): (ep, x) for ep, x in pool}.values())
+                else:
+                    stage_pool = [(ep, x) for ep, x in pool if ep.get('grasp_observed', True)]
                 if not stage_pool:
                     continue
                 examples = random.choices(stage_pool, k=count)
                 was_training = model.training
                 model.eval()
                 with torch.no_grad():
-                    latent = model.encode(
+                    encoder = model.encode_position if stage == 'initial' else model.encode
+                    latent = encoder(
                         rgb_tensor(np.stack([x[f'{stage}_rgb'] for _, x in examples]), device),
                         state_tensor(np.stack([x[f'{stage}_proprio'] for _, x in examples]), mean, std, device))
                 model.train(was_training)
@@ -204,6 +226,7 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
                   precision='bf16-mixed' if mixed_precision else 'float32',
                   parameters=sum(p.numel() for p in model.parameters()),
                   scheduler=scheduler_info, elapsed_seconds=time.perf_counter()-started,
+                  initialization=initialization, task_metadata=budgets,
                   peak_allocated_mib=torch.cuda.max_memory_allocated()/2**20 if device == 'cuda' else None,
                   peak_reserved_mib=torch.cuda.max_memory_reserved()/2**20 if device == 'cuda' else None,
                   note='Validation loss selects best.pt; last.pt includes optional finite-pool policy updates. '
@@ -211,7 +234,7 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
     (output/'training.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
 
 
-def alternate_policy_updates(model, records, mean, std, device, updates):
+def alternate_policy_updates(model, records, mean, std, device, updates, validation=None, select_best=False):
     """Exact finite-pool policy gradients using measured counterfactual returns.
 
     Alternate the position and grasp heads with frozen world-model encoders.
@@ -225,20 +248,67 @@ def alternate_policy_updates(model, records, mean, std, device, updates):
         groups.setdefault(ep['scene_id'], {}).setdefault(ep['base_id'], []).append((ep, x))
     pos_optim = torch.optim.Adam(model.position_policy.parameters(), lr=1e-3)
     grasp_optim = torch.optim.Adam(model.grasp_policy.parameters(), lr=1e-3)
-    for iteration in range(updates):
-        base_groups = random.choice(list(groups.values()))
-        all_base = list(base_groups.values())
-        first = all_base[0][0][1]
+    # The encoder is frozen throughout these updates. Cache only training-set
+    # latents, and never encode a fictitious arrival for the refusal action.
+    def cache(source):
+        cached = []
+        for base_groups in source.values():
+            all_base = list(base_groups.values())
+            first = all_base[0][0][1]
+            with torch.no_grad():
+                initial = getattr(model, 'encode_position', model.encode)(rgb_tensor(first['initial_rgb'][None], device),
+                                       state_tensor(first['initial_proprio'][None], mean, std, device))
+                arrivals = [None if g[0][0].get('positioning_only') else model.encode(
+                    rgb_tensor(g[0][1]['arrival_rgb'][None], device),
+                    state_tensor(g[0][1]['arrival_proprio'][None], mean, std, device)) for g in all_base]
+            cached.append((all_base, initial, arrivals))
+        return cached
+    cached = cache(groups)
+    validation_groups = {}
+    for ep, x in validation or []:
+        validation_groups.setdefault(ep['scene_id'], {}).setdefault(ep['base_id'], []).append((ep, x))
+    val_cached = cache(validation_groups)
+    if select_best and not val_cached:
+        raise ValueError('Validation records required for stage-policy checkpoint selection.')
+    selections = []
+    best_policy = None
+    best_val = -float('inf')
+    def select_policy(iteration):
+        nonlocal best_val, best_policy
         with torch.no_grad():
-            initial = model.encode(rgb_tensor(first['initial_rgb'][None], device),
-                                   state_tensor(first['initial_proprio'][None], mean, std, device))
-            arrivals = [model.encode(rgb_tensor(g[0][1]['arrival_rgb'][None], device),
-                                    state_tensor(g[0][1]['arrival_proprio'][None], mean, std, device))
-                        for g in all_base]
+            rewards = []
+            for all_base, initial, arrivals in val_cached:
+                features = torch.tensor(np.stack([g[0][1]['base'] for g in all_base]), device=device)
+                logits = model.position_policy(torch.cat([initial.expand(len(all_base), -1), features], -1)).flatten()
+                bid = int(logits.argmax())
+                g, latent = all_base[bid], arrivals[bid]
+                if latent is None:
+                    rewards.append(g[0][0]['reward'])
+                    continue
+                features = torch.tensor(np.stack([x['grasp'] for _, x in g]), device=device)
+                scores = model.grasp_policy(torch.cat([latent.expand(len(g), -1), features], -1)).flatten()
+                eligible = [i for i, (ep, _) in enumerate(g) if ep.get('current_reachable', True)]
+                gid = max(eligible, key=lambda i: float(scores[i])) if eligible else int(scores.argmax())
+                rewards.append(g[gid][0]['reward'])
+        score = float(np.mean(rewards))
+        selections.append(dict(update=iteration, validation_mean_reward=score))
+        print(json.dumps(dict(stage_policy_validation=selections[-1])), flush=True)
+        if score > best_val+1e-8:
+            best_val = score
+            best_policy = (iteration, {k: v.detach().cpu().clone() for k, v in model.position_policy.state_dict().items()},
+                           {k: v.detach().cpu().clone() for k, v in model.grasp_policy.state_dict().items()})
+    if select_best:
+        select_policy(0)
+    for iteration in range(updates):
+        all_base, initial, arrivals = random.choice(cached)
         base_conditions = torch.tensor(np.stack([g[0][1]['base'] for g in all_base]), device=device)
         position_logits = model.position_policy(torch.cat([initial.expand(len(all_base), -1), base_conditions], -1)).flatten()
         values, grasp_losses = [], []
         for g, latent in zip(all_base, arrivals):
+            if latent is None:
+                values.append(torch.tensor(g[0][0]['reward']/15., device=device))
+                grasp_losses.append(torch.zeros((), device=device))
+                continue
             conditions = torch.tensor(np.stack([x['grasp'] for _, x in g]), device=device)
             logits = model.grasp_policy(torch.cat([latent.expand(len(g), -1), conditions], -1)).flatten()
             returns = torch.tensor([ep['reward']/15. for ep, _ in g], device=device)
@@ -257,6 +327,16 @@ def alternate_policy_updates(model, records, mean, std, device, updates):
             grasp_optim.zero_grad()
             loss.backward()
             grasp_optim.step()
+        if (iteration+1) % 200 == 0:
+            print(json.dumps(dict(stage_policy_update=iteration+1, updates=updates)), flush=True)
+        if select_best and ((iteration+1) % 100 == 0 or iteration+1 == updates):
+            select_policy(iteration+1)
+    if select_best:
+        iteration, position, grasp = best_policy
+        model.position_policy.load_state_dict(position)
+        model.grasp_policy.load_state_dict(grasp)
+        return dict(selected_update=iteration, updates_executed=updates, validation=selections)
+    return dict(selected_update=updates, updates_executed=updates)
 
 
 def finalize_selected_checkpoint(data, output, policy_updates=100, seed=42, device='cpu'):
@@ -269,10 +349,12 @@ def finalize_selected_checkpoint(data, output, policy_updates=100, seed=42, devi
     model, source = load_checkpoint(output/'best.pt', device)
     _, records = read_data(data)
     training = [(ep, x) for ep, x in records if ep['split'] == 'train']
+    validation = [(ep, x) for ep, x in records if ep['split'] == 'val']
     for parameter in model.model.parameters():
         parameter.requires_grad_(False)
     mean, std = source['state_mean'].to(device), source['state_std'].to(device)
-    alternate_policy_updates(model, training, mean, std, device, policy_updates)
+    selection = alternate_policy_updates(model, training, mean, std, device, policy_updates,
+                                         validation=validation, select_best=bool(source.get('positioning_abstention')))
     # Verify that policy fitting did not alter ANY world-model weight or buffer.
     unchanged = all(torch.equal(value, source['model']['model.'+key])
                     for key, value in model.model.state_dict().items())
@@ -283,13 +365,16 @@ def finalize_selected_checkpoint(data, output, policy_updates=100, seed=42, devi
     save_checkpoint(output/'selected.pt', model, mean.cpu(), std.cpu(),
                     step=source['step'], training_steps=report['steps'], seed=seed,
                     base_budget=source['base_budget'], grasp_budget=source['grasp_budget'],
-                    policy_updates=policy_updates, world_model_unchanged=True,
+                    policy_updates=selection['selected_update'], policy_updates_executed=policy_updates, world_model_unchanged=True,
+                    **{k: source[k] for k in ['positioning_abstention', 'candidate_base_poses', 'abstention_reward'] if k in source},
                     selection='minimum validation loss, followed by train-only stage policy updates')
     report.update(selected_checkpoint='selected.pt', selected_world_model_step=source['step'],
-                  selected_policy_updates=policy_updates, selected_world_model_unchanged=True)
+                  selected_policy_updates=selection['selected_update'], stage_policy_selection=selection,
+                  selected_world_model_unchanged=True)
     report_path.write_text(json.dumps(report, indent=2), encoding='utf-8')
     print(json.dumps(dict(selected='selected.pt', world_model_step=source['step'],
-                          policy_updates=policy_updates, world_model_unchanged=True)), flush=True)
+                          policy_updates=selection['selected_update'], policy_updates_executed=policy_updates,
+                          world_model_unchanged=True)), flush=True)
 
 
 if __name__ == '__main__':
@@ -304,9 +389,11 @@ if __name__ == '__main__':
     p.add_argument('--seed', type=int, default=42)
     p.add_argument('--device', choices=['auto', 'cpu', 'cuda'], default='auto')
     p.add_argument('--policy-updates', type=int, default=100)
+    p.add_argument('--init-checkpoint', type=Path, help='Continue full-model weights with a fresh optimizer on new data')
     a = p.parse_args()
     device = resolve_device(a.device)
-    train(a.data, a.output, a.steps, a.batch_size, a.seed, device, a.policy_updates,
-          profile=a.profile, epochs=a.epochs, activation_checkpointing=not a.no_activation_checkpointing)
+    train(a.data, a.output, a.steps, a.batch_size, a.seed, device, a.policy_updates if a.profile != 'official' else 0,
+          profile=a.profile, epochs=a.epochs, activation_checkpointing=not a.no_activation_checkpointing,
+          init_checkpoint=a.init_checkpoint)
     if a.profile == 'official':
         finalize_selected_checkpoint(a.data, a.output, a.policy_updates, a.seed, device)
