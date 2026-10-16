@@ -1,5 +1,19 @@
 # MuJoCo Door Opening
 
+Current continuation uses **LoRA**, with the original H-JEPA core frozen and
+unmerged. The expanded suite has 240 independent scenes (192/24/24), twelve
+structural families and randomized camera/geometry/lighting. The local pipeline
+collects physical counterfactuals, trains adapters, then evaluates frozen test
+scenes. See [LoRA continuation and progress](docs/hjepa_setup.md#lora-continuation).
+
+```powershell
+.\.venv\Scripts\python.exe run_hjepa_lora_experiment.py
+.\.venv\Scripts\python.exe hjepa_lora_status.py
+```
+
+The commands below document the earlier full-model training baseline; the LoRA
+continuation preserves that checkpoint and writes a separate adapter.
+
 ## Official H-JEPA setup
 
 The staged world-model pipeline now uses the complete official `pusht_hjepa_l2`

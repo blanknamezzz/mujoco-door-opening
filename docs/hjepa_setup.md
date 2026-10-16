@@ -418,3 +418,91 @@ Run this optional step **before** the first held-out evaluation. Policy
 comparisons record the positioning representation interface for each version;
 world-model/value/grasp latents continue using the official JEPA projection.
 This is a task-policy adaptation, not a change to the official world model.
+
+## LoRA continuation
+
+The current user-requested continuation freezes the original world model.
+It does **not** perform another full-model fine-tune. Rank-8, alpha-16 LoRA with
+0.05 dropout wraps 138 eligible linear layers in the unchanged official model.
+There are 1,170,512 adapter parameters and 101,508 ordinary task-head parameters;
+original core parameters never enter the optimizer. BatchNorm statistics and
+the official latent-action queue are frozen too. Adapters are never merged into
+the original weights, and their loader verifies the base checkpoint SHA256.
+
+The old train split had only two scenes per family. Its selected policy opens
+8/10 feasible **training** scenes, versus 5/5 validation and 4/5 historical test
+scenes. It never rejects impossible cases. More iterations alone are therefore
+not justified by the earlier five-scene denominator. The old held-out cases
+are now historical diagnostics, rather than new evidence for this continuation.
+
+The expanded dataset uses seed 20261018: **240 scenes, 192 train / 24 validation /
+24 test**. Twelve families cover free doors, front/back/bilateral pillars,
+front/back-only handles, blocked single-handle doors, outside-arc distractor
+pillars, mixed posts and low posts. Pillar angle, radius, thickness and height,
+handle position, friction, resistance, camera azimuth (-12 to +12 degrees),
+camera height and illumination vary. All four bases and four grasp trials for
+one scene stay in the same split. Each scene also has one zero-return refusal
+record: 4,080 total planned records. Low posts behind the closed door are an
+occlusion stress case; extra data does not make hidden geometry observable.
+Unmarked hidden one-way hinges remain outside the main training suite.
+
+Reward remains the existing slide-3 contract for this comparison:
+
+```text
+R = 10*success + positioned + aligned + grasped
+    + 2*safe_progress - 5*collision - 3*final_shortfall - 0.1*time_fraction
+R(refuse) = 0
+```
+
+Successful openings yield approximately +14.9. A typical 40-degree blocked
+opening yields about -3, already below refusal. Increasing collision penalties
+alone would not fix a policy that cannot distinguish which side is blocked.
+The existing positioned proxy is `outcome != A_initial_unreachable`, so even a
+perception failure currently earns that +1 (total -2 without a trajectory).
+This compatibility limitation is retained explicitly rather than silently
+changing labels between datasets. Exact penalties for each run are stored in
+the collected episode metrics.
+
+Adapter training adds task-policy gradients through the visual encoder, so
+static obstacles receive supervision as well as the official predictive loss.
+Earlier policy fitting detached all encoder features. Windows are sampled
+uniformly by scene to reduce the dominance of long successful trajectories.
+The continuation keeps native 224x224 images, two hierarchical levels,
+batch 128 and BF16. Its budget is **1,200 adapter steps**, not nine new complete
+passes through the enlarged dataset. AdamW uses adapter LR 1e-4, head LR 3e-4,
+50-step warmup, cosine decay and weight decay 0.01. These are explicitly task
+adaptation settings rather than the upstream full-training scheduler.
+
+Validation task return selects the checkpoint; predictive loss breaks ties.
+The unadapted checkpoint is included as a fallback. Up to 400 alternating
+policy-head updates follow, with the adapters frozen, again retaining the best
+validation pair including update zero. Test outcomes are used only after both
+selections are frozen. The evaluator crosses pre/post heads within the same
+adapted world model, compares the original checkpoint, tests lookahead, and
+physically replays all 24 held-out scenes. Refusals and false refusals are
+reported separately from full openings.
+
+```powershell
+# Runs four resumable collectors, then CUDA LoRA training, then frozen evaluation.
+.\.venv\Scripts\python.exe run_hjepa_lora_experiment.py
+.\.venv\Scripts\python.exe hjepa_lora_status.py
+
+# After the job completes, the compact adapter is loadable through the usual API.
+.\.venv\Scripts\python.exe run_hjepa.py --checkpoint runs/hjepa/diverse_lora_model/adapter.pt --scenario pillar-front --output runs/hjepa/lora_demo
+```
+
+Artifacts are under ignored `runs/hjepa/diverse_lora_{data,model}`. Check
+`status.json` for the actual stage; a running collection is not a completed
+training result. Per-worker logs, provenance, source snapshots, training curves,
+the core-immutability contract, frozen-test hashes and evaluation JSON are
+retained. `selected.pt` is self-contained; `adapter.pt` contains only LoRA/task
+heads plus metadata and requires the unchanged base checkpoint. Neither
+replaces `runs/hjepa/structural_model/selected.pt`.
+
+A two-step CUDA smoke check (`runs/hjepa/lora_smoke_v2`) completed with batch 128
+and approximately 2,875 MiB peak allocated VRAM. All original core tensors and
+statistics matched exactly after updates. The short adaptation reduced old
+validation return; selection correctly kept the unadapted version. This is a
+safety/integration check, not evidence of improved opening success. LoRA
+preserves the base file; it does not itself guarantee that an enabled adapter
+will generalize.

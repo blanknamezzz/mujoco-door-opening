@@ -32,6 +32,9 @@ runs/
 wandb/
 lightning_logs/
 checkpoints/
+adapters/
+peft_checkpoints/
+adapter_model.bin
 datasets/
 artifacts/
 # Keep small source documents and existing tracked reference results.

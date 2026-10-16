@@ -90,7 +90,7 @@ def evaluate(data, model_dir, output, baseline, device='cuda'):
     training = json.loads((model_dir/'training.json').read_text())
     seen = {s['scene_id'] for s in training['scenes'] if s['split'] != 'test'}
     tests = {s['scene_id'] for s in manifest['scenes'] if s['split'] == 'test'}
-    if seen & tests or len(tests) != 6:
+    if seen & tests or not tests:
         raise ValueError('Unexpected or overlapping held-out scene split.')
     output.mkdir(parents=True, exist_ok=True)
     summaries, all_decisions = {}, {}

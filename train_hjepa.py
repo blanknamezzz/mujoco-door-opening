@@ -41,7 +41,8 @@ def state_tensor(array, mean, std, device):
 
 
 def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', policy_updates=0,
-          profile='official', epochs=None, activation_checkpointing=True, init_checkpoint=None):
+          profile='official', epochs=None, activation_checkpointing=True, init_checkpoint=None,
+          lora_rank=None, lora_alpha=16., lora_dropout=.05):
     started = time.perf_counter()
     if any((output/name).exists() for name in ['best.pt', 'last.pt', 'selected.pt', 'training.json']):
         raise FileExistsError('Training output already contains a run; choose a fresh --output.')
@@ -84,14 +85,27 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
         del source
     else:
         model = DoorHJEPA(config).to(device)
-    if model.is_official:
+    lora_info, frozen_digest = None, None
+    if lora_rank is not None:
+        if not init_checkpoint or not model.is_official:
+            raise ValueError('LoRA requires an existing official checkpoint.')
+        from hjepa_lora import install_lora, frozen_core_digest
+        lora_info = install_lora(model, lora_rank, lora_alpha, lora_dropout)
+        frozen_digest = frozen_core_digest(model)
+    if model.is_official and lora_rank is None:
         actions = np.concatenate([x['action'] for _, x in training if len(x['action'])])
         model.action_mean.copy_(torch.tensor(actions.mean(0), device=device))
         model.action_std.copy_(torch.tensor(actions.std(0, ddof=1), device=device))
     if profile == 'official' and activation_checkpointing:
         model.enable_activation_checkpointing()
     batch_size = batch_size or (config['loader']['batch_size'] if profile == 'official' else 16)
-    if profile == 'official':
+    if lora_rank is not None:
+        # Frozen parameters never enter the optimizer. Moderate adapter LR and
+        # ordinary task heads; do not resume upstream epoch-scheduler state.
+        groups = [dict(params=[p for p in model.model.parameters() if p.requires_grad], lr=1e-4),
+                  dict(params=[p for n, p in model.named_parameters() if not n.startswith('model.') and p.requires_grad], lr=3e-4)]
+        optim = torch.optim.AdamW(groups, weight_decay=.01)
+    elif profile == 'official':
         groups = [{'params': model.model.get_level(i).parameters(), 'lr': config[f'level{i}']['lr']}
                   for i in (1, 2)]
         groups.append({'params': [p for n, p in model.named_parameters() if not n.startswith('model.')],
@@ -120,7 +134,15 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
     steps = steps or (epochs*steps_per_epoch if profile == 'official' else 1000)
     scheduler = None
     scheduler_info = None
-    if profile == 'official':
+    if lora_rank is not None:
+        warmup_steps = min(50, max(1, steps//10))
+        def adapter_scale(step):
+            if step < warmup_steps:
+                return (step+1)/warmup_steps
+            return .1+.9*.5*(1+math.cos(math.pi*(step-warmup_steps)/max(1, steps-warmup_steps)))
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optim, adapter_scale)
+        scheduler_info = dict(type='adapter warmup cosine', interval='step', warmup_steps=warmup_steps, max_steps=steps)
+    elif profile == 'official':
         # Match main_hjepa.py and stable-pretraining 0.1.7's scheduler defaults,
         # including the upstream epoch interval (not an invented step schedule).
         warmup_steps = max(1, int(.01*steps))
@@ -134,6 +156,19 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
     output.mkdir(parents=True, exist_ok=True)
     (output/'resolved_config.json').write_text(json.dumps(model.config, indent=2), encoding='utf-8')
     history = []
+    # Fixed validation clips make checkpoint comparisons reproducible. Test
+    # clips are never evaluated during adaptation or policy selection.
+    validation_clips = random.Random(seed+1).choices(windows['val'], k=batch_size)
+    balanced_windows = {}
+    for clip in windows['train']:
+        balanced_windows.setdefault(clip[0]['scene_id'], []).append(clip)
+    balanced_pools = list(balanced_windows.values())
+    trainable_names = [n for n, p in model.named_parameters() if p.requires_grad]
+    if lora_info:
+        (output/'adapter_contract.json').write_text(json.dumps(dict(**lora_info,
+            frozen_core_sha256=frozen_digest, trainable_names=trainable_names,
+            base_checkpoint=initialization, policy_encoder_gradients=True,
+            scene_balanced_sampling=True), indent=2), encoding='utf-8')
 
     def loss_for(split, count, policies=True, clips=None):
         clips = clips or random.choices(windows[split], k=count)
@@ -162,15 +197,21 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
                     stage_pool = [(ep, x) for ep, x in pool if ep.get('grasp_observed', True)]
                 if not stage_pool:
                     continue
-                examples = random.choices(stage_pool, k=count)
+                examples = random.choices(stage_pool, k=min(count, 16) if lora_info else count)
                 was_training = model.training
                 model.eval()
-                with torch.no_grad():
+                # LoRA must see end-task supervision: a predictive-only encoder
+                # can ignore static obstacles while its frozen heads cannot
+                # recover discarded information. Base weights remain frozen.
+                with torch.set_grad_enabled(lora_info is not None and split == 'train'):
                     encoder = model.encode_position if stage == 'initial' else model.encode
                     latent = encoder(
                         rgb_tensor(np.stack([x[f'{stage}_rgb'] for _, x in examples]), device),
                         state_tensor(np.stack([x[f'{stage}_proprio'] for _, x in examples]), mean, std, device))
                 model.train(was_training)
+                if lora_info:
+                    from hjepa_lora import freeze_core_statistics
+                    freeze_core_statistics(model)
                 condition = torch.tensor(np.stack([x[feature] for _, x in examples]), device=device)
                 targets = [(position_targets[(ep['scene_id'], ep['base_id'])] if stage == 'initial'
                             else ep['reward'])/15. for ep, _ in examples]
@@ -181,16 +222,32 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
                            policy=float(policy_loss.detach()))
 
     best = float('inf')
+    best_return = -float('inf')
+    baseline_validation = None
+    if lora_info:
+        from evaluate_structural_training import evaluate_records
+        model.eval()
+        with torch.inference_mode():
+            baseline_validation, _ = evaluate_records(model, dict(state_mean=mean, state_std=std, **budgets),
+                                                      records, manifest, split='val')
+        best_return = baseline_validation['mean_reward']
+        save_checkpoint(output/'best.pt', model, mean.cpu(), std.cpu(), step=0, seed=seed, **budgets)
+        print(json.dumps(dict(unadapted_validation=baseline_validation)), flush=True)
     print(json.dumps(dict(profile=profile, parameters=sum(p.numel() for p in model.parameters()),
         batch_size=batch_size, steps=steps, steps_per_epoch=steps_per_epoch,
         precision='bf16-mixed' if mixed_precision else 'float32',
-        activation_checkpointing=model.config.get('activation_checkpointing', False))), flush=True)
+        activation_checkpointing=model.config.get('activation_checkpointing', False), lora=lora_info)), flush=True)
     for step in range(steps):
         model.train()
+        if lora_info:
+            from hjepa_lora import freeze_core_statistics
+            freeze_core_statistics(model)
         if step % steps_per_epoch == 0:
             epoch_order = random.sample(windows['train'], len(windows['train']))
         start = (step % steps_per_epoch)*batch_size
         clips = epoch_order[start:start+batch_size]
+        if lora_info:
+            clips = [random.choice(random.choice(balanced_pools)) for _ in range(batch_size)]
         with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=mixed_precision):
             loss, parts = loss_for('train', batch_size, clips=clips)
         if not torch.isfinite(loss):
@@ -199,22 +256,37 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), 1.)
         optim.step()
-        if scheduler is not None and (step+1) % steps_per_epoch == 0:
+        if scheduler is not None and (lora_info or (step+1) % steps_per_epoch == 0):
             scheduler.step()
         if step == 0 or (step+1) % max(1, min(50, steps)) == 0 or step+1 == steps:
             model.eval()
             with torch.no_grad(), torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=mixed_precision):
-                val, val_parts = loss_for('val', batch_size)
+                val, val_parts = loss_for('val', batch_size, clips=validation_clips if lora_info else None)
+            policy_validation = None
+            if lora_info:
+                from evaluate_structural_training import evaluate_records
+                with torch.inference_mode():
+                    policy_validation, _ = evaluate_records(model, dict(state_mean=mean, state_std=std, **budgets),
+                                                            records, manifest, split='val')
             entry = dict(step=step+1, epoch=step//steps_per_epoch+1,
                          train=float(loss.detach()), val=float(val),
                          learning_rates=[g['lr'] for g in optim.param_groups],
                          elapsed_seconds=time.perf_counter()-started, **parts,
-                         val_components=val_parts)
+                         val_components=val_parts, policy_validation=policy_validation)
             history.append(entry)
             print(json.dumps(entry), flush=True)
-            if float(val) < best:
+            validation_return = policy_validation['mean_reward'] if policy_validation else None
+            improved = (validation_return > best_return+1e-8 or
+                        (abs(validation_return-best_return) <= 1e-8 and float(val) < best)) if lora_info else float(val) < best
+            if improved:
                 best = float(val)
+                if lora_info:
+                    best_return = validation_return
                 save_checkpoint(output/'best.pt', model, mean.cpu(), std.cpu(), step=step+1, seed=seed, **budgets)
+    if lora_info:
+        from hjepa_lora import frozen_core_digest
+        if frozen_core_digest(model) != frozen_digest:
+            raise AssertionError('LoRA training changed frozen core tensors or running statistics.')
     if policy_updates:
         alternate_policy_updates(model, training, mean, std, device, policy_updates)
     save_checkpoint(output/'last.pt', model, mean.cpu(), std.cpu(), step=steps, seed=seed, **budgets)
@@ -226,10 +298,14 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
                   precision='bf16-mixed' if mixed_precision else 'float32',
                   parameters=sum(p.numel() for p in model.parameters()),
                   scheduler=scheduler_info, elapsed_seconds=time.perf_counter()-started,
-                  initialization=initialization, task_metadata=budgets,
+                  initialization=initialization, task_metadata=budgets, lora=lora_info,
+                  frozen_core_unchanged=True if lora_info else None,
+                  checkpoint_selection='validation task return, predictive loss breaks ties' if lora_info else 'validation loss',
+                  unadapted_validation=baseline_validation,
                   peak_allocated_mib=torch.cuda.max_memory_allocated()/2**20 if device == 'cuda' else None,
                   peak_reserved_mib=torch.cuda.max_memory_reserved()/2**20 if device == 'cuda' else None,
-                  note='Validation loss selects best.pt; last.pt includes optional finite-pool policy updates. '
+                  note=('Validation task return selects best.pt (unadapted fallback included); base core tensors and statistics remain exact. '
+                        if lora_info else 'Validation loss selects best.pt; ')+'last.pt includes optional finite-pool policy updates. '
                        'No test data used for training or checkpoint selection. Small runs are pipeline checks.')
     (output/'training.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
 
@@ -371,6 +447,14 @@ def finalize_selected_checkpoint(data, output, policy_updates=100, seed=42, devi
     report.update(selected_checkpoint='selected.pt', selected_world_model_step=source['step'],
                   selected_policy_updates=selection['selected_update'], stage_policy_selection=selection,
                   selected_world_model_unchanged=True)
+    if model.config.get('lora'):
+        from hjepa_lora import adapter_state
+        torch.save(dict(adapter=adapter_state(model), config=model.config,
+                        base_checkpoint=report['initialization'], state_mean=mean.cpu(), state_std=std.cpu(),
+                        metadata={**{k: source[k] for k in ['base_budget', 'grasp_budget', 'positioning_abstention',
+                                                          'candidate_base_poses', 'abstention_reward'] if k in source},
+                                                          'step': source['step'], 'policy_updates': selection['selected_update']}),
+                   output/'adapter.pt')
     report_path.write_text(json.dumps(report, indent=2), encoding='utf-8')
     print(json.dumps(dict(selected='selected.pt', world_model_step=source['step'],
                           policy_updates=selection['selected_update'], policy_updates_executed=policy_updates,
@@ -390,10 +474,13 @@ if __name__ == '__main__':
     p.add_argument('--device', choices=['auto', 'cpu', 'cuda'], default='auto')
     p.add_argument('--policy-updates', type=int, default=100)
     p.add_argument('--init-checkpoint', type=Path, help='Continue full-model weights with a fresh optimizer on new data')
+    p.add_argument('--lora-rank', type=int, help='Freeze original core and train reversible low-rank adapters only')
+    p.add_argument('--lora-alpha', type=float, default=16.)
+    p.add_argument('--lora-dropout', type=float, default=.05)
     a = p.parse_args()
     device = resolve_device(a.device)
     train(a.data, a.output, a.steps, a.batch_size, a.seed, device, a.policy_updates if a.profile != 'official' else 0,
           profile=a.profile, epochs=a.epochs, activation_checkpointing=not a.no_activation_checkpointing,
-          init_checkpoint=a.init_checkpoint)
+          init_checkpoint=a.init_checkpoint, lora_rank=a.lora_rank, lora_alpha=a.lora_alpha, lora_dropout=a.lora_dropout)
     if a.profile == 'official':
         finalize_selected_checkpoint(a.data, a.output, a.policy_updates, a.seed, device)

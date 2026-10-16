@@ -115,6 +115,12 @@ class DoorHJEPA(nn.Module):
         self.grasp_policy = MLP(low_dim+5, 128, 1)
         self.value_low = MLP(low_dim, 128, 1)
         self.value_high = MLP(high_dim, 128, 1)
+        if self.config.get('lora'):
+            from hjepa_lora import install_lora
+            lora = dict(self.config['lora'])
+            install_lora(self, lora['rank'], lora['alpha'], lora['dropout'])
+            if self.config['lora']['targets'] != lora['targets']:
+                raise ValueError('LoRA target modules differ from the saved architecture.')
         if self.config.get('activation_checkpointing'):
             self.enable_activation_checkpointing(self.config.get('encoder_chunk_size', 32))
 
@@ -251,6 +257,29 @@ def save_checkpoint(path, model, state_mean, state_std, **metadata):
 
 def load_checkpoint(path, device='cpu'):
     checkpoint = torch.load(path, map_location=device, weights_only=True)
+    if 'adapter' in checkpoint:
+        import hashlib
+        base = Path(checkpoint['base_checkpoint']['path'])
+        with base.open('rb') as stream:
+            digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+        if digest != checkpoint['base_checkpoint']['sha256']:
+            raise ValueError('Adapter base checkpoint hash mismatch; refusing to mix weights.')
+        model, source = load_checkpoint(base, device)
+        from hjepa_lora import install_lora
+        config = checkpoint['config']
+        lora = config['lora']
+        install_lora(model, lora['rank'], lora['alpha'], lora['dropout'])
+        if model.config['lora']['targets'] != lora['targets']:
+            raise ValueError('Adapter target layer mismatch.')
+        expected = {n for n in model.state_dict() if 'lora_' in n or
+                    n.startswith(('position_policy.', 'grasp_policy.', 'value_low.', 'value_high.'))}
+        if set(checkpoint['adapter']) != expected:
+            raise ValueError('Adapter/task-head tensors are missing or unexpected.')
+        model.load_state_dict(checkpoint['adapter'], strict=False)
+        model.config.update(config)
+        source.update(checkpoint.get('metadata', {}), config=config, model=model.state_dict(),
+                      state_mean=checkpoint['state_mean'], state_std=checkpoint['state_std'])
+        return model.eval(), source
     if checkpoint['upstream_commit'] != UPSTREAM_COMMIT:
         raise ValueError('Checkpoint requires a different upstream revision.')
     model = DoorHJEPA(checkpoint['config']).to(device)

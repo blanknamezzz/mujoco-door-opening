@@ -21,22 +21,29 @@ def small_rgb(frame, size, square_camera=False):
 
 
 def collect(output, scenes=12, seed=42, bases=5, grasp_count=4, image_size=224, resume=False,
-            observation_interval=.1, mmap_pixels=True, structural=False):
+            observation_interval=.1, mmap_pixels=True, structural=False, diverse=False,
+            train_per_family=16, val_per_family=2, test_per_family=2, shard_index=0, shard_count=1):
     if not 1 <= bases <= 5 or not 1 <= grasp_count <= 4:
         raise ValueError('Use 1..5 bases and 1..4 grasps.')
     output = Path(output)
     if (output/'manifest.json').exists():
         raise FileExistsError('Use a new output directory to preserve the previous dataset.')
     output.mkdir(parents=True, exist_ok=True)
+    if diverse:
+        structural = True
     if structural:
-        from structural_scene import structural_training_scenes, STRUCTURAL_BASES
-        specs = structural_training_scenes(seed)
+        from structural_scene import structural_training_scenes, diverse_structural_scenes, STRUCTURAL_BASES
+        specs = (diverse_structural_scenes(seed, train_per_family, val_per_family, test_per_family)
+                 if diverse else structural_training_scenes(seed))
         base_pool = STRUCTURAL_BASES
         if bases != 5 or grasp_count != 4:
             raise ValueError('Structural training uses four physical bases plus refusal, and four grasps.')
     else:
         specs, base_pool = scene_set(scenes, seed), BASE_CANDIDATES[:bases]
     specs = json.loads(json.dumps(specs))  # normalize tuples for exact resume matching
+    if not 0 <= shard_index < shard_count:
+        raise ValueError('Require 0 <= shard index < shard count.')
+    specs = specs[shard_index::shard_count]
     manifest = dict(schema_version=2 if mmap_pixels else 1, seed=seed, image_size=image_size,
                     base_budget=bases, grasp_budget=grasp_count,
                     observation_interval_s=observation_interval, upstream='https://github.com/kevinghst/H-JEPA',
@@ -164,7 +171,15 @@ if __name__ == '__main__':
     p.add_argument('--observation-interval', type=float, default=.1)
     p.add_argument('--compressed-pixels', action='store_true', help='Legacy compact NPZ pixel storage')
     p.add_argument('--structural', action='store_true', help='Collect scene-disjoint two-sided structural training data')
+    p.add_argument('--diverse', action='store_true', help='Expanded geometry, camera and lighting suite (implies structural)')
+    p.add_argument('--train-per-family', type=int, default=16)
+    p.add_argument('--val-per-family', type=int, default=2)
+    p.add_argument('--test-per-family', type=int, default=2)
+    p.add_argument('--shard-index', type=int, default=0)
+    p.add_argument('--shard-count', type=int, default=1)
     args = p.parse_args()
     collect(args.output, args.scenes, args.seed, args.bases, args.grasps, image_size=args.image_size,
             resume=args.resume, observation_interval=args.observation_interval,
-            mmap_pixels=not args.compressed_pixels, structural=args.structural)
+            mmap_pixels=not args.compressed_pixels, structural=args.structural, diverse=args.diverse,
+            train_per_family=args.train_per_family, val_per_family=args.val_per_family, test_per_family=args.test_per_family,
+            shard_index=args.shard_index, shard_count=args.shard_count)

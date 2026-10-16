@@ -39,12 +39,17 @@ class StructuralDoor(DoorScene):
     hinge_max_deg: float = 90.
     handle_faces: tuple = ('front', 'back')
     pillars: tuple = ()
+    camera_azimuth_deg: float = 0.
+    camera_height_offset: float = 0.
+    light_scale: float = 1.
 
     def __post_init__(self):
         if not -90 <= self.hinge_min_deg <= 0 <= self.hinge_max_deg <= 90 or self.hinge_min_deg == self.hinge_max_deg:
             raise ValueError('Hinge range must include zero and lie within +/-90 degrees.')
         if not self.handle_faces or set(self.handle_faces)-{'front', 'back'} or len(set(self.handle_faces)) != len(self.handle_faces):
             raise ValueError('Handle faces must be a nonempty unique front/back subset.')
+        if not all(math.isfinite(v) for v in (self.camera_azimuth_deg, self.camera_height_offset, self.light_scale)) or self.light_scale <= 0:
+            raise ValueError('Camera and lighting parameters must be finite, with positive light scale.')
 
     @property
     def base_candidates(self):
@@ -55,6 +60,7 @@ class StructuralDoor(DoorScene):
         tree = ET.parse(ROOT/'scene.xml')
         root = tree.getroot()
         world = root.find('worldbody')
+        world.find('light').set('diffuse', ' '.join([str(.7*self.light_scale)]*3))
         door = world.find("body[@name='door']")
         door.find("joint[@name='door_hinge']").set('range',
             f'{math.radians(self.hinge_min_deg)} {math.radians(self.hinge_max_deg)}')
@@ -89,6 +95,21 @@ class StructuralDoor(DoorScene):
             cid = exp.m.camera('perception').id
             exp.m.cam_pos[cid] = [.8, 2.2, .85]
             right, up, backward = [-1., 0., 0.], [0., 0., 1.], [0., 1., 0.]
+            mujoco.mju_mat2Quat(exp.m.cam_quat[cid], np.column_stack([right, up, backward]).ravel())
+            mujoco.mj_forward(exp.m, exp.d)
+        if self.camera_azimuth_deg or self.camera_height_offset:
+            cid = exp.m.camera('perception').id
+            target = np.array([.8, 0., .85])
+            offset = exp.m.cam_pos[cid]-target
+            angle = math.radians(self.camera_azimuth_deg)
+            c, s = math.cos(angle), math.sin(angle)
+            offset[:2] = np.array([[c, -s], [s, c]])@offset[:2]
+            offset[2] += self.camera_height_offset
+            exp.m.cam_pos[cid] = target+offset
+            backward = offset/np.linalg.norm(offset)
+            right = np.cross([0., 0., 1.], backward)
+            right /= np.linalg.norm(right)
+            up = np.cross(backward, right)
             mujoco.mju_mat2Quat(exp.m.cam_quat[cid], np.column_stack([right, up, backward]).ravel())
             mujoco.mj_forward(exp.m, exp.d)
         return exp
@@ -144,5 +165,48 @@ def structural_training_scenes(seed=20261017):
                 hinge_max_deg=0. if family == 'back-access-only' else 90.,
                 handle_faces=('front',) if family == 'front-access-only' else
                              ('back',) if family == 'back-access-only' else ('front', 'back'), pillars=pillars)
+            specs.append(dict(**asdict(scene), split=split, family=family))
+    return specs
+
+
+def diverse_structural_scenes(seed=20261018, train_per_family=16, val_per_family=2, test_per_family=2):
+    """Scene-disjoint geometry/view randomization; no outcome labels as inputs.
+
+    The old 24 scenes are not reused. Outside-arc posts teach that a visible
+    post need not obstruct a door. Low posts test occlusion, and single-handle
+    blocked cases provide physically unsolvable examples. Hidden hinge-only
+    controls remain excluded: identical RGB cannot reveal their constraint.
+    """
+    from dataclasses import asdict, replace
+    if min(train_per_family, val_per_family, test_per_family) < 1:
+        raise ValueError('Each split needs at least one scene per family.')
+    families = ['free-two-way', 'pillar-front', 'pillar-back', 'pillar-both',
+                'front-access-only', 'back-access-only', 'front-only-blocked',
+                'back-only-blocked', 'outside-arc', 'mixed-posts', 'low-front', 'low-back']
+    rng = np.random.default_rng(seed)
+    specs = []
+    splits = ['train']*train_per_family+['val']*val_per_family+['test']*test_per_family
+    for family in families:
+        for variant, split in enumerate(splits):
+            def post(sign=1, low=False):
+                p = pillar_at(sign*float(rng.uniform(25, 78)), float(rng.uniform(.3, .68)))
+                return replace(p, radius=float(rng.uniform(.028, .075)),
+                               height=float(rng.uniform(.45, .95) if low else rng.uniform(1.35, 1.9)))
+            front, back = post(), post(-1)
+            outside = replace(pillar_at(float(rng.uniform(-75, 75)), float(rng.uniform(1.08, 1.4))),
+                              radius=float(rng.uniform(.03, .07)), height=float(rng.uniform(.7, 1.9)))
+            pillars = {'pillar-front': (front,), 'pillar-back': (back,), 'pillar-both': (front, back),
+                'front-only-blocked': (front,), 'back-only-blocked': (back,), 'outside-arc': (outside,),
+                'mixed-posts': ((front if variant % 2 == 0 else back), outside),
+                'low-front': (post(low=True),), 'low-back': (post(-1, low=True),)}.get(family, ())
+            front_only = family in ('front-access-only', 'front-only-blocked')
+            back_only = family in ('back-access-only', 'back-only-blocked')
+            scene = StructuralDoor(f'diverse_{seed}_{family}_{variant:03d}',
+                handle_x=float(rng.uniform(.74, .85)), handle_z=float(rng.uniform(.82, .88)),
+                friction=float(rng.uniform(.55, .95)), hinge_resistance=float(rng.uniform(.8, 1.6)),
+                hinge_min_deg=0. if front_only else -90., hinge_max_deg=0. if back_only else 90.,
+                handle_faces=('front',) if front_only else ('back',) if back_only else ('front', 'back'),
+                pillars=pillars, camera_azimuth_deg=float(rng.uniform(-12, 12)),
+                camera_height_offset=float(rng.uniform(-.08, .18)), light_scale=float(rng.uniform(.75, 1.2)))
             specs.append(dict(**asdict(scene), split=split, family=family))
     return specs
