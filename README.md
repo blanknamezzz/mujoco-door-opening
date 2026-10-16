@@ -1,5 +1,59 @@
 # MuJoCo Door Opening
 
+## Official H-JEPA setup
+
+The staged world-model pipeline now uses the complete official `pusht_hjepa_l2`
+configuration (224x224 ViT-Tiny, 23.3M parameters), two timescales,
+separate positioning/grasping policies, fresh arrival RGB-D, physical trajectory
+collection, downstream rewards, and scene-disjoint evaluation.
+See [setup, training and limitations](docs/hjepa_setup.md).
+
+```powershell
+.\.venv\Scripts\python.exe setup_hjepa.py
+.\.venv\Scripts\python.exe collect_hjepa.py
+.\.venv\Scripts\python.exe train_hjepa.py --policy-updates 100
+.\.venv\Scripts\python.exe run_hjepa.py
+```
+
+The default full run uses batch 128, BF16, 9 epochs and ViT activation
+recomputation to fit the local 6 GB RTX 3060. The earlier 0.55M compact model is
+retained as an explicit legacy profile. Base placement uses simulator resets. The original contact baseline
+below remains available independently through `run_demo.py`.
+
+Expanded frozen-policy evaluation (new scene seed, matched stage interventions,
+base/grasp yaw sweeps and 30/60/90-degree controller targets):
+
+```powershell
+.\.venv\Scripts\python.exe evaluate_hjepa_stages.py --device cuda
+.\.venv\Scripts\python.exe evaluate_hjepa_views.py --device cuda
+.\.venv\Scripts\python.exe report_hjepa_stages.py
+.\.venv\Scripts\python.exe -m unittest test_hjepa test_hjepa_stages test_git_size -v
+.\.venv\Scripts\python.exe check_git_size.py
+```
+
+The stage evaluator crosses the pre/post-update positioning and grasping heads
+while asserting identical world/value weights. Physical candidate tables are
+evaluation labels, never selector inputs. Raw results stay in ignored `runs/`;
+weights, arrays and video/archive files are also ignored. `check_git_size.py`
+rejects Git-visible or staged files above 10 MiB, including tracked files that
+ignore patterns cannot protect.
+See [measured stage/angle results](docs/hjepa_stage_results.md) for the policy
+interventions, stress failures and camera-view sensitivity.
+
+Structural feasibility tests add collidable pillars, bidirectional/one-way
+hinges and one/two-sided handles. Both operating sides are in the same four-base
+candidate pool. See [structural results and physical states](docs/hjepa_structural_results.md).
+
+```powershell
+.\.venv\Scripts\python.exe evaluate_hjepa_structure.py --device cuda
+# Observe and pull from the back: reverse swing avoids the front-side pillar.
+.\.venv\Scripts\python.exe run_hjepa.py --scenario pillar-front --base-mode fixed --fixed-base-id 2 --method geometry --output runs/hjepa/structural_demo
+```
+
+These are new structural tests of frozen checkpoints. The old training data
+contained only front-side operation; structural adaptation is not yet trained.
+Geometry-based side selection/rejection in the report is a privileged reference.
+
 基于 MuJoCo 的机械臂开门仿真：识别固定拉杆把手、选择抓取姿态、两指夹持、通过接触力开门，并检测滑移与脱手。
 
 场景使用固定底座、三个平面转动关节、一个竖直升降轴与两指平行夹爪。门铰链无驱动器，开门运动由夹爪与把手的实体接触产生。当前采用已知几何、受控 RGB-D 识别、解析逆运动学和关节伺服控制。
@@ -93,4 +147,4 @@ python render_slip_detail.py
 
 ## 当前范围
 
-视觉方法依赖金色竖直拉杆、已知半径、标定相机及端部可见的先验；铰链与机器人几何来自已知场景。接触力与相对运动直接读取仿真状态。当前没有通用视觉模型、在线遮挡跟踪、真实六轴机器人、移动底座控制、自动重抓或学习型世界模型，亦未完成真实机器人验证。
+视觉方法依赖金色竖直拉杆、已知半径、标定相机及端部可见的先验；铰链与机器人几何来自已知场景。接触力与相对运动直接读取仿真状态。新增的官方 H-JEPA 训练与分阶段策略管线见上方链接。当前仍没有通用视觉模型、在线遮挡跟踪、真实六轴机器人、移动底座导航或自动重抓，亦未完成真实机器人验证。

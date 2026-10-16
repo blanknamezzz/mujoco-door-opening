@@ -1,0 +1,9 @@
+# Minimal adapter dependencies. Uses upstream model/loss code directly;
+# does not install its unrelated environments, Lightning or CUDA training stack.
+mujoco==3.16.0
+numpy>=2.1,<3
+Pillow>=10.4,<13
+torch>=2.7,<3
+einops>=0.8,<0.9
+omegaconf>=2.3,<2.5
+transformers==4.56.2

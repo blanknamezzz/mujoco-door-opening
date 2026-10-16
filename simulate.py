@@ -27,11 +27,46 @@ def smooth(x):
     return x*x*(3-2*x)
 
 
+def skill_target(t, point, yaw_offset=0., mode="nominal", opening_angle_deg=90., opening_direction=1):
+    """Fixed Cartesian skill schedule shared by execution and learned planning."""
+    yaw0 = math.pi/2+yaw_offset
+    pre = point-.16*np.array([np.cos(yaw0), np.sin(yaw0), 0.])
+    if t < .5:
+        target, yaw, aperture, phase = pre, yaw0, .04, "settle"
+    elif t < 2.5:
+        target, yaw, aperture, phase = pre+smooth((t-.5)/2)*(point-pre), yaw0, .04, "approach"
+    elif t < 3.5:
+        target, yaw, aperture, phase = point, yaw0, .04*(1-smooth((t-2.5)/.6)), "close"
+    else:
+        theta = opening_direction*math.radians(opening_angle_deg)*smooth((t-3.5)/10.)
+        target, yaw, aperture, phase = rot(theta)@point, yaw0-theta, 0., "open" if t < 13.5 else "hold"
+    if mode == "no_grip":
+        aperture = .04
+    return target, yaw, aperture, phase
+
+
 class Experiment:
-    def __init__(self, base=(0.6, -1.0), friction=0.8, hinge_resistance=1.2):
-        self.m = mujoco.MjModel.from_xml_path(str(ROOT / "scene.xml"))
+    def __init__(self, base=(0.6, -1.0), friction=0.8, hinge_resistance=1.2,
+                 base_yaw=math.pi/2, handle_position=None, model_xml=None,
+                 ik_branch=-1, opening_direction=1, handle_body="handle",
+                 handle_geom="handle_bar", operating_side="front"):
+        if opening_direction not in (-1, 1) or ik_branch not in (-1, 1):
+            raise ValueError("Opening direction and IK branch must be +/-1.")
+        if operating_side not in ("front", "back"):
+            raise ValueError("Operating side must be front or back.")
+        self.opening_direction = opening_direction
+        self.ik_branch = ik_branch
+        self.operating_side = operating_side
+        self.grasp_yaw_offset = 0. if operating_side == "front" else math.pi
+        self.grasp_yaw_sign = 1 if operating_side == "front" else -1
+        self.m = (mujoco.MjModel.from_xml_path(str(ROOT / "scene.xml")) if model_xml is None
+                  else mujoco.MjModel.from_xml_string(model_xml))
         self.m.body("base").pos[:2] = base
         self.base = np.array(base)
+        self.base_yaw = float(base_yaw)
+        self.m.body("base").quat[:] = [math.cos(base_yaw/2), 0, 0, math.sin(base_yaw/2)]
+        if handle_position is not None:
+            self.m.body(handle_body).pos[:] = handle_position
         self.m.geom_friction[:, 0] = friction
         self.m.dof_frictionloss[self.m.joint("door_hinge").dofadr[0]] = hinge_resistance
         self.d = mujoco.MjData(self.m)
@@ -41,14 +76,16 @@ class Experiment:
         self.door_q = self.m.joint("door_hinge").qposadr[0]
         self.finger_q = np.array([self.m.joint(n).qposadr[0] for n in ["left_slide", "right_slide"]])
         self.robot_dof = np.array([self.m.joint(n).dofadr[0] for n in ["lift_z", *ARM, "left_slide", "right_slide"]])
-        self.bar = self.m.geom("handle_bar").id
-        self.hbody = self.m.body("handle").id
+        self.bar = self.m.geom(handle_geom).id
+        self.hbody = self.m.body(handle_body).id
         self.hand = self.m.body("hand").id
         self.pads = [self.m.geom(n).id for n in ["left_pad", "right_pad"]]
         self.site = self.m.site("grasp_center").id
-        self.reset(np.array([0.8, -0.27, 0.85]), math.pi/2)
+        side = -1 if operating_side == "front" else 1
+        self.reset(np.array([0.8, side*0.27, 0.85]), -side*math.pi/2)
 
-    def ik(self, target, yaw, branch=-1):
+    def ik(self, target, yaw, branch=None):
+        branch = self.ik_branch if branch is None else branch
         wrist = np.asarray(target[:2]) - .18*np.array([np.cos(yaw), np.sin(yaw)])
         delta = wrist-self.base
         c = (delta@delta-.6**2-.55**2)/(2*.6*.55)
@@ -56,7 +93,7 @@ class Experiment:
             return None
         q2 = branch*np.arccos(c)
         q1w = np.arctan2(delta[1], delta[0])-np.arctan2(.55*np.sin(q2), .6+.55*np.cos(q2))
-        q = np.array([q1w-math.pi/2, q2, yaw-q1w-q2])
+        q = np.array([q1w-self.base_yaw, q2, yaw-q1w-q2])
         q = (q+math.pi) % (2*math.pi)-math.pi
         limits = self.m.jnt_range[self.arm_j]
         if np.any(q < limits[:, 0]) or np.any(q > limits[:, 1]) or abs(target[2]-.85) > .12:
@@ -126,13 +163,28 @@ class Experiment:
         rel = R.T@(self.d.site_xpos[self.site]-hp)
         return forces, speed, ratio, hlocal, flocal, rel, unexpected
 
-    def trial(self, point, yaw_offset=0., mode="nominal", viewer=None, diagnostic_continue=False):
+    def trial(self, point, yaw_offset=0., mode="nominal", viewer=None, diagnostic_continue=False,
+              observer=None, observation_interval=.5, reset_before_trial=True,
+              opening_angle_deg=90.):
+        """Execute contact dynamics; optional observer records actual reached states.
+
+        The observer receives (experiment, terminal). It is called after reset,
+        at the requested interval, and at termination, including early failures.
+        """
+        if observation_interval <= 0:
+            raise ValueError("observation_interval must be positive")
+        if not 2 < opening_angle_deg <= 90:
+            raise ValueError("opening_angle_deg must be in (2, 90].")
         yaw0 = math.pi/2+yaw_offset
         approach_dir = np.array([np.cos(yaw0), np.sin(yaw0), 0.])
         pre = point-.16*approach_dir
         if self.ik(point, yaw0) is None or self.ik(pre, yaw0) is None:
             return {"outcome": "A_initial_unreachable", "max_angle_deg": 0.}, [], []
-        self.reset(pre, yaw0)
+        if reset_before_trial:
+            self.reset(pre, yaw0)
+        if observer is not None:
+            observer(self, False)
+        next_observation = observation_interval
         dt = self.m.opt.timestep
         sample_steps = max(1, round(.01/dt))
         sample_dt = sample_steps*dt
@@ -151,23 +203,15 @@ class Experiment:
             end = open_start
         for step in range(round(end/dt)):
             t = self.d.time
-            if t < .5:
-                target, yaw, aperture, phase = pre, yaw0, .04, "settle"
-            elif t < 2.5:
-                target, yaw, aperture, phase = pre+smooth((t-.5)/2)*(point-pre), yaw0, .04, "approach"
-            elif t < open_start:
-                target, yaw, aperture, phase = point, yaw0, .04*(1-smooth((t-2.5)/.6)), "close"
-            else:
-                theta = math.pi/2*smooth((t-open_start)/open_duration)
-                target, yaw, aperture, phase = rot(theta)@point, yaw0-theta, 0., "open" if t < 13.5 else "hold"
-                if mode == "no_grip":
-                    aperture = .04
-            if mode == "no_grip":
-                aperture = .04
+            target, yaw, aperture, phase = skill_target(t, point, yaw_offset, mode, opening_angle_deg,
+                                                       self.opening_direction)
             if not self.command(target, yaw, aperture):
                 stop_reason = "arm_workspace_limit"
                 break
             mujoco.mj_step(self.m, self.d)
+            if observer is not None and self.d.time >= next_observation-1e-9:
+                observer(self, False)
+                next_observation += observation_interval
             if step % sample_steps:
                 continue
             mujoco.mj_forward(self.m, self.d)
@@ -197,7 +241,8 @@ class Experiment:
                     if lost_duration >= .1 and not lost_event:
                         first_loss, lost_event = self.d.time, True
             row = dict(time_s=float(self.d.time), phase=phase,
-                       door_deg=float(np.degrees(self.d.qpos[self.door_q])),
+                       door_deg=float(self.opening_direction*np.degrees(self.d.qpos[self.door_q])),
+                       door_signed_deg=float(np.degrees(self.d.qpos[self.door_q])),
                        door_speed_rad_s=float(self.d.qvel[self.m.joint("door_hinge").dofadr[0]]),
                        left_normal_N=float(force[0]), right_normal_N=float(force[1]),
                        left_tangent_speed_m_s=float(speed[0]), right_tangent_speed_m_s=float(speed[1]),
@@ -215,7 +260,8 @@ class Experiment:
             rows.append(row)
             states.append(self.d.qpos.copy())
             if unexpected:
-                stop_reason = "unexpected_collision"
+                stop_reason = ("door_obstructed" if any("door_panel" in pair and "pillar_" in pair
+                                                       for pair in unexpected) else "unexpected_collision")
                 break
             if (slip_event or lost_event) and not diagnostic_continue:
                 stop_reason = "slip_or_contact_loss"
@@ -226,26 +272,34 @@ class Experiment:
         max_angle = max((r["door_deg"] for r in rows), default=0.)
         final = rows[-1] if rows else {}
         hold_rows = [r for r in rows if r["time_s"] >= end-1]
-        held = len(hold_rows) >= round(1/sample_dt)-1 and all(r["door_deg"] >= 88 and r["bilateral_contact"] and abs(r["door_speed_rad_s"]) < .05 for r in hold_rows)
-        success = (held and acquired and final.get("door_deg", 0) >= 88 and
+        held = len(hold_rows) >= round(1/sample_dt)-1 and all(abs(r["door_deg"]-opening_angle_deg) <= 2 and r["bilateral_contact"] and abs(r["door_speed_rad_s"]) < .05 for r in hold_rows)
+        success = (held and acquired and abs(final.get("door_deg", 0)-opening_angle_deg) <= 2 and
                    final.get("bilateral_contact", False) and not lost_event and not slip_event and
                    not any(r["unexpected_contact"] for r in rows))
         outcome = "D_full_open" if success else "C_grasped_but_failed" if acquired else "B_reachable_grasp_failed"
+        if success and opening_angle_deg != 90.:
+            outcome = "D_target_open"
         if mode == "reach_only" and acquired:
             outcome = "B_grasp_acquired_opening_untested"
         if success:
-            stop_reason = "full_open_and_hold"
+            stop_reason = "full_open_and_hold" if opening_angle_deg == 90. else "target_open_and_hold"
         elif slip_event or lost_event:
             stop_reason = "slip_or_contact_loss"
         elif not acquired and stop_reason == "time_limit":
             stop_reason = "grasp_not_acquired"
         result = dict(outcome=outcome, grasp_acquired=acquired, stop_reason=stop_reason,
+                      target_angle_deg=opening_angle_deg,
+                      opening_direction=self.opening_direction, operating_side=self.operating_side,
+                      final_signed_angle_deg=round(final.get("door_signed_deg", 0.), 3),
+                      first_unexpected_contact=next((r["unexpected_contact"] for r in rows if r["unexpected_contact"]), None),
                       diagnostic_continue_after_slip=diagnostic_continue, held_open_one_second=held,
                       max_angle_deg=round(max_angle, 3), final_angle_deg=round(final.get("door_deg", 0), 3),
                       slip_detected=slip_event, first_slip_s=first_slip, contact_lost=lost_event,
                       first_contact_loss_s=first_loss,
                       unexpected_contact_samples=sum(bool(r["unexpected_contact"]) for r in rows),
                       peak_relative_drift_mm=round(1000*max((r["relative_drift_m"] for r in rows if r["time_s"] >= open_start), default=0.), 3))
+        if observer is not None:
+            observer(self, True)
         return result, rows, states
 
 

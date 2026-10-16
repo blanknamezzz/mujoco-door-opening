@@ -9,15 +9,19 @@ import numpy as np
 from simulate import rot
 
 
-def choose_grasp(exp, estimate):
+def choose_grasp(exp, estimate, candidate_offsets=None):
     center = np.array(estimate["center_world_m"])
     low, high = estimate["visible_z_bounds_m"]
     probe = mujoco.MjData(exp.m)
     candidates = []
     for dz in [-.07, 0., .07]:
         for offset in [-15., 0., 15.]:
+            if candidate_offsets is not None and (dz, offset) not in candidate_offsets:
+                continue
             point = center+np.array([0, 0, dz])
-            yaw0 = math.pi/2+math.radians(offset)
+            yaw_offset = exp.grasp_yaw_offset+exp.grasp_yaw_sign*math.radians(offset)
+            yaw0 = math.pi/2+yaw_offset
+            direction = exp.opening_direction
             clearance = min(point[2]-low, high-point[2])-.025-.015
             last_angle = -1.
             reason = "end_clearance" if clearance < .02 else "full_geometric_path"
@@ -26,9 +30,13 @@ def choose_grasp(exp, estimate):
             if clearance >= .02:
                 path = [(0., point-s*np.array([math.cos(yaw0), math.sin(yaw0), 0]), yaw0, .04)
                         for s in np.linspace(.16, 0, 9)]
-                path += [(deg, rot(math.radians(deg))@point, yaw0-math.radians(deg), .013)
+                path += [(deg, rot(direction*math.radians(deg))@point, yaw0-direction*math.radians(deg), .013)
                          for deg in np.arange(0, 91, 2)]
                 for angle, target, yaw, aperture in path:
+                    hinge_limits = exp.m.jnt_range[exp.m.joint('door_hinge').id]
+                    if not hinge_limits[0]-1e-9 <= direction*math.radians(angle) <= hinge_limits[1]+1e-9:
+                        reason = 'hinge_direction_limit'
+                        break
                     q = exp.ik(target, yaw)
                     if q is None:
                         reason = "IK_or_joint_limit"
@@ -41,7 +49,7 @@ def choose_grasp(exp, estimate):
                     min_margin = min(min_margin, float(np.min(np.minimum(q-limits[:, 0], limits[:, 1]-q))))
                     probe.qpos[exp.arm_q] = q
                     probe.qpos[exp.lift_q] = point[2]-.85
-                    probe.qpos[exp.door_q] = math.radians(angle)
+                    probe.qpos[exp.door_q] = direction*math.radians(angle)
                     probe.qpos[exp.finger_q] = aperture
                     mujoco.mj_forward(exp.m, probe)
                     forbidden = []
@@ -58,11 +66,14 @@ def choose_grasp(exp, estimate):
             score = last_angle/90-.2*abs(dz)/.07-.2*abs(offset)/15
             if np.isfinite(min_margin):
                 score += .02*min_margin
-            candidates.append(dict(point_world_m=point.tolist(), yaw_offset_deg=offset,
+            candidates.append(dict(point_world_m=point.tolist(), yaw_offset_deg=math.degrees(yaw_offset),
+                                   local_yaw_offset_deg=offset,
                                    end_clearance_m=float(clearance), geometric_open_deg=last_angle,
                                    minimum_joint_margin_rad=float(min_margin) if np.isfinite(min_margin) else None,
                                    reason=reason, score=float(score)))
+    if not candidates:
+        raise ValueError("No grasp candidates in the requested candidate pool.")
     candidates.sort(key=lambda x: x["score"], reverse=True)
     return {"selected": candidates[0], "candidates": candidates,
-            "method": "9 candidates; known scene; 2-degree opening samples; fixed elbow branch",
+            "method": f"{len(candidates)} candidates; known scene; 2-degree opening samples; fixed elbow branch",
             "warning": "Geometric screening is not a guarantee of successful contact dynamics."}

@@ -13,11 +13,9 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parent
 
 
-def capture(path):
+def observe(e, width=960, height=720):
+    """Read a fresh calibrated RGB-D frame from an existing reached state."""
     import mujoco
-    from simulate import Experiment
-    e = Experiment()
-    width, height = 960, 720
     with mujoco.Renderer(e.m, height=height, width=width) as renderer:
         renderer.update_scene(e.d, camera="perception")
         rgb = renderer.render().copy()
@@ -30,13 +28,24 @@ def capture(path):
     T = np.eye(4)
     T[:3, :3] = e.d.cam_xmat[cid].reshape(3, 3)
     T[:3, 3] = e.d.cam_xpos[cid]
+    return dict(rgb=rgb, depth_m=depth, K=K, world_from_camera=T)
+
+
+def capture(path):
+    from simulate import Experiment
+    frame = observe(Experiment())
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(path, rgb=rgb, depth_m=depth, K=K, world_from_camera=T)
-    Image.fromarray(rgb).save(path.with_suffix(".png"))
+    np.savez_compressed(path, **frame)
+    Image.fromarray(frame["rgb"]).save(path.with_suffix(".png"))
 
 
 def estimate(path, radius=.015, write_preview=False):
-    obs = np.load(path)
+    with np.load(path) as obs:
+        return estimate_frame(obs, radius, Path(path) if write_preview else None)
+
+
+def estimate_frame(obs, radius=.015, preview_path=None):
+    """Estimate from RGB-D arrays; accepts observe() without a disk roundtrip."""
     rgb, depth, K, T = [obs[k] for k in ["rgb", "depth_m", "K", "world_from_camera"]]
     r, g, b = rgb.astype(float).transpose(2, 0, 1)
     mask = (r > 100) & (g > 70) & (b < .4*g) & (r > 1.15*g) & np.isfinite(depth) & (depth > 0)
@@ -49,6 +58,8 @@ def estimate(path, radius=.015, write_preview=False):
     pw = pc@T[:3, :3].T+T[:3, 3]
     lo, hi = np.quantile(pw[:, 2], [.01, .99])
     core = pw[(pw[:, 2] > lo+.04) & (pw[:, 2] < hi-.04)]
+    if len(core) < 30:
+        raise ValueError("Handle detection failed: too little visible cylinder for a reliable fit.")
     # Fit the visible cylindrical side, excluding spherical capsule ends.
     xy = core[:, :2]
     A = np.column_stack((2*xy, np.ones(len(xy))))
@@ -63,11 +74,11 @@ def estimate(path, radius=.015, write_preview=False):
                   fit_rms_m=float(residual), mask_pixels=len(u),
                   method="RGB gold mask + depth backprojection + vertical cylinder fit",
                   assumptions=["known vertical handle axis and nominal radius", "calibrated camera", "one gold handle", "both handle ends visible; partial middle occlusion allowed"])
-    if write_preview:
+    if preview_path is not None:
         out = rgb.copy()
         out[mask] = (0.4*out[mask]+.6*np.array([0, 255, 80])).astype(np.uint8)
-        Image.fromarray(out).save(Path(path).with_name("handle_detection.png"))
-        Path(path).with_name("handle_estimate.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        Image.fromarray(out).save(preview_path.with_name("handle_detection.png"))
+        preview_path.with_name("handle_estimate.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     return result
 
 

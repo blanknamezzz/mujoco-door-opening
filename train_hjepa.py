@@ -1,0 +1,312 @@
+"""Train official H-JEPA dynamics and warm-start the two door stage policies."""
+import argparse
+import json
+import math
+from pathlib import Path
+import random
+import time
+import numpy as np
+import hjepa_runtime  # process-local CUDA environment fix
+import torch
+from torch import nn
+from hjepa_model import DoorHJEPA, compact_config, default_config, load_checkpoint, resolve_device, save_checkpoint
+
+
+def read_data(directory):
+    manifest = json.loads((directory/'manifest.json').read_text(encoding='utf-8'))
+    scene_splits = {}
+    records = []
+    for ep in manifest['episodes']:
+        previous = scene_splits.setdefault(ep['scene_id'], ep['split'])
+        if previous != ep['split']:
+            raise ValueError('Scene leakage between dataset splits.')
+        with np.load(directory/ep['file'], allow_pickle=False) as arrays:
+            record = {k: arrays[k].copy() for k in arrays.files}
+        if ep.get('pixels_file'):
+            record['pixels'] = np.load(directory/ep['pixels_file'], mmap_mode='r', allow_pickle=False)
+        records.append((ep, record))
+    for split in ['train', 'val', 'test']:
+        if not any(ep['split'] == split for ep, _ in records):
+            raise ValueError(f'Missing {split} scenes.')
+    return manifest, records
+
+
+def rgb_tensor(array, device, scale=True):
+    pixels = torch.as_tensor(np.moveaxis(array, -1, -3).copy(), device=device)
+    return pixels.float()/255. if scale else pixels
+
+
+def state_tensor(array, mean, std, device):
+    return ((torch.as_tensor(array, device=device).float()-mean)/std).clamp(-10, 10)
+
+
+def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', policy_updates=0,
+          profile='official', epochs=None, activation_checkpointing=True):
+    started = time.perf_counter()
+    if (steps is not None and steps < 1) or (batch_size is not None and batch_size < 2):
+        raise ValueError('Use positive steps and batch_size >= 2 for SIGReg.')
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    # Small models are much faster without large CPU thread pools.
+    if device == 'cpu':
+        torch.set_num_threads(min(4, torch.get_num_threads()))
+    manifest, records = read_data(data)
+    budgets = dict(base_budget=manifest.get('base_budget', max(ep['base_id'] for ep, _ in records)+1),
+                   grasp_budget=manifest.get('grasp_budget', max(ep['grasp_id'] for ep, _ in records)+1))
+    training = [(ep, x) for ep, x in records if ep['split'] == 'train']
+    state_arrays = [x['proprio'] for _, x in training if len(x['proprio'])]
+    state_arrays += [x['initial_proprio'][None] for _, x in training]
+    state_arrays += [x['arrival_proprio'][None] for _, x in training]
+    states = np.concatenate(state_arrays)
+    mean = torch.tensor(states.mean(0), dtype=torch.float32, device=device)
+    std = torch.tensor(np.maximum(states.std(0), .01), dtype=torch.float32, device=device)
+    config = default_config(states.shape[-1]) if profile == 'official' else compact_config(states.shape[-1])
+    if manifest['image_size'] != config['image_size']:
+        raise ValueError(f"{profile} requires native {config['image_size']}x{config['image_size']} data; recollect, do not upscale old frames.")
+    raw_interval = config.get('raw_observation_interval_s', config['observation_interval_s'])
+    if abs(manifest['observation_interval_s']-raw_interval) > 1e-6:
+        raise ValueError(f'{profile} requires {raw_interval}s raw observation intervals.')
+    model = DoorHJEPA(config).to(device)
+    if model.is_official:
+        actions = np.concatenate([x['action'] for _, x in training if len(x['action'])])
+        model.action_mean.copy_(torch.tensor(actions.mean(0), device=device))
+        model.action_std.copy_(torch.tensor(actions.std(0, ddof=1), device=device))
+    if profile == 'official' and activation_checkpointing:
+        model.enable_activation_checkpointing()
+    batch_size = batch_size or (config['loader']['batch_size'] if profile == 'official' else 16)
+    if profile == 'official':
+        groups = [{'params': model.model.get_level(i).parameters(), 'lr': config[f'level{i}']['lr']}
+                  for i in (1, 2)]
+        groups.append({'params': [p for n, p in model.named_parameters() if not n.startswith('model.')],
+                       'lr': config['level1']['lr']})
+        optim = torch.optim.AdamW(groups, weight_decay=config['optimizer']['weight_decay'])
+    else:
+        optim = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
+    mixed_precision = profile == 'official' and device == 'cuda'
+    if mixed_precision and not torch.cuda.is_bf16_supported():
+        raise RuntimeError('Official bf16-mixed training requires BF16 support on this GPU.')
+    # Position warm start uses best observed downstream grasp return for a base.
+    position_targets = {}
+    for ep, _ in records:
+        key = (ep['scene_id'], ep['base_id'])
+        position_targets[key] = max(position_targets.get(key, -float('inf')), ep['reward'])
+    windows = {}
+    for split in ['train', 'val', 'test']:
+        windows[split] = [(ep, x, start) for ep, x in records if ep['split'] == split
+                          for start in range(len(x['pixels'])-model.config['raw_clip_frames']+1)]
+        if not windows[split]:
+            raise ValueError(f"No full {model.config['raw_clip_frames']}-frame raw clips in {split}; collect reachable trajectories.")
+    steps_per_epoch = len(windows['train'])//batch_size
+    if steps_per_epoch < 1:
+        raise ValueError('Fewer training clips than one complete batch.')
+    epochs = epochs or (config['trainer']['max_epochs'] if profile == 'official' else 1)
+    steps = steps or (epochs*steps_per_epoch if profile == 'official' else 1000)
+    scheduler = None
+    scheduler_info = None
+    if profile == 'official':
+        # Match main_hjepa.py and stable-pretraining 0.1.7's scheduler defaults,
+        # including the upstream epoch interval (not an invented step schedule).
+        warmup_steps = max(1, int(.01*steps))
+        def lr_scale(epoch):
+            if epoch < warmup_steps:
+                return epoch/warmup_steps
+            return .5*(1+math.cos(math.pi*(epoch-warmup_steps)/max(1, steps-warmup_steps)))
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optim, lr_scale)
+        scheduler_info = dict(type='LinearWarmupCosineAnnealingLR', source='stable-pretraining==0.1.7',
+                              interval='epoch', warmup_steps=warmup_steps, max_steps=steps)
+    output.mkdir(parents=True, exist_ok=True)
+    (output/'resolved_config.json').write_text(json.dumps(model.config, indent=2), encoding='utf-8')
+    history = []
+
+    def loss_for(split, count, policies=True, clips=None):
+        clips = clips or random.choices(windows[split], k=count)
+        length = model.config['clip_frames']
+        skip = model.config.get('frame_skip', 1)
+        span = length*skip
+        batch = dict(
+            pixels_level1=rgb_tensor(np.stack([x['pixels'][s:s+span:skip] for _, x, s in clips]), device,
+                                     scale=profile != 'official'),
+            proprio_level1=state_tensor(np.stack([x['proprio'][s:s+span:skip] for _, x, s in clips]), mean, std, device),
+            action_level1=torch.tensor(np.stack([x['action'][s:s+span].reshape(length, -1) for _, x, s in clips]), device=device))
+        out = model.predictive_loss(batch, split)
+        returns = torch.tensor([ep['reward']/15. for ep, _, _ in clips], device=device)[:, None, None]
+        values = (nn.functional.mse_loss(model.value_low(out['embed_1'].detach()), returns.expand(-1, out['embed_1'].size(1), -1))
+                  + nn.functional.mse_loss(model.value_high(out['embed_2'].detach()), returns.expand(-1, out['embed_2'].size(1), -1)))
+        policy_loss = torch.zeros((), device=device)
+        if policies:
+            pool = [(ep, x) for ep, x in records if ep['split'] == split]
+            for stage, head, feature in [('initial', model.position_policy, 'base'),
+                                         ('arrival', model.grasp_policy, 'grasp')]:
+                stage_pool = pool if stage == 'initial' else [(ep, x) for ep, x in pool if ep.get('grasp_observed', True)]
+                if not stage_pool:
+                    continue
+                examples = random.choices(stage_pool, k=count)
+                was_training = model.training
+                model.eval()
+                with torch.no_grad():
+                    latent = model.encode(
+                        rgb_tensor(np.stack([x[f'{stage}_rgb'] for _, x in examples]), device),
+                        state_tensor(np.stack([x[f'{stage}_proprio'] for _, x in examples]), mean, std, device))
+                model.train(was_training)
+                condition = torch.tensor(np.stack([x[feature] for _, x in examples]), device=device)
+                targets = [(position_targets[(ep['scene_id'], ep['base_id'])] if stage == 'initial'
+                            else ep['reward'])/15. for ep, _ in examples]
+                target = torch.tensor(targets, device=device)[:, None]
+                policy_loss = policy_loss+nn.functional.mse_loss(head(torch.cat([latent, condition], -1)), target)
+        total = out['loss']+values+policy_loss
+        return total, dict(predictive=float(out['loss'].detach()), value=float(values.detach()),
+                           policy=float(policy_loss.detach()))
+
+    best = float('inf')
+    print(json.dumps(dict(profile=profile, parameters=sum(p.numel() for p in model.parameters()),
+        batch_size=batch_size, steps=steps, steps_per_epoch=steps_per_epoch,
+        precision='bf16-mixed' if mixed_precision else 'float32',
+        activation_checkpointing=model.config.get('activation_checkpointing', False))), flush=True)
+    for step in range(steps):
+        model.train()
+        if step % steps_per_epoch == 0:
+            epoch_order = random.sample(windows['train'], len(windows['train']))
+        start = (step % steps_per_epoch)*batch_size
+        clips = epoch_order[start:start+batch_size]
+        with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=mixed_precision):
+            loss, parts = loss_for('train', batch_size, clips=clips)
+        if not torch.isfinite(loss):
+            raise FloatingPointError('Non-finite training loss.')
+        optim.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(model.parameters(), 1.)
+        optim.step()
+        if scheduler is not None and (step+1) % steps_per_epoch == 0:
+            scheduler.step()
+        if step == 0 or (step+1) % max(1, min(50, steps)) == 0 or step+1 == steps:
+            model.eval()
+            with torch.no_grad(), torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=mixed_precision):
+                val, val_parts = loss_for('val', batch_size)
+            entry = dict(step=step+1, epoch=step//steps_per_epoch+1,
+                         train=float(loss.detach()), val=float(val),
+                         learning_rates=[g['lr'] for g in optim.param_groups],
+                         elapsed_seconds=time.perf_counter()-started, **parts,
+                         val_components=val_parts)
+            history.append(entry)
+            print(json.dumps(entry), flush=True)
+            if float(val) < best:
+                best = float(val)
+                save_checkpoint(output/'best.pt', model, mean.cpu(), std.cpu(), step=step+1, seed=seed, **budgets)
+    if policy_updates:
+        alternate_policy_updates(model, training, mean, std, device, policy_updates)
+    save_checkpoint(output/'last.pt', model, mean.cpu(), std.cpu(), step=steps, seed=seed, **budgets)
+    report = dict(history=history, upstream_commit=__import__('hjepa_model').UPSTREAM_COMMIT,
+                  scenes=manifest['scenes'], train_windows=len(windows['train']),
+                  val_windows=len(windows['val']), test_windows=len(windows['test']),
+                  policy_updates=policy_updates, profile=profile, steps=steps, batch_size=batch_size,
+                  steps_per_epoch=steps_per_epoch, epochs_completed=steps/steps_per_epoch,
+                  precision='bf16-mixed' if mixed_precision else 'float32',
+                  parameters=sum(p.numel() for p in model.parameters()),
+                  scheduler=scheduler_info, elapsed_seconds=time.perf_counter()-started,
+                  peak_allocated_mib=torch.cuda.max_memory_allocated()/2**20 if device == 'cuda' else None,
+                  peak_reserved_mib=torch.cuda.max_memory_reserved()/2**20 if device == 'cuda' else None,
+                  note='Validation loss selects best.pt; last.pt includes optional finite-pool policy updates. '
+                       'No test data used for training or checkpoint selection. Small runs are pipeline checks.')
+    (output/'training.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+
+
+def alternate_policy_updates(model, records, mean, std, device, updates):
+    """Exact finite-pool policy gradients using measured counterfactual returns.
+
+    Alternate the position and grasp heads with frozen world-model encoders.
+    This uses cached simulator rewards; it is not online GRPO/PPO exploration.
+    Position receives expected grasp+opening return under the FIXED grasp policy.
+    Grasp receives opening returns weighted by the FIXED positioning policy.
+    """
+    model.eval()
+    groups = {}
+    for ep, x in records:
+        groups.setdefault(ep['scene_id'], {}).setdefault(ep['base_id'], []).append((ep, x))
+    pos_optim = torch.optim.Adam(model.position_policy.parameters(), lr=1e-3)
+    grasp_optim = torch.optim.Adam(model.grasp_policy.parameters(), lr=1e-3)
+    for iteration in range(updates):
+        base_groups = random.choice(list(groups.values()))
+        all_base = list(base_groups.values())
+        first = all_base[0][0][1]
+        with torch.no_grad():
+            initial = model.encode(rgb_tensor(first['initial_rgb'][None], device),
+                                   state_tensor(first['initial_proprio'][None], mean, std, device))
+            arrivals = [model.encode(rgb_tensor(g[0][1]['arrival_rgb'][None], device),
+                                    state_tensor(g[0][1]['arrival_proprio'][None], mean, std, device))
+                        for g in all_base]
+        base_conditions = torch.tensor(np.stack([g[0][1]['base'] for g in all_base]), device=device)
+        position_logits = model.position_policy(torch.cat([initial.expand(len(all_base), -1), base_conditions], -1)).flatten()
+        values, grasp_losses = [], []
+        for g, latent in zip(all_base, arrivals):
+            conditions = torch.tensor(np.stack([x['grasp'] for _, x in g]), device=device)
+            logits = model.grasp_policy(torch.cat([latent.expand(len(g), -1), conditions], -1)).flatten()
+            returns = torch.tensor([ep['reward']/15. for ep, _ in g], device=device)
+            values.append((logits.detach().softmax(0)*returns).sum())
+            # Centering preserves exact expected-return gradient, no sampled ratio.
+            grasp_losses.append(-(logits.softmax(0)*(returns-returns.mean())).sum())
+        if iteration % 2 == 0:
+            values = torch.stack(values)
+            loss = -(position_logits.softmax(0)*(values-values.mean())).sum()
+            pos_optim.zero_grad()
+            loss.backward()
+            pos_optim.step()
+        else:
+            weights = position_logits.detach().softmax(0)
+            loss = sum(weight*term for weight, term in zip(weights, grasp_losses))
+            grasp_optim.zero_grad()
+            loss.backward()
+            grasp_optim.step()
+
+
+def finalize_selected_checkpoint(data, output, policy_updates=100, seed=42, device='cpu'):
+    """Select the predictor by validation, THEN train its frozen stage policies.
+
+    Keeps best.pt and last.pt for audit. No test outcomes enter these updates.
+    """
+    random.seed(seed)
+    torch.manual_seed(seed)
+    model, source = load_checkpoint(output/'best.pt', device)
+    _, records = read_data(data)
+    training = [(ep, x) for ep, x in records if ep['split'] == 'train']
+    for parameter in model.model.parameters():
+        parameter.requires_grad_(False)
+    mean, std = source['state_mean'].to(device), source['state_std'].to(device)
+    alternate_policy_updates(model, training, mean, std, device, policy_updates)
+    # Verify that policy fitting did not alter ANY world-model weight or buffer.
+    unchanged = all(torch.equal(value, source['model']['model.'+key])
+                    for key, value in model.model.state_dict().items())
+    if not unchanged:
+        raise AssertionError('Stage policy updates changed the selected world model.')
+    report_path = output/'training.json'
+    report = json.loads(report_path.read_text(encoding='utf-8'))
+    save_checkpoint(output/'selected.pt', model, mean.cpu(), std.cpu(),
+                    step=source['step'], training_steps=report['steps'], seed=seed,
+                    base_budget=source['base_budget'], grasp_budget=source['grasp_budget'],
+                    policy_updates=policy_updates, world_model_unchanged=True,
+                    selection='minimum validation loss, followed by train-only stage policy updates')
+    report.update(selected_checkpoint='selected.pt', selected_world_model_step=source['step'],
+                  selected_policy_updates=policy_updates, selected_world_model_unchanged=True)
+    report_path.write_text(json.dumps(report, indent=2), encoding='utf-8')
+    print(json.dumps(dict(selected='selected.pt', world_model_step=source['step'],
+                          policy_updates=policy_updates, world_model_unchanged=True)), flush=True)
+
+
+if __name__ == '__main__':
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--data', type=Path, default=Path('runs/hjepa/official_data'))
+    p.add_argument('--output', type=Path, default=Path('runs/hjepa/official_model'))
+    p.add_argument('--profile', choices=['official', 'compact'], default='official')
+    p.add_argument('--steps', type=int, default=None, help='Override the official epoch budget for a short check')
+    p.add_argument('--epochs', type=int, default=None)
+    p.add_argument('--batch-size', type=int, default=None, help='Default: official 128, compact 16')
+    p.add_argument('--no-activation-checkpointing', action='store_true')
+    p.add_argument('--seed', type=int, default=42)
+    p.add_argument('--device', choices=['auto', 'cpu', 'cuda'], default='auto')
+    p.add_argument('--policy-updates', type=int, default=100)
+    a = p.parse_args()
+    device = resolve_device(a.device)
+    train(a.data, a.output, a.steps, a.batch_size, a.seed, device, a.policy_updates,
+          profile=a.profile, epochs=a.epochs, activation_checkpointing=not a.no_activation_checkpointing)
+    if a.profile == 'official':
+        finalize_selected_checkpoint(a.data, a.output, a.policy_updates, a.seed, device)
