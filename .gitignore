@@ -1,0 +1,9 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+MUJOCO_LOG.TXT
+reproduced/
+.env
+.env.*

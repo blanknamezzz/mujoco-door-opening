@@ -1,0 +1,66 @@
+{
+  "case": "low_friction",
+  "mujoco_version": "3.16.0",
+  "friction": {
+    "sliding_coefficient": 0.005,
+    "normal_case": 0.8,
+    "scope": "All geom sliding coefficients are set together; handle/pad contact is the grasp under test.",
+    "torsional_coefficient": 0.005,
+    "rolling_coefficient": 0.0001,
+    "condim": 4
+  },
+  "gripper": {
+    "position_kp_N_per_m": 1800,
+    "position_kv_N_s_per_m": 8,
+    "actuator_force_limit_each_N": 35,
+    "closed_joint_target_m": 0,
+    "open_joint_target_m": 0.04,
+    "finger_joint_range_m": [
+      0,
+      0.045
+    ],
+    "pad_dimensions_m": [
+      0.064,
+      0.02,
+      0.05
+    ]
+  },
+  "door": {
+    "panel_mass_kg": 8,
+    "hinge_friction_Nm": 1.2,
+    "hinge_damping_Nm_s_per_rad": 0.6,
+    "handle_axis_initial_world_m": [
+      0.8,
+      -0.11,
+      0.85
+    ],
+    "handle_radius_m": 0.015,
+    "handle_cylinder_length_m": 0.3
+  },
+  "base_xy_m": [
+    0.6,
+    -1.0
+  ],
+  "timestep_s": 0.001,
+  "log_interval_s": 0.01,
+  "opening_start_s": 3.5,
+  "opening_reference_duration_s": 10,
+  "slip_detection": {
+    "min_normal_each_N": 1,
+    "tangential_speed_m_s": 0.01,
+    "relative_translation_m": 0.008,
+    "relative_rotation_deg": 5,
+    "persistence_s": 0.08
+  },
+  "contact_loss_detection": {
+    "min_normal_each_N": 1,
+    "persistence_s": 0.1
+  },
+  "diagnostic_continue_after_alarm": true,
+  "observed": {
+    "first_slip_s": 3.7709999999996957,
+    "first_contact_loss_s": 4.730999999999915,
+    "max_door_angle_deg": 0.006
+  },
+  "note": "Deliberately extreme low-friction fault case; not a calibrated real material."
+}

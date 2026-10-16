@@ -1,0 +1,30 @@
+{
+  "outcome": "C_grasped_but_failed",
+  "grasp_acquired": true,
+  "stop_reason": "slip_or_contact_loss",
+  "diagnostic_continue_after_slip": true,
+  "held_open_one_second": false,
+  "max_angle_deg": 0.006,
+  "final_angle_deg": 0.0,
+  "slip_detected": true,
+  "first_slip_s": 3.7709999999996957,
+  "contact_lost": true,
+  "first_contact_loss_s": 4.730999999999915,
+  "unexpected_contact_samples": 0,
+  "peak_relative_drift_mm": 1142.007,
+  "case": "low_friction",
+  "base_xy_m": [
+    0.6,
+    -1.0
+  ],
+  "point_world_m": [
+    0.8000117904658494,
+    -0.11008222419987264,
+    0.8523992847609788
+  ],
+  "yaw_offset_deg": 0.0,
+  "observation_source": "saved simulated RGB-D observation",
+  "sliding_friction": 0.005,
+  "peak_tangent_speed_mm_s": 284.6973879853042,
+  "peak_contact_centroid_migration_mm": 30.187050617047962
+}

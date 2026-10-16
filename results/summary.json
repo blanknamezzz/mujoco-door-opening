@@ -1,0 +1,206 @@
+{
+  "cases": [
+    {
+      "outcome": "D_full_open",
+      "grasp_acquired": true,
+      "stop_reason": "full_open_and_hold",
+      "diagnostic_continue_after_slip": false,
+      "held_open_one_second": true,
+      "max_angle_deg": 89.679,
+      "final_angle_deg": 89.679,
+      "slip_detected": false,
+      "first_slip_s": null,
+      "contact_lost": false,
+      "first_contact_loss_s": null,
+      "unexpected_contact_samples": 0,
+      "peak_relative_drift_mm": 4.662,
+      "case": "nominal",
+      "base_xy_m": [
+        0.6,
+        -1.0
+      ],
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.8523992847609788
+      ],
+      "yaw_offset_deg": 0.0,
+      "observation_source": "saved simulated RGB-D observation",
+      "sliding_friction": 0.8,
+      "peak_tangent_speed_mm_s": 0.8501714550771976,
+      "peak_contact_centroid_migration_mm": 25.000435883912903
+    },
+    {
+      "outcome": "B_grasp_acquired_opening_untested",
+      "grasp_acquired": true,
+      "stop_reason": "time_limit",
+      "diagnostic_continue_after_slip": false,
+      "held_open_one_second": false,
+      "max_angle_deg": 0.0,
+      "final_angle_deg": -0.0,
+      "slip_detected": false,
+      "first_slip_s": null,
+      "contact_lost": false,
+      "first_contact_loss_s": null,
+      "unexpected_contact_samples": 0,
+      "peak_relative_drift_mm": 0.0,
+      "case": "reach_only",
+      "base_xy_m": [
+        0.6,
+        -1.0
+      ],
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.8523992847609788
+      ],
+      "yaw_offset_deg": 0.0,
+      "observation_source": "saved simulated RGB-D observation",
+      "sliding_friction": 0.8,
+      "peak_tangent_speed_mm_s": 0,
+      "peak_contact_centroid_migration_mm": 0
+    },
+    {
+      "outcome": "C_grasped_but_failed",
+      "grasp_acquired": true,
+      "stop_reason": "slip_or_contact_loss",
+      "diagnostic_continue_after_slip": true,
+      "held_open_one_second": false,
+      "max_angle_deg": 0.006,
+      "final_angle_deg": 0.0,
+      "slip_detected": true,
+      "first_slip_s": 3.7709999999996957,
+      "contact_lost": true,
+      "first_contact_loss_s": 4.730999999999915,
+      "unexpected_contact_samples": 0,
+      "peak_relative_drift_mm": 1142.007,
+      "case": "low_friction",
+      "base_xy_m": [
+        0.6,
+        -1.0
+      ],
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.8523992847609788
+      ],
+      "yaw_offset_deg": 0.0,
+      "observation_source": "saved simulated RGB-D observation",
+      "sliding_friction": 0.005,
+      "peak_tangent_speed_mm_s": 284.6973879853042,
+      "peak_contact_centroid_migration_mm": 30.187050617047962
+    },
+    {
+      "outcome": "C_grasped_but_failed",
+      "grasp_acquired": true,
+      "stop_reason": "arm_workspace_limit",
+      "diagnostic_continue_after_slip": false,
+      "held_open_one_second": false,
+      "max_angle_deg": 42.505,
+      "final_angle_deg": 42.505,
+      "slip_detected": false,
+      "first_slip_s": null,
+      "contact_lost": false,
+      "first_contact_loss_s": null,
+      "unexpected_contact_samples": 0,
+      "peak_relative_drift_mm": 1.953,
+      "case": "workspace_limit",
+      "base_xy_m": [
+        0.3,
+        -0.9
+      ],
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.8523992847609788
+      ],
+      "yaw_offset_deg": 0.0,
+      "observation_source": "saved simulated RGB-D observation",
+      "sliding_friction": 0.8,
+      "peak_tangent_speed_mm_s": 0.7107969231671372,
+      "peak_contact_centroid_migration_mm": 25.0001759515261
+    },
+    {
+      "outcome": "A_initial_unreachable",
+      "max_angle_deg": 0.0,
+      "case": "unreachable",
+      "base_xy_m": [
+        2.0,
+        -1.2
+      ],
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.8523992847609788
+      ],
+      "yaw_offset_deg": 0.0,
+      "observation_source": "saved simulated RGB-D observation",
+      "sliding_friction": 0.8,
+      "peak_tangent_speed_mm_s": 0,
+      "peak_contact_centroid_migration_mm": 0
+    },
+    {
+      "outcome": "B_reachable_grasp_failed",
+      "grasp_acquired": false,
+      "stop_reason": "grasp_not_acquired",
+      "diagnostic_continue_after_slip": false,
+      "held_open_one_second": false,
+      "max_angle_deg": 0.0,
+      "final_angle_deg": 0.0,
+      "slip_detected": false,
+      "first_slip_s": null,
+      "contact_lost": false,
+      "first_contact_loss_s": null,
+      "unexpected_contact_samples": 0,
+      "peak_relative_drift_mm": 0.0,
+      "case": "no_grip",
+      "base_xy_m": [
+        0.6,
+        -1.0
+      ],
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.8523992847609788
+      ],
+      "yaw_offset_deg": 0.0,
+      "observation_source": "saved simulated RGB-D observation",
+      "sliding_friction": 0.8,
+      "peak_tangent_speed_mm_s": 0.0,
+      "peak_contact_centroid_migration_mm": 0.0
+    }
+  ],
+  "validation": {
+    "nominal_full_open_and_hold": true,
+    "reach_then_grasp": true,
+    "slip_precedes_contact_loss": true,
+    "fixed_base_can_limit_opening": true,
+    "initial_unreachable": true,
+    "without_grip_door_does_not_open": true,
+    "no_door_actuator_or_weld": true,
+    "timestep_final_angle_within_0_5_deg": true
+  },
+  "timestep_sensitivity": [
+    {
+      "timestep_s": 0.0005,
+      "final_angle_deg": 89.681
+    },
+    {
+      "timestep_s": 0.002,
+      "final_angle_deg": 89.676
+    }
+  ],
+  "perception_center_error_mm": 2.4007222243306106,
+  "contact_thresholds": {
+    "normal_force_each_N": 1,
+    "grasp_stable_s": 0.2,
+    "slip_speed_m_s": 0.01,
+    "relative_drift_m": 0.008,
+    "relative_rotation_drift_deg": 5,
+    "slip_persistence_s": 0.08,
+    "contact_loss_persistence_s": 0.1,
+    "full_open_min_deg": 88,
+    "hold_s": 1
+  },
+  "scope": "One deterministic known scene; simplified arm; no trained perception or real-robot validation"
+}

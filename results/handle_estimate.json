@@ -1,0 +1,27 @@
+{
+  "center_world_m": [
+    0.8000117904658494,
+    -0.11008222419987264,
+    0.8523992847609788
+  ],
+  "axis_world": [
+    0.0,
+    0.0,
+    1.0
+  ],
+  "visible_z_bounds_m": [
+    0.6957506522222603,
+    1.0090479172996973
+  ],
+  "known_radius_m": 0.015,
+  "fitted_radius_m": 0.014862990668689088,
+  "fit_rms_m": 0.00013956948555911356,
+  "mask_pixels": 1117,
+  "method": "RGB gold mask + depth backprojection + vertical cylinder fit",
+  "assumptions": [
+    "known vertical handle axis and nominal radius",
+    "calibrated camera",
+    "one gold handle",
+    "both handle ends visible; partial middle occlusion allowed"
+  ]
+}

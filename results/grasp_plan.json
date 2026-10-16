@@ -1,0 +1,136 @@
+{
+  "selected": {
+    "point_world_m": [
+      0.8000117904658494,
+      -0.11008222419987264,
+      0.8523992847609788
+    ],
+    "yaw_offset_deg": 0.0,
+    "end_clearance_m": 0.11664863253871853,
+    "geometric_open_deg": 90.0,
+    "minimum_joint_margin_rad": 0.2875206973456912,
+    "reason": "full_geometric_path",
+    "score": 1.0057504139469138
+  },
+  "candidates": [
+    {
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.8523992847609788
+      ],
+      "yaw_offset_deg": 0.0,
+      "end_clearance_m": 0.11664863253871853,
+      "geometric_open_deg": 90.0,
+      "minimum_joint_margin_rad": 0.2875206973456912,
+      "reason": "full_geometric_path",
+      "score": 1.0057504139469138
+    },
+    {
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.8523992847609788
+      ],
+      "yaw_offset_deg": -15.0,
+      "end_clearance_m": 0.11664863253871853,
+      "geometric_open_deg": 90.0,
+      "minimum_joint_margin_rad": 0.37124670960780914,
+      "reason": "full_geometric_path",
+      "score": 0.8074249341921562
+    },
+    {
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.7823992847609789
+      ],
+      "yaw_offset_deg": 0.0,
+      "end_clearance_m": 0.04664863253871857,
+      "geometric_open_deg": 90.0,
+      "minimum_joint_margin_rad": 0.2875206973456912,
+      "reason": "full_geometric_path",
+      "score": 0.8057504139469138
+    },
+    {
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.9223992847609788
+      ],
+      "yaw_offset_deg": 0.0,
+      "end_clearance_m": 0.04664863253871857,
+      "geometric_open_deg": 90.0,
+      "minimum_joint_margin_rad": 0.2875206973456912,
+      "reason": "full_geometric_path",
+      "score": 0.8057504139469138
+    },
+    {
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.8523992847609788
+      ],
+      "yaw_offset_deg": 15.0,
+      "end_clearance_m": 0.11664863253871853,
+      "geometric_open_deg": 90.0,
+      "minimum_joint_margin_rad": 0.210449628003051,
+      "reason": "full_geometric_path",
+      "score": 0.8042089925600611
+    },
+    {
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.7823992847609789
+      ],
+      "yaw_offset_deg": -15.0,
+      "end_clearance_m": 0.04664863253871857,
+      "geometric_open_deg": 90.0,
+      "minimum_joint_margin_rad": 0.37124670960780914,
+      "reason": "full_geometric_path",
+      "score": 0.6074249341921563
+    },
+    {
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.9223992847609788
+      ],
+      "yaw_offset_deg": -15.0,
+      "end_clearance_m": 0.04664863253871857,
+      "geometric_open_deg": 90.0,
+      "minimum_joint_margin_rad": 0.37124670960780914,
+      "reason": "full_geometric_path",
+      "score": 0.6074249341921563
+    },
+    {
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.7823992847609789
+      ],
+      "yaw_offset_deg": 15.0,
+      "end_clearance_m": 0.04664863253871857,
+      "geometric_open_deg": 90.0,
+      "minimum_joint_margin_rad": 0.210449628003051,
+      "reason": "full_geometric_path",
+      "score": 0.6042089925600611
+    },
+    {
+      "point_world_m": [
+        0.8000117904658494,
+        -0.11008222419987264,
+        0.9223992847609788
+      ],
+      "yaw_offset_deg": 15.0,
+      "end_clearance_m": 0.04664863253871857,
+      "geometric_open_deg": 90.0,
+      "minimum_joint_margin_rad": 0.210449628003051,
+      "reason": "full_geometric_path",
+      "score": 0.6042089925600611
+    }
+  ],
+  "method": "9 candidates; known scene; 2-degree opening samples; fixed elbow branch",
+  "warning": "Geometric screening is not a guarantee of successful contact dynamics."
+}

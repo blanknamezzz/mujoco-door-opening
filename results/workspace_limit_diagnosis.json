@@ -1,0 +1,43 @@
+{
+  "actual_stop_time_s": 8.401000000000783,
+  "actual_door_angle_deg": 42.505084386970125,
+  "actual_arm_joint_deg": {
+    "shoulder": 32.61192104788196,
+    "elbow": -163.58901410901402,
+    "wrist_yaw": 88.19940889228052
+  },
+  "normal_force_N": [
+    23.042537718499553,
+    23.064994685242613
+  ],
+  "relative_drift_mm": 1.952740943437763,
+  "slip_detected": false,
+  "contact_lost": false,
+  "interpretation": "Controller terminates at first infeasible reference; this is not a measured physical stall at the exact joint limit.",
+  "first_rejected_reference_time_s": 8.404,
+  "reference_door_angle_deg": 43.704159252480004,
+  "reference_arm_joint_deg": {
+    "shoulder": 34.69275519301591,
+    "elbow": -165.0004949100244,
+    "wrist_yaw": 86.60358046452852
+  },
+  "joint_limits_deg": [
+    [
+      -164.99998477131788,
+      164.99998477131788
+    ],
+    [
+      -164.99998477131788,
+      164.99998477131788
+    ],
+    [
+      -170.00001556208605,
+      170.00001556208605
+    ]
+  ],
+  "violating_joints": [
+    "elbow"
+  ],
+  "required_shoulder_wrist_distance_m": 0.15807428366900772,
+  "minimum_shoulder_wrist_distance_at_elbow_limit_m": 0.15807909429063274
+}

@@ -1,0 +1,30 @@
+{
+  "outcome": "D_full_open",
+  "grasp_acquired": true,
+  "stop_reason": "full_open_and_hold",
+  "diagnostic_continue_after_slip": false,
+  "held_open_one_second": true,
+  "max_angle_deg": 89.679,
+  "final_angle_deg": 89.679,
+  "slip_detected": false,
+  "first_slip_s": null,
+  "contact_lost": false,
+  "first_contact_loss_s": null,
+  "unexpected_contact_samples": 0,
+  "peak_relative_drift_mm": 4.662,
+  "case": "nominal",
+  "base_xy_m": [
+    0.6,
+    -1.0
+  ],
+  "point_world_m": [
+    0.8000117904658494,
+    -0.11008222419987264,
+    0.8523992847609788
+  ],
+  "yaw_offset_deg": 0.0,
+  "observation_source": "saved simulated RGB-D observation",
+  "sliding_friction": 0.8,
+  "peak_tangent_speed_mm_s": 0.8501714550771976,
+  "peak_contact_centroid_migration_mm": 25.000435883912903
+}

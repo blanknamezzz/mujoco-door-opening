@@ -1,0 +1,69 @@
+<mujoco model="physical_handle_grasp">
+  <compiler angle="radian"/>
+  <option timestep="0.001" gravity="0 0 -9.81" integrator="implicitfast" cone="elliptic" iterations="80"/>
+  <visual><global offwidth="960" offheight="720"/><quality shadowsize="2048"/></visual>
+  <default>
+    <joint damping="2" armature="0.02"/>
+    <geom friction="0.8 0.005 0.0001" condim="4" solref="0.008 1" solimp="0.95 0.99 0.001"/>
+    <default class="arm"><geom type="capsule" size="0.022" rgba="0.15 0.48 0.78 1"/></default>
+    <default class="pad"><geom type="box" size="0.032 0.01 0.025" mass="0.06" rgba="0.12 0.13 0.15 1"/></default>
+  </default>
+  <worldbody>
+    <light pos="1 -2 4" dir="-0.2 0.3 -1"/>
+    <geom name="floor" type="plane" size="3 3 0.1" rgba="0.86 0.89 0.91 1"/>
+    <geom name="post" type="cylinder" pos="0 0 0.7" size="0.025 0.7" rgba="0.3 0.32 0.35 1" contype="0" conaffinity="0"/>
+    <body name="door">
+      <joint name="door_hinge" type="hinge" axis="0 0 -1" range="0 1.570796327" damping="0.6" frictionloss="1.2" armature="0"/>
+      <geom name="door_panel" type="box" pos="0.45 0 0.7" size="0.45 0.025 0.7" mass="8" rgba="0.48 0.29 0.16 1"/>
+      <!-- Welded to the door by body hierarchy; NOT welded to the hand. -->
+      <body name="handle" pos="0.8 -0.11 0.85">
+        <geom name="handle_bar" type="capsule" fromto="0 0 -0.15 0 0 0.15" size="0.015" mass="0.18" rgba="1 0.72 0.04 1"/>
+        <geom name="mount_low" type="capsule" fromto="0 0 -0.15 0 0.085 -0.15" size="0.012" mass="0.03" rgba="0.48 0.5 0.52 1"/>
+        <geom name="mount_high" type="capsule" fromto="0 0 0.15 0 0.085 0.15" size="0.012" mass="0.03" rgba="0.48 0.5 0.52 1"/>
+      </body>
+    </body>
+    <body name="base" pos="0.6 -1.0 0" euler="0 0 1.570796327">
+      <geom name="base_box" type="box" pos="0 0 0.15" size="0.16 0.16 0.15" rgba="0.12 0.2 0.3 1"/>
+      <geom name="pedestal" type="cylinder" pos="0 0 0.47" size="0.045 0.17" rgba="0.3 0.34 0.4 1"/>
+      <body name="lift" pos="0 0 0.85">
+        <joint name="lift_z" type="slide" axis="0 0 1" range="-0.12 0.12"/>
+        <geom name="lift_carriage" type="sphere" size="0.04" mass="0.5" rgba="0.3 0.4 0.5 1"/>
+        <geom name="lift_rod" type="cylinder" fromto="0 0 -0.32 0 0 0" size="0.026" mass="0.2" rgba="0.52 0.56 0.6 1" contype="0" conaffinity="0"/>
+        <body name="upper">
+          <joint name="shoulder" axis="0 0 1" range="-2.879793 2.879793"/>
+          <geom name="upper_link" class="arm" fromto="0 0 0 0.6 0 0" mass="1"/>
+          <body name="forearm" pos="0.6 0 0">
+            <joint name="elbow" axis="0 0 1" range="-2.879793 2.879793"/>
+            <geom name="forearm_link" class="arm" fromto="0 0 0 0.55 0 0" mass="0.8"/>
+            <body name="hand" pos="0.55 0 0">
+              <joint name="wrist_yaw" axis="0 0 1" range="-2.96706 2.96706"/>
+              <geom name="wrist_link" class="arm" fromto="0 0 0 0.065 0 0" mass="0.15"/>
+              <geom name="palm" type="box" pos="0.085 0 0" size="0.025 0.068 0.032" mass="0.25" rgba="0.25 0.65 0.75 1"/>
+              <site name="grasp_center" pos="0.18 0 0" size="0.004" rgba="0.1 1 0.2 1"/>
+              <body name="left_finger" pos="0 0.012 0">
+                <joint name="left_slide" type="slide" axis="0 1 0" range="0 0.045" damping="2" armature="0.001"/>
+                <geom name="left_finger_link" type="box" pos="0.13 0 0" size="0.022 0.008 0.02" mass="0.04" rgba="0.5 0.6 0.65 1"/>
+                <geom name="left_pad" class="pad" pos="0.18 0 0"/>
+              </body>
+              <body name="right_finger" pos="0 -0.012 0">
+                <joint name="right_slide" type="slide" axis="0 -1 0" range="0 0.045" damping="2" armature="0.001"/>
+                <geom name="right_finger_link" type="box" pos="0.13 0 0" size="0.022 0.008 0.02" mass="0.04" rgba="0.5 0.6 0.65 1"/>
+                <geom name="right_pad" class="pad" pos="0.18 0 0"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+    <camera name="perception" pos="0.8 -2.2 0.85" xyaxes="1 0 0 0 0 1" fovy="45"/>
+    <camera name="overview" pos="2.5 -3.5 2.8" xyaxes="0.83205 0.55470 0 -0.3015 0.4523 0.8393" fovy="45"/>
+  </worldbody>
+  <actuator>
+    <position name="lift_servo" joint="lift_z" kp="3000" kv="100" forcerange="-200 200"/>
+    <position name="shoulder_servo" joint="shoulder" kp="600" kv="45" forcerange="-120 120"/>
+    <position name="elbow_servo" joint="elbow" kp="600" kv="40" forcerange="-100 100"/>
+    <position name="wrist_servo" joint="wrist_yaw" kp="300" kv="20" forcerange="-45 45"/>
+    <position name="left_grip" joint="left_slide" kp="1800" kv="8" forcerange="-35 35"/>
+    <position name="right_grip" joint="right_slide" kp="1800" kv="8" forcerange="-35 35"/>
+  </actuator>
+</mujoco>
