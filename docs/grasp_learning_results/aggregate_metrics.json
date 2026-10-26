@@ -1,0 +1,35 @@
+[
+  {
+    "method": "supervised",
+    "successes_by_seed": [
+      9,
+      9,
+      9
+    ],
+    "mean_success_rate": 0.375,
+    "mean_reward": 3.4621178881163246,
+    "mean_collisions": 6.333333333333333
+  },
+  {
+    "method": "reinforce",
+    "successes_by_seed": [
+      10,
+      9,
+      9
+    ],
+    "mean_success_rate": 0.3888888888888889,
+    "mean_reward": 3.5343966898989017,
+    "mean_collisions": 7.0
+  },
+  {
+    "method": "supervised_on_rl",
+    "successes_by_seed": [
+      9,
+      8,
+      8
+    ],
+    "mean_success_rate": 0.34722222222222215,
+    "mean_reward": 2.6136372937760437,
+    "mean_collisions": 10.666666666666666
+  }
+]

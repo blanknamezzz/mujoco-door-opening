@@ -49,7 +49,8 @@ def proprio(exp):
                      math.sin(exp.base_yaw), math.cos(exp.base_yaw), exp.d.time/15.5], np.float32)
 
 
-def action_at(t, point, yaw_offset, interval=.5, opening_angle_deg=90., opening_direction=1):
+def action_at(t, point, yaw_offset, interval=.5, opening_angle_deg=90., opening_direction=1,
+              timing=None, approach_distance_m=.16):
     """Mean Cartesian command over the next observation interval (6 values).
 
     Unlike an IK path check this feature does not reveal future feasibility.
@@ -59,7 +60,8 @@ def action_at(t, point, yaw_offset, interval=.5, opening_angle_deg=90., opening_
     commands = []
     for time in np.linspace(t, t+interval, 10, endpoint=False):
         target, yaw, aperture, _ = skill_target(time, point, yaw_offset, opening_angle_deg=opening_angle_deg,
-                                               opening_direction=opening_direction)
+                                               opening_direction=opening_direction, timing=timing,
+                                               approach_distance_m=approach_distance_m)
         commands.append([*target, math.sin(yaw), math.cos(yaw), aperture/.04])
     return np.mean(commands, axis=0).astype(np.float32)
 

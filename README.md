@@ -1,5 +1,32 @@
 # MuJoCo Door Opening
 
+## 抓持方案、角度学习与新站位验证
+
+新增可序列化的抓持方案（高度、接近角度、肘分支、力上限、时序），以及独立的
+REINFORCE / 监督奖励预测对照。保留原 H-JEPA 的实时 RGB-D 感知接口和管线。
+新模型只学习离散角度，尚未接入 H-JEPA 世界模型，也不是逐关节控制策略。
+
+- [抓持方案](docs/grasp_plans.md) · [物理对照 demo](docs/grasp_update_demo.md)
+- [RL 使用说明](docs/grasp_rl.md) · [数据采集与 SL/RL 训练](docs/supervised_grasp_learning.md)
+- [已验证实验结果](docs/grasp_learning_results/REPORT.md) · [分析与自生成数据的依据](docs/grasp_learning_results/ANALYSIS.md)
+
+在仓库根目录、已安装 `requirements.txt` 的 Python 环境中：
+
+```bash
+python collect_grasp_data.py
+python compare_grasp_learning.py train
+python compare_grasp_learning.py evaluate
+# macOS 图形演示，须先生成模型权重：
+mjpython compare_grasp_learning.py demo --scene test_021 --method reinforce --seed 42
+```
+
+默认使用 36/12/24 个训练/验证/测试站位、21 个角度和 3 个训练种子。
+报告和小型指标文件随代码发布；大数据、视频和模型权重在忽略的 `reproduced/` 中由命令生成。
+本次 SL 未优于 RL，训练集选出的固定 +18° 同样达到 10/24；结果不代表新门型或真实机器人表现。
+
+回归检查：`python -m unittest test_grasp_plan test_grasp_learning test_grasp_rl test_git_size -v`。
+默认 `trial(point)` 会恢复构造时的肘分支和执行器力上限，避免继承上一回合的方案设置。
+
 Current continuation uses **LoRA**, with the original H-JEPA core frozen and
 unmerged. The expanded suite has 240 independent scenes (192/24/24), twelve
 structural families and randomized camera/geometry/lighting. The local pipeline
@@ -115,6 +142,10 @@ rejected. See [training results and remaining failures](docs/hjepa_structural_tr
 低摩擦故障案例使用 μ=0.005；约 3.77 s 触发持续滑移告警，约 4.73 s 确认接触丢失。该极低摩擦参数用于复现故障，未对应实测材料。
 
 ## 安装与复现
+
+现已支持完整抓握方案：抓握高度、接近角度、肘关节分支、各阶段时长和夹爪驱动力上限，
+可通过命令行设置并保存/加载 JSON。见 [参数化抓握方案与运行示例](docs/grasp_plans.md)。
+这一步提供方案表示和执行接口，尚未自动搜索最优抓法。
 
 验证环境：macOS、Python 3.12.5、MuJoCo 3.16.0、NumPy 2.5.4、Pillow 12.3.0。依赖版本固定在 `requirements.txt`。
 

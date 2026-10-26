@@ -1,0 +1,360 @@
+{
+  "protocol": {
+    "schema_version": 1,
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "data": "/Users/andy/python/mujoco-door-contact/reproduced/grasp_learning_data",
+    "manifest_sha256": "e591df908d000b39233dffedb84cb2140b79b9326a0766ce424073ad7f1166c8",
+    "train_data_sha256": "545a6570771e5a383555ddd1e7be0ddc94b8dc067d178dc6d6b6a118c173ab00",
+    "source_sha256": "2c213361f901b8cbffddb6bc47c58bd2ec3be0814e6df057d9fb924031fd9e27",
+    "architecture": "4 -> 16 tanh -> 21 outputs; softmax only for RL",
+    "normalizer": {
+      "mean": [
+        0.14999409619199264,
+        0.8408191417973984,
+        0.9544805569743685,
+        0.001535272735584312
+      ],
+      "std": [
+        0.17238078053766515,
+        0.11595730429554253,
+        0.04100272598433399,
+        0.29543744812968464
+      ]
+    },
+    "train_interactions_per_method_per_seed": 756,
+    "supervised_updates": 1200,
+    "supervised_lr": 0.01,
+    "rl_lr": 0.02,
+    "rl_batch_size": 12,
+    "entropy_coef": 0.02,
+    "checkpoint_selection": "Final weights only; no validation or test selection",
+    "best_fixed_train_index": 19
+  },
+  "reference": {
+    "validation": {
+      "scenes": 12,
+      "grid_feasible_scenes": 6,
+      "uniform_random_expected_success_rate": 0.4365079365079365,
+      "grid_oracle_success_rate": 0.5
+    },
+    "test": {
+      "scenes": 24,
+      "grid_feasible_scenes": 10,
+      "uniform_random_expected_success_rate": 0.32341269841269843,
+      "grid_oracle_success_rate": 0.4166666666666667
+    }
+  },
+  "metrics": {
+    "validation": {
+      "supervised_42": {
+        "n_scenes": 12,
+        "successes": 6,
+        "success_rate": 0.5,
+        "feasible_scenes": 6,
+        "feasible_success_rate": 1.0,
+        "mean_reward": 5.054549373102133,
+        "mean_regret": 0.07605175027446502,
+        "collisions": 3,
+        "slips": 0,
+        "workspace_failures": 3,
+        "unreachable": 0,
+        "all_candidate_reward_mae": 5.144230101932842
+      },
+      "reinforce_42": {
+        "n_scenes": 12,
+        "successes": 6,
+        "success_rate": 0.5,
+        "feasible_scenes": 6,
+        "feasible_success_rate": 1.0,
+        "mean_reward": 4.923680458671482,
+        "mean_regret": 0.2069206647051154,
+        "collisions": 4,
+        "slips": 0,
+        "workspace_failures": 2,
+        "unreachable": 0
+      },
+      "supervised_on_rl_42": {
+        "n_scenes": 12,
+        "successes": 5,
+        "success_rate": 0.4166666666666667,
+        "feasible_scenes": 6,
+        "feasible_success_rate": 0.8333333333333334,
+        "mean_reward": 3.438187062857592,
+        "mean_regret": 1.692414060519006,
+        "collisions": 6,
+        "slips": 0,
+        "workspace_failures": 1,
+        "unreachable": 0,
+        "all_candidate_reward_mae": 6.9623741323029
+      },
+      "supervised_43": {
+        "n_scenes": 12,
+        "successes": 6,
+        "success_rate": 0.5,
+        "feasible_scenes": 6,
+        "feasible_success_rate": 1.0,
+        "mean_reward": 4.908480452032966,
+        "mean_regret": 0.2221206713436319,
+        "collisions": 4,
+        "slips": 0,
+        "workspace_failures": 2,
+        "unreachable": 0,
+        "all_candidate_reward_mae": 6.0086191749239894
+      },
+      "reinforce_43": {
+        "n_scenes": 12,
+        "successes": 6,
+        "success_rate": 0.5,
+        "feasible_scenes": 6,
+        "feasible_success_rate": 1.0,
+        "mean_reward": 4.746765801294869,
+        "mean_regret": 0.38383532208172894,
+        "collisions": 5,
+        "slips": 0,
+        "workspace_failures": 1,
+        "unreachable": 0
+      },
+      "supervised_on_rl_43": {
+        "n_scenes": 12,
+        "successes": 6,
+        "success_rate": 0.5,
+        "feasible_scenes": 6,
+        "feasible_success_rate": 1.0,
+        "mean_reward": 4.896446781220903,
+        "mean_regret": 0.23415434215569444,
+        "collisions": 4,
+        "slips": 0,
+        "workspace_failures": 2,
+        "unreachable": 0,
+        "all_candidate_reward_mae": 5.0973125968645165
+      },
+      "supervised_44": {
+        "n_scenes": 12,
+        "successes": 6,
+        "success_rate": 0.5,
+        "feasible_scenes": 6,
+        "feasible_success_rate": 1.0,
+        "mean_reward": 4.882438737314988,
+        "mean_regret": 0.2481623860616096,
+        "collisions": 4,
+        "slips": 0,
+        "workspace_failures": 2,
+        "unreachable": 0,
+        "all_candidate_reward_mae": 5.292633200270012
+      },
+      "reinforce_44": {
+        "n_scenes": 12,
+        "successes": 6,
+        "success_rate": 0.5,
+        "feasible_scenes": 6,
+        "feasible_success_rate": 1.0,
+        "mean_reward": 4.915126039427064,
+        "mean_regret": 0.21547508394953432,
+        "collisions": 4,
+        "slips": 0,
+        "workspace_failures": 2,
+        "unreachable": 0
+      },
+      "supervised_on_rl_44": {
+        "n_scenes": 12,
+        "successes": 6,
+        "success_rate": 0.5,
+        "feasible_scenes": 6,
+        "feasible_success_rate": 1.0,
+        "mean_reward": 4.892962480545137,
+        "mean_regret": 0.2376386428314615,
+        "collisions": 4,
+        "slips": 0,
+        "workspace_failures": 2,
+        "unreachable": 0,
+        "all_candidate_reward_mae": 4.760826049323576
+      },
+      "fixed_zero": {
+        "n_scenes": 12,
+        "successes": 6,
+        "success_rate": 0.5,
+        "feasible_scenes": 6,
+        "feasible_success_rate": 1.0,
+        "mean_reward": 4.711782539812183,
+        "mean_regret": 0.41881858356441426,
+        "collisions": 5,
+        "slips": 0,
+        "workspace_failures": 1,
+        "unreachable": 0
+      },
+      "best_fixed_train": {
+        "n_scenes": 12,
+        "successes": 6,
+        "success_rate": 0.5,
+        "feasible_scenes": 6,
+        "feasible_success_rate": 1.0,
+        "mean_reward": 5.0864520208208726,
+        "mean_regret": 0.04414910255572568,
+        "collisions": 3,
+        "slips": 0,
+        "workspace_failures": 3,
+        "unreachable": 0
+      }
+    },
+    "test": {
+      "supervised_42": {
+        "n_scenes": 24,
+        "successes": 9,
+        "success_rate": 0.375,
+        "feasible_scenes": 10,
+        "feasible_success_rate": 0.9,
+        "mean_reward": 3.507559422041602,
+        "mean_regret": 1.0887831368144834,
+        "collisions": 6,
+        "slips": 0,
+        "workspace_failures": 9,
+        "unreachable": 0,
+        "all_candidate_reward_mae": 3.693205035233151
+      },
+      "reinforce_42": {
+        "n_scenes": 24,
+        "successes": 10,
+        "success_rate": 0.4166666666666667,
+        "feasible_scenes": 10,
+        "feasible_success_rate": 1.0,
+        "mean_reward": 3.856406460797057,
+        "mean_regret": 0.7399360980590286,
+        "collisions": 7,
+        "slips": 0,
+        "workspace_failures": 7,
+        "unreachable": 0
+      },
+      "supervised_on_rl_42": {
+        "n_scenes": 24,
+        "successes": 9,
+        "success_rate": 0.375,
+        "feasible_scenes": 10,
+        "feasible_success_rate": 0.9,
+        "mean_reward": 3.060741127945041,
+        "mean_regret": 1.5356014309110455,
+        "collisions": 10,
+        "slips": 0,
+        "workspace_failures": 5,
+        "unreachable": 0,
+        "all_candidate_reward_mae": 5.588174318065703
+      },
+      "supervised_43": {
+        "n_scenes": 24,
+        "successes": 9,
+        "success_rate": 0.375,
+        "feasible_scenes": 10,
+        "feasible_success_rate": 0.9,
+        "mean_reward": 3.3951577055348134,
+        "mean_regret": 1.2011848533212721,
+        "collisions": 7,
+        "slips": 0,
+        "workspace_failures": 8,
+        "unreachable": 0,
+        "all_candidate_reward_mae": 2.857042774122884
+      },
+      "reinforce_43": {
+        "n_scenes": 24,
+        "successes": 9,
+        "success_rate": 0.375,
+        "feasible_scenes": 10,
+        "feasible_success_rate": 0.9,
+        "mean_reward": 3.405601278912423,
+        "mean_regret": 1.1907412799436634,
+        "collisions": 7,
+        "slips": 0,
+        "workspace_failures": 8,
+        "unreachable": 0
+      },
+      "supervised_on_rl_43": {
+        "n_scenes": 24,
+        "successes": 8,
+        "success_rate": 0.3333333333333333,
+        "feasible_scenes": 10,
+        "feasible_success_rate": 0.8,
+        "mean_reward": 2.2427229120919225,
+        "mean_regret": 2.3536196467641637,
+        "collisions": 12,
+        "slips": 0,
+        "workspace_failures": 4,
+        "unreachable": 0,
+        "all_candidate_reward_mae": 3.5850048120603604
+      },
+      "supervised_44": {
+        "n_scenes": 24,
+        "successes": 9,
+        "success_rate": 0.375,
+        "feasible_scenes": 10,
+        "feasible_success_rate": 0.9,
+        "mean_reward": 3.483636536772558,
+        "mean_regret": 1.1127060220835276,
+        "collisions": 6,
+        "slips": 0,
+        "workspace_failures": 9,
+        "unreachable": 0,
+        "all_candidate_reward_mae": 3.2947051287310414
+      },
+      "reinforce_44": {
+        "n_scenes": 24,
+        "successes": 9,
+        "success_rate": 0.375,
+        "feasible_scenes": 10,
+        "feasible_success_rate": 0.9,
+        "mean_reward": 3.3411823299872254,
+        "mean_regret": 1.2551602288688606,
+        "collisions": 7,
+        "slips": 0,
+        "workspace_failures": 8,
+        "unreachable": 0
+      },
+      "supervised_on_rl_44": {
+        "n_scenes": 24,
+        "successes": 8,
+        "success_rate": 0.3333333333333333,
+        "feasible_scenes": 10,
+        "feasible_success_rate": 0.8,
+        "mean_reward": 2.537447841291167,
+        "mean_regret": 2.058894717564919,
+        "collisions": 10,
+        "slips": 0,
+        "workspace_failures": 6,
+        "unreachable": 0,
+        "all_candidate_reward_mae": 3.505386447873344
+      },
+      "fixed_zero": {
+        "n_scenes": 24,
+        "successes": 7,
+        "success_rate": 0.2916666666666667,
+        "feasible_scenes": 10,
+        "feasible_success_rate": 0.7,
+        "mean_reward": 1.5191562911433216,
+        "mean_regret": 3.0771862677127646,
+        "collisions": 14,
+        "slips": 0,
+        "workspace_failures": 3,
+        "unreachable": 0
+      },
+      "best_fixed_train": {
+        "n_scenes": 24,
+        "successes": 10,
+        "success_rate": 0.4166666666666667,
+        "feasible_scenes": 10,
+        "feasible_success_rate": 1.0,
+        "mean_reward": 4.167627831700195,
+        "mean_regret": 0.4287147271558909,
+        "collisions": 4,
+        "slips": 0,
+        "workspace_failures": 10,
+        "unreachable": 0
+      }
+    }
+  },
+  "fresh_test_verification": {
+    "unique_attempts": 179,
+    "all_matched": true
+  },
+  "scope": "Held-out base poses for the same door family; no new door geometry or real-robot claim."
+}

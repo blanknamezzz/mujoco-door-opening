@@ -1,0 +1,60 @@
+{
+  "source_hash_matches": true,
+  "splits": {
+    "train": {
+      "rows": 756,
+      "scenes": 36,
+      "complete_unique_grid": true
+    },
+    "validation": {
+      "rows": 252,
+      "scenes": 12,
+      "complete_unique_grid": true
+    },
+    "test": {
+      "rows": 504,
+      "scenes": 24,
+      "complete_unique_grid": true
+    }
+  },
+  "seeds": {
+    "42": {
+      "rl_actual_attempts": 756,
+      "visits_per_scene": [
+        21
+      ],
+      "parameters": {
+        "supervised": 437,
+        "reinforce": 437,
+        "supervised_on_rl": 437
+      }
+    },
+    "43": {
+      "rl_actual_attempts": 756,
+      "visits_per_scene": [
+        21
+      ],
+      "parameters": {
+        "supervised": 437,
+        "reinforce": 437,
+        "supervised_on_rl": 437
+      }
+    },
+    "44": {
+      "rl_actual_attempts": 756,
+      "visits_per_scene": [
+        21
+      ],
+      "parameters": {
+        "supervised": 437,
+        "reinforce": 437,
+        "supervised_on_rl": 437
+      }
+    }
+  },
+  "automated_tests": {
+    "command": "python -m unittest test_grasp_learning test_grasp_rl -v",
+    "passed": 10,
+    "failed": 0
+  }
+}

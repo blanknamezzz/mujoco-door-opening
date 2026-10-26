@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "trajectory": "door_hinge_arc",
+  "handle_center_world_m": [0.8, -0.11, 0.85],
+  "height_offset_m": 0.03,
+  "approach_angle_deg": 0.0,
+  "ik_branch": -1,
+  "approach_distance_m": 0.16,
+  "grip_force_limit_N": 25.0,
+  "opening_angle_deg": 90.0,
+  "timing": {
+    "settle_s": 0.5,
+    "approach_s": 2.0,
+    "close_s": 1.0,
+    "close_motion_s": 0.6,
+    "open_s": 14.0,
+    "hold_s": 2.0
+  }
+}

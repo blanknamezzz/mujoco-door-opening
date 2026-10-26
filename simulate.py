@@ -12,6 +12,7 @@ from pathlib import Path
 import time
 import mujoco
 import numpy as np
+from grasp_plan import GraspPlan, SkillTiming
 
 ROOT = Path(__file__).resolve().parent
 ARM = ["shoulder", "elbow", "wrist_yaw"]
@@ -27,22 +28,27 @@ def smooth(x):
     return x*x*(3-2*x)
 
 
-def skill_target(t, point, yaw_offset=0., mode="nominal", opening_angle_deg=90., opening_direction=1):
-    """Fixed Cartesian skill schedule shared by execution and learned planning."""
+def skill_target(t, point, yaw_offset=0., mode="nominal", opening_angle_deg=90., opening_direction=1,
+                 timing=None, approach_distance_m=.16):
+    """Cartesian hinge-arc schedule; defaults preserve the trained action interface."""
+    timing = DEFAULT_TIMING if timing is None else timing
     yaw0 = math.pi/2+yaw_offset
-    pre = point-.16*np.array([np.cos(yaw0), np.sin(yaw0), 0.])
-    if t < .5:
+    pre = point-approach_distance_m*np.array([np.cos(yaw0), np.sin(yaw0), 0.])
+    if t < timing.settle_s:
         target, yaw, aperture, phase = pre, yaw0, .04, "settle"
-    elif t < 2.5:
-        target, yaw, aperture, phase = pre+smooth((t-.5)/2)*(point-pre), yaw0, .04, "approach"
-    elif t < 3.5:
-        target, yaw, aperture, phase = point, yaw0, .04*(1-smooth((t-2.5)/.6)), "close"
+    elif t < timing.close_start:
+        target, yaw, aperture, phase = pre+smooth((t-timing.settle_s)/timing.approach_s)*(point-pre), yaw0, .04, "approach"
+    elif t < timing.open_start:
+        target, yaw, aperture, phase = point, yaw0, .04*(1-smooth((t-timing.close_start)/timing.close_motion_s)), "close"
     else:
-        theta = opening_direction*math.radians(opening_angle_deg)*smooth((t-3.5)/10.)
-        target, yaw, aperture, phase = rot(theta)@point, yaw0-theta, 0., "open" if t < 13.5 else "hold"
+        theta = opening_direction*math.radians(opening_angle_deg)*smooth((t-timing.open_start)/timing.open_s)
+        target, yaw, aperture, phase = rot(theta)@point, yaw0-theta, 0., "open" if t < timing.hold_start else "hold"
     if mode == "no_grip":
         aperture = .04
     return target, yaw, aperture, phase
+
+
+DEFAULT_TIMING = SkillTiming()
 
 
 class Experiment:
@@ -81,6 +87,12 @@ class Experiment:
         self.hand = self.m.body("hand").id
         self.pads = [self.m.geom(n).id for n in ["left_pad", "right_pad"]]
         self.site = self.m.site("grasp_center").id
+        # Preserve constructor/XML defaults separately from per-trial plans.
+        self._default_ik_branch = self.ik_branch
+        self._default_grip_limits = {
+            name: self.m.actuator(name).forcerange.copy()
+            for name in ('left_grip', 'right_grip')
+        }
         side = -1 if operating_side == "front" else 1
         self.reset(np.array([0.8, side*0.27, 0.85]), -side*math.pi/2)
 
@@ -163,23 +175,47 @@ class Experiment:
         rel = R.T@(self.d.site_xpos[self.site]-hp)
         return forces, speed, ratio, hlocal, flocal, rel, unexpected
 
-    def trial(self, point, yaw_offset=0., mode="nominal", viewer=None, diagnostic_continue=False,
+    def trial(self, point=None, yaw_offset=0., mode="nominal", viewer=None, diagnostic_continue=False,
               observer=None, observation_interval=.5, reset_before_trial=True,
-              opening_angle_deg=90.):
+              opening_angle_deg=90., plan=None):
         """Execute contact dynamics; optional observer records actual reached states.
 
         The observer receives (experiment, terminal). It is called after reset,
         at the requested interval, and at termination, including early failures.
         """
+        timing, approach_distance = DEFAULT_TIMING, .16
+        plan_metadata = {}
+        if plan is None:
+            # mj_resetData resets dynamic state, not MjModel actuator limits.
+            # A legacy/default trial must not inherit the previous plan.
+            self.ik_branch = self._default_ik_branch
+            for name, limits in self._default_grip_limits.items():
+                self.m.actuator(name).forcerange[:] = limits
+        if plan is not None:
+            if point is not None or yaw_offset != 0. or opening_angle_deg != 90.:
+                raise ValueError('Pass either point/yaw_offset or plan, not both.')
+            point = np.asarray(plan.point_world_m)
+            yaw_offset = plan.yaw_offset_rad(self)
+            opening_angle_deg = plan.opening_angle_deg
+            timing, approach_distance = plan.timing, plan.approach_distance_m
+            self.ik_branch = plan.ik_branch
+            for name in ('left_grip', 'right_grip'):
+                self.m.actuator(name).forcerange[:] = [-plan.grip_force_limit_N, plan.grip_force_limit_N]
+            plan_metadata = dict(execution_plan=plan.to_dict(), point_world_m=list(plan.point_world_m),
+                                 yaw_offset_deg=math.degrees(yaw_offset), ik_branch=self.ik_branch)
+        if point is None:
+            raise ValueError('A grasp point or plan is required.')
+        point = np.asarray(point, dtype=float)
         if observation_interval <= 0:
             raise ValueError("observation_interval must be positive")
         if not 2 < opening_angle_deg <= 90:
             raise ValueError("opening_angle_deg must be in (2, 90].")
         yaw0 = math.pi/2+yaw_offset
         approach_dir = np.array([np.cos(yaw0), np.sin(yaw0), 0.])
-        pre = point-.16*approach_dir
+        pre = point-approach_distance*approach_dir
         if self.ik(point, yaw0) is None or self.ik(pre, yaw0) is None:
-            return {"outcome": "A_initial_unreachable", "max_angle_deg": 0.}, [], []
+            return dict(outcome="A_initial_unreachable", max_angle_deg=0.,
+                        stop_reason="initial_grasp_or_pregrasp_unreachable", **plan_metadata), [], []
         if reset_before_trial:
             self.reset(pre, yaw0)
         if observer is not None:
@@ -198,13 +234,13 @@ class Experiment:
         acquired = False
         stable_time = 0.
         stop_reason = "time_limit"
-        open_start, open_duration, end = 3.5, 10., 15.5
+        open_start, end = timing.open_start, timing.end
         if mode == "reach_only":
             end = open_start
         for step in range(round(end/dt)):
             t = self.d.time
             target, yaw, aperture, phase = skill_target(t, point, yaw_offset, mode, opening_angle_deg,
-                                                       self.opening_direction)
+                                                       self.opening_direction, timing, approach_distance)
             if not self.command(target, yaw, aperture):
                 stop_reason = "arm_workspace_limit"
                 break
@@ -298,6 +334,7 @@ class Experiment:
                       first_contact_loss_s=first_loss,
                       unexpected_contact_samples=sum(bool(r["unexpected_contact"]) for r in rows),
                       peak_relative_drift_mm=round(1000*max((r["relative_drift_m"] for r in rows if r["time_s"] >= open_start), default=0.), 3))
+        result.update(plan_metadata)
         if observer is not None:
             observer(self, True)
         return result, rows, states
@@ -312,6 +349,10 @@ def save_trial(name, result, rows, states, output):
             w.writeheader()
             w.writerows(rows)
         np.savez_compressed(output/f"{name}.npz", qpos=np.asarray(states), time=np.array([r["time_s"] for r in rows]))
+    else:
+        # A newly unreachable attempt must not leave a previous run's trajectory.
+        for suffix in ('.csv', '.npz'):
+            (output/f'{name}{suffix}').unlink(missing_ok=True)
 
 
 def main():
@@ -322,32 +363,87 @@ def main():
     p.add_argument("--output", type=Path, default=ROOT/"results")
     p.add_argument("--view", action="store_true")
     p.add_argument("--continue-after-slip", action="store_true", help="Diagnostic only: keep moving to observe eventual contact loss")
+    p.add_argument("--plan", type=Path, help="Load a saved execution plan; coordinates are not re-detected")
+    p.add_argument("--base", type=float, nargs=2, metavar=("X", "Y"), help="Override case base position in metres")
+    p.add_argument("--base-yaw-deg", type=float, default=90.)
+    p.add_argument("--friction", type=float, help="Override all geom sliding friction coefficients")
+    p.add_argument("--hinge-resistance", type=float, default=1.2, help="Hinge friction loss in Nm")
+    p.add_argument("--grasp-height-offset", type=float, help="Metres above/below the observed handle centre")
+    p.add_argument("--grasp-angle-deg", type=float, help="Local approach angle offset in degrees")
+    p.add_argument("--ik-branch", type=int, choices=[-1, 1], help="Keep this elbow branch throughout execution")
+    p.add_argument("--approach-distance", type=float, help="Pregrasp distance in metres")
+    p.add_argument("--grip-force", type=float, help="Per-finger actuator force cap in N, (0, 35]")
+    p.add_argument("--opening-angle", type=float, help="Target door angle in degrees, (2, 90]")
+    for flag, description in [('settle-duration', 'Initial settling'), ('approach-duration', 'Approach'),
+                              ('close-duration', 'Closing stage including contact settling'),
+                              ('close-motion-duration', 'Finger closing motion'), ('open-duration', 'Door opening'),
+                              ('hold-duration', 'Final hold (at least 1 second)')]:
+        p.add_argument('--'+flag, type=float, help=description+' duration in seconds')
     a = p.parse_args()
+    plan_fields = ('grasp_height_offset', 'grasp_angle_deg', 'ik_branch', 'approach_distance',
+                   'grip_force', 'opening_angle', 'settle_duration', 'approach_duration',
+                   'close_duration', 'close_motion_duration', 'open_duration', 'hold_duration')
+    if a.plan and (a.oracle or any(getattr(a, name) is not None for name in plan_fields)):
+        p.error('--plan cannot be combined with --oracle or plan parameter overrides; edit the plan JSON instead.')
     base = (2., -1.2) if a.case == "unreachable" else (.3, -.9) if a.case == "workspace_limit" else (.6, -1.)
-    exp = Experiment(base, friction=.005 if a.case == "low_friction" else .8)
-    if not a.oracle:
-        from perception import estimate
-        from planning import choose_grasp
-        # Fault cases retain the nominal selected grasp, isolating changes in
-        # base position, friction or finger closure. Custom planning can call
-        # choose_grasp(exp, observation) directly for a different base.
-        plan = choose_grasp(Experiment(), estimate(a.observation))
-        point = np.array(plan["selected"]["point_world_m"])
-        yaw_offset = math.radians(plan["selected"]["yaw_offset_deg"])
-        a.output.mkdir(parents=True, exist_ok=True)
-        (a.output/f"{a.case}_grasp_plan.json").write_text(json.dumps(plan, indent=2), encoding="utf-8")
-        source = "RGB-D cylinder fit"
-    else:
-        point = np.array([.8, -.11, .85])
-        yaw_offset = 0.
-        source = "known nominal geometry; NOT vision"
+    base = tuple(a.base) if a.base is not None else base
+    friction = a.friction if a.friction is not None else (.005 if a.case == "low_friction" else .8)
+    if not all(math.isfinite(v) for v in (*base, a.base_yaw_deg, friction, a.hinge_resistance)) or friction < 0 or a.hinge_resistance < 0:
+        p.error('Scene parameters must be finite; friction and hinge resistance must be nonnegative.')
+    exp = Experiment(base, friction=friction, base_yaw=math.radians(a.base_yaw_deg),
+                     hinge_resistance=a.hinge_resistance)
+    a.output.mkdir(parents=True, exist_ok=True)
+    try:
+        if a.plan:
+            execution_plan = GraspPlan.load(a.plan)
+            source = 'saved execution plan; fixed initial-world coordinates, no new perception'
+        else:
+            height, angle = 0., 0.
+            if a.oracle:
+                center = (.8, -.11, .85)
+                source = 'known nominal geometry; NOT vision'
+            else:
+                from perception import estimate
+                observation = estimate(a.observation)
+                center = observation['center_world_m']
+                source = 'saved RGB-D cylinder fit: '+str(a.observation)
+                # Preserve the original fault-comparison grasp unless a local
+                # grasp is explicitly requested. This is not a new search.
+                if a.grasp_height_offset is None and a.grasp_angle_deg is None:
+                    from planning import choose_grasp
+                    geometric_plan = choose_grasp(Experiment(), observation)
+                    selected = geometric_plan['selected']
+                    height = selected['point_world_m'][2] - center[2]
+                    angle = selected['local_yaw_offset_deg']
+                    (a.output/f'{a.case}_grasp_plan.json').write_text(json.dumps(geometric_plan, indent=2), encoding='utf-8')
+            def provided(name, default):
+                value = getattr(a, name)
+                return default if value is None else value
+            timing = SkillTiming(**{key: provided(flag, getattr(DEFAULT_TIMING, key)) for key, flag in [
+                ('settle_s', 'settle_duration'), ('approach_s', 'approach_duration'),
+                ('close_s', 'close_duration'), ('close_motion_s', 'close_motion_duration'),
+                ('open_s', 'open_duration'), ('hold_s', 'hold_duration')]})
+            execution_plan = GraspPlan(tuple(center),
+                height_offset_m=provided('grasp_height_offset', height),
+                approach_angle_deg=provided('grasp_angle_deg', angle),
+                ik_branch=provided('ik_branch', -1),
+                approach_distance_m=provided('approach_distance', .16),
+                grip_force_limit_N=provided('grip_force', 35.),
+                opening_angle_deg=provided('opening_angle', 90.), timing=timing)
+    except (ValueError, TypeError, OSError) as error:
+        p.error(str(error))
+    execution_plan.save(a.output/f'{a.case}_execution_plan.json')
     if a.view:
         from mujoco import viewer as mj_viewer
         with mj_viewer.launch_passive(exp.m, exp.d) as v:
-            result, rows, states = exp.trial(point, yaw_offset, mode=a.case, viewer=v, diagnostic_continue=a.continue_after_slip)
+            result, rows, states = exp.trial(plan=execution_plan, mode=a.case, viewer=v, diagnostic_continue=a.continue_after_slip)
     else:
-        result, rows, states = exp.trial(point, yaw_offset, mode=a.case, diagnostic_continue=a.continue_after_slip)
-    result.update(case=a.case, observation_source=source, mujoco_version=mujoco.__version__)
+        result, rows, states = exp.trial(plan=execution_plan, mode=a.case, diagnostic_continue=a.continue_after_slip)
+    result.update(case=a.case, observation_source=source, mujoco_version=mujoco.__version__,
+                  experiment_parameters=dict(base_xy_m=list(base), base_yaw_deg=a.base_yaw_deg,
+                      sliding_friction=friction, hinge_resistance_Nm=a.hinge_resistance,
+                      opening_direction=exp.opening_direction, operating_side=exp.operating_side),
+                  initialization='reset to pregrasp; no motion planning from arbitrary initial joints')
     save_trial(a.case, result, rows, states, a.output)
     print(json.dumps(result, indent=2))
 

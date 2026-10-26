@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-26",
+  "unit_tests_passed": 23,
+  "physics_checks": {
+    "nominal_full_open_and_hold": true,
+    "reach_then_grasp": true,
+    "slip_precedes_contact_loss": true,
+    "fixed_base_can_limit_opening": true,
+    "initial_unreachable": true,
+    "without_grip_door_does_not_open": true,
+    "no_door_actuator_or_weld": true,
+    "timestep_final_angle_within_0_5_deg": true
+  },
+  "fresh_test_verification": {
+    "unique_attempts": 179,
+    "all_matched": true
+  },
+  "published_learning_metrics_unchanged": true,
+  "perception_interfaces_preserved": true
+}
