@@ -1,5 +1,63 @@
 # MuJoCo Door Opening
 
+## Grasping：抓持方案的判断与执行
+
+对每个指定的底座位置与朝向，记录初始关节姿态，再判断候选抓持方案能否完成以下步骤：
+
+```mermaid
+flowchart TD
+    A[底座位置、朝向和初始关节姿态] --> B[候选抓点、接近角度与肘分支]
+    B --> C[检查预抓取目标的 IK、关节限制与碰撞]
+    C --> D[PRM 寻找初始姿态到预抓取目标的路径]
+    D --> E[使用关节伺服实际执行准备路径]
+    E --> F[接近把手、闭合夹爪并确认稳定抓持]
+    F --> G[执行开门并保持，检查碰撞、滑移与工作空间]
+    G --> H[记录阶段结果、开门角度和训练奖励]
+```
+
+任一步失败都结束当前候选并记录原因，不继续把它当成已验证可行方案。
+
+| 判断步骤 | 通过条件 | 不通过时如何解释 |
+| --- | --- | --- |
+| 目标姿态 | 当前肘分支存在合法预抓取 IK，端点无碰撞 | `goal_ik_unreachable` / `invalid_start` / `invalid_goal`：排除当前目标或端点，不证明所有抓法都无解 |
+| PRM 路径 | `direct_path` 或 `roadmap_path`，最终路径各边通过当前离散几何检查 | `no_path_within_budget`：有限采样未找到，跳过该候选执行；可另行增加预算或更换候选 |
+| 路径执行 | 位置伺服实际到位，未发生碰撞或提前推门，跟踪误差与速度满足阈值 | 准备执行失败；记录碰撞或跟踪原因，`opening_tested=false` |
+| 抓持建立 | 原控制器确认稳定双侧接触 | 可达但未抓稳，不等于可以开门 |
+| 完整开门 | 默认达到 90° 附近并稳定保持；无碰撞、持续滑移或接触丢失 | 分别记录工作空间、碰撞、滑移或未完成；保留实际安全进度 |
+
+**“存在路径”“PRM 找到路径”“实际执行成功”是三个不同判断。** 理想 PRM 在正确的边验证器下，找到路径就是模型内存在一条有效路线的证据；有限预算没找到不证明不存在。工程代码使用离散碰撞检查，步长过大可能漏掉中间碰撞；几何路线还需要动力学执行确认。PRM 到达预抓取点也不证明抓住后能全开。
+
+当前采用四维关节配置 `[升降, 肩, 肘, 腕]`，默认初始姿态为 `[0 m, −90°, −120°, 0°]`。默认保留 240 个有效随机节点、12 个近邻，先尝试直连；直连受阻才使用 Lazy PRM。邻居边在寻路时检查，失败删边再搜索。它使用已知 MuJoCo 几何，尚未规划抓住后的闭环约束运动。
+
+接入范围：
+
+- `collect_grasp_data.py`：对每个站位先分析全部候选，保存 `*_prm_preflight.jsonl`，然后生成实际执行结果。
+- `train_grasp_rl.py` / `compare_grasp_learning.py`：策略选择的候选经过相同 PRM 和路径执行步骤后，才进入抓持、开门与奖励计算；当前没有用 PRM 结果做动作概率掩码。
+- `simulate.py` / `run_demo.py` / 原 H-JEPA 流程保留各自的初始化接口，不能把它们当成已接入 PRM。直接调用 `trial(plan=...)` 默认仍重置到预抓取点；新学习流程会先执行准备路径，再调用 `trial(reset_before_trial=False)`。
+
+`opening_tested=false` 的负奖励表示当前规划预算或准备流程失败，不能当作已经实际测试并证明“这个站位无法开门”的标签。准备阶段碰撞会记录，并计入流程碰撞统计。
+
+### PRM 例子与复现
+
+| 例子 | 准备路径判断 | 后续开门 |
+| --- | --- | --- |
+| `(0.6, -1.0)`，无遮挡 | 直连通过，无需随机建图 | 全开保持 |
+| 同站位，增加小障碍 | 715 次采样中保留 500 个有效节点，找到 5 路标路径；用原升降轴下降约 9.6 cm 绕行 | 全开保持 |
+| 同一障碍，零采样预算 | 未找到；上一个例子已证明不等于绝对无路 | 跳过执行 |
+| `(0.3, -0.9)` | 找到路径并成功到位 | 开到约 42.5° 后工作空间受限 |
+| `(2.0, -1.2)` | 当前预抓取目标和肘分支没有合法 IK | 跳过执行 |
+
+```bash
+python prm_examples.py
+# 本地打开 reproduced/prm_examples/index.html
+mjpython prm_examples.py --view detour
+# 可选：从已记录的真实物理轨迹生成 2 倍速 GIF
+python prm_examples.py --render detour
+```
+
+见 [PRM 实现与参数](docs/prm_pregrasp.md)、[实测报告](docs/prm_results/REPORT.md) 和 [离线交互页面](docs/prm_results/index.html)（下载后在浏览器打开；GitHub 文件页仅显示源码）。
+新默认实验目录带 `_prm` 后缀，旧数据/模型可通过显式路径继续评估；`--no-prm` 显式运行原初始化基线。
+
 ## 抓持方案、角度学习与新站位验证
 
 新增可序列化的抓持方案（高度、接近角度、肘分支、力上限、时序），以及独立的
@@ -22,9 +80,9 @@ mjpython compare_grasp_learning.py demo --scene test_021 --method reinforce --se
 
 默认使用 36/12/24 个训练/验证/测试站位、21 个角度和 3 个训练种子。
 报告和小型指标文件随代码发布；大数据、视频和模型权重在忽略的 `reproduced/` 中由命令生成。
-本次 SL 未优于 RL，训练集选出的固定 +18° 同样达到 10/24；结果不代表新门型或真实机器人表现。
+历史无 PRM 的 36/12/24 站位实验中，SL 未优于 RL，训练集选出的固定 +18° 同样达到 10/24。新增 PRM 流程以 12/4/8 站位、504 次候选流程和 252 次 RL 决策完成接入验证；这两组实验不用于直接比较 PRM 的成功率增益，也不代表新门型或真实机器人表现。
 
-回归检查：`python -m unittest test_grasp_plan test_grasp_learning test_grasp_rl test_git_size -v`。
+回归检查：`python -m unittest test_prm test_grasp_plan test_grasp_learning test_grasp_rl test_git_size -v`。
 默认 `trial(point)` 会恢复构造时的肘分支和执行器力上限，避免继承上一回合的方案设置。
 
 Current continuation uses **LoRA**, with the original H-JEPA core frozen and
@@ -145,7 +203,7 @@ rejected. See [training results and remaining failures](docs/hjepa_structural_tr
 
 现已支持完整抓握方案：抓握高度、接近角度、肘关节分支、各阶段时长和夹爪驱动力上限，
 可通过命令行设置并保存/加载 JSON。见 [参数化抓握方案与运行示例](docs/grasp_plans.md)。
-这一步提供方案表示和执行接口，尚未自动搜索最优抓法。
+`GraspPlan` 提供方案表示和执行接口；独立 SL/RL 模块可选择候选角度，但不保证全局最优。
 
 验证环境：macOS、Python 3.12.5、MuJoCo 3.16.0、NumPy 2.5.4、Pillow 12.3.0。依赖版本固定在 `requirements.txt`。
 
@@ -204,6 +262,10 @@ python render_slip_detail.py
 | `scene.xml` | 门、把手、机械臂、夹爪、接触和驱动参数 |
 | `perception.py` | RGB-D 采集、颜色分割和拉杆截面拟合 |
 | `planning.py` | 9 个抓取候选与几何轨迹筛选 |
+| `prm.py` | 初始关节姿态到预抓取目标的 Lazy PRM，以及实际准备路径跟踪 |
+| `prm_examples.py` | 五个点位例子、路线图分析、实际轨迹重放和可选 GIF |
+| `collect_grasp_data.py` | 按站位划分数据，先做 PRM 预检再记录候选执行结果 |
+| `train_grasp_rl.py` / `compare_grasp_learning.py` | 带准备路径检查的角度学习、SL/RL 训练与独立验证 |
 | `simulate.py` | 动力学控制、接触监测与结果分类 |
 | `benchmark.py` | 六组对照实验和验证 |
 | `diagnose_workspace.py` | 实际停止状态与首个越界目标的诊断 |

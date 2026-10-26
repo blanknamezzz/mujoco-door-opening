@@ -1,0 +1,46 @@
+{
+  "automated_tests_passed": 32,
+  "dataset": {
+    "train": {
+      "scenes": 12,
+      "attempts": 252,
+      "successful_attempts": 80,
+      "opening_trials_executed": 252,
+      "preparation_failures": 0
+    },
+    "validation": {
+      "scenes": 4,
+      "attempts": 84,
+      "successful_attempts": 13,
+      "opening_trials_executed": 84,
+      "preparation_failures": 0
+    },
+    "test": {
+      "scenes": 8,
+      "attempts": 168,
+      "successful_attempts": 59,
+      "opening_trials_executed": 168,
+      "preparation_failures": 0
+    },
+    "collection_seconds_this_run": 56.624455874996784,
+    "note": "Collecting held-out reference labels does not authorize using them for training."
+  },
+  "training_decisions": 252,
+  "training_seeds": [
+    42
+  ],
+  "fresh_test": {
+    "unique_attempts": 32,
+    "all_matched": true
+  },
+  "test_successes": {
+    "supervised_42": 3,
+    "reinforce_42": 3,
+    "supervised_on_rl_42": 3,
+    "fixed_zero": 3,
+    "best_fixed_train": 3
+  },
+  "browser_visual_check": false,
+  "interaction_logic_check": true,
+  "preparation_collision_export_test_passed": true
+}

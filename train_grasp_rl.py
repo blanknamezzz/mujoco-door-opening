@@ -21,6 +21,8 @@ from grasp_plan import GraspPlan, SkillTiming
 from perception import estimate
 from simulate import Experiment, ROOT, save_trial
 
+_PRM_CACHE = {}
+
 
 def write_json(path, data):
     Path(path).write_text(json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n",
@@ -120,16 +122,51 @@ def rollout(config, base, angle, viewer=False):
     plan = replace(GraspPlan.from_dict(config["plan"]), approach_angle_deg=float(angle))
     exp = Experiment(base=base, base_yaw=config["base_yaw_rad"],
                      friction=config["friction"], hinge_resistance=config["hinge_resistance"],
-                     ik_branch=plan.ik_branch)
+                     ik_branch=plan.ik_branch, model_xml=config.get('model_xml'))
     if viewer:
         import mujoco.viewer
         with mujoco.viewer.launch_passive(exp.m, exp.d) as window:
-            result, rows, states = exp.trial(plan=plan, viewer=window)
-    else:
-        result, rows, states = exp.trial(plan=plan)
+            return _execute_rollout(config, base, angle, exp, plan, window)
+    return _execute_rollout(config, base, angle, exp, plan)
+
+
+def _execute_rollout(config, base, angle, exp, plan, viewer=None):
+    """One complete decision, including visible preparation when requested."""
+    preparation = None
+    if config.get('prm') is not None:
+        from prm import PRMSettings, Roadmap, execute_path
+        key = json.dumps(dict(config=config, base=list(map(float, base))), sort_keys=True)
+        if key not in _PRM_CACHE:
+            if len(_PRM_CACHE) >= 8:
+                _PRM_CACHE.pop(next(iter(_PRM_CACHE)))
+            _PRM_CACHE[key] = Roadmap(exp, PRMSettings(**config['prm']))
+        query = _PRM_CACHE[key].plan(plan)
+        preparation = dict(query=query, execution=None)
+        if not query['path_found']:
+            status = query['status']
+            result = dict(outcome=('A_initial_unreachable' if status == 'goal_ik_unreachable'
+                                  else 'P_pregrasp_unconfirmed'), stop_reason='prm_'+status,
+                          max_angle_deg=0., final_angle_deg=0., execution_plan=plan.to_dict())
+            value, terms = reward(result, [], plan)
+            if status != 'goal_ik_unreachable':
+                terms['pregrasp_failure'] = -2.
+                value -= 2.
+            return dict(angle_deg=float(angle), base_xy_m=list(map(float, base)), reward=value,
+                reward_terms=terms, result=result, preparation=preparation, opening_tested=False), [], [], plan
+        execution, _, _ = execute_path(exp, query['path_q'], viewer=viewer)
+        preparation['execution'] = execution
+        if not execution['success']:
+            result = dict(outcome='P_pregrasp_execution_failed', stop_reason=execution['stop_reason'],
+                max_angle_deg=0., final_angle_deg=0., execution_plan=plan.to_dict(),
+                unexpected_contact_samples=int(bool(execution.get('collision'))),
+                first_unexpected_contact=execution.get('collision'))
+            return dict(angle_deg=float(angle), base_xy_m=list(map(float, base)), reward=-5.,
+                reward_terms=dict(pregrasp_failure=-5., safe_progress=0.), result=result,
+                preparation=preparation, opening_tested=False), [], [], plan
+    result, rows, states = exp.trial(plan=plan, viewer=viewer, reset_before_trial=preparation is None)
     value, terms = reward(result, rows, plan)
     return dict(angle_deg=float(angle), base_xy_m=list(map(float, base)), reward=value,
-                reward_terms=terms, result=result), rows, states, plan
+                reward_terms=terms, result=result, preparation=preparation, opening_tested=True), rows, states, plan
 
 
 def save_checkpoint(path, policy, config):
@@ -139,7 +176,7 @@ def save_checkpoint(path, policy, config):
 def load_checkpoint(path):
     with np.load(path, allow_pickle=False) as data:
         config = json.loads(str(data["metadata"]))
-        if config.get("schema_version") != 1:
+        if config.get("schema_version") not in (1, 2):
             raise ValueError("Unsupported policy checkpoint version")
         policy = Policy(len(config["angles_deg"]), np.random.default_rng(0))
         for k, shape in ((k, v.shape) for k, v in policy.params.items()):
@@ -197,7 +234,7 @@ def train(args):
     center = tuple(estimate(args.observation)["center_world_m"])
     plan = GraspPlan(center, height_offset_m=args.height, ik_branch=args.ik_branch,
                      grip_force_limit_N=args.grip_force, timing=SkillTiming(open_s=args.open_seconds))
-    config = dict(schema_version=1, algorithm="REINFORCE with past-batch EMA baseline and entropy",
+    config = dict(schema_version=2, algorithm="REINFORCE with past-batch EMA baseline and entropy",
         seed=args.seed, episodes=args.episodes, batch_size=args.batch_size,
         learning_rate=args.learning_rate, entropy_coef=args.entropy,
         base_xy_m=args.base, base_jitter_m=args.base_jitter,
@@ -205,7 +242,10 @@ def train(args):
         hinge_resistance=args.hinge_resistance, plan=plan.to_dict(), angles_deg=angles,
         observation_path=str(args.observation.resolve()),
         source_sha256={name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
-                       for name in ("scene.xml", "simulate.py", "grasp_plan.py", "train_grasp_rl.py")})
+                       for name in ("scene.xml", "simulate.py", "grasp_plan.py", "prm.py", "train_grasp_rl.py")})
+    if not args.no_prm:
+        from prm import PRMSettings
+        config['prm'] = PRMSettings(samples=args.prm_samples, initial_q=args.initial_q).to_dict()
     write_json(args.output / "config.json", config)
     rng = np.random.default_rng(args.seed)
     policy = Policy(len(angles), rng)
@@ -270,7 +310,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     p = commands.add_parser("train", help="Train from fresh MuJoCo episodes")
-    p.add_argument("--output", type=Path, default=ROOT/"reproduced"/"grasp_rl")
+    p.add_argument("--output", type=Path, default=ROOT/"reproduced"/"grasp_rl_prm")
     p.add_argument("--observation", type=Path, default=ROOT/"results"/"observation.npz")
     p.add_argument("--episodes", type=int, default=256)
     p.add_argument("--batch-size", type=int, default=8)
@@ -290,9 +330,13 @@ def main():
     p.add_argument("--friction", type=positive, default=.8)
     p.add_argument("--hinge-resistance", type=float, default=1.2)
     p.add_argument("--sweep", action="store_true", help="After training, independently evaluate every angle")
+    p.add_argument('--no-prm', action='store_true', help='Explicit legacy reset-to-pregrasp baseline')
+    p.add_argument('--prm-samples', type=int, default=240)
+    p.add_argument('--initial-q', type=float, nargs=4, default=[0., -np.pi/2, -2*np.pi/3, 0.],
+                   metavar=('LIFT_M', 'SHOULDER_RAD', 'ELBOW_RAD', 'WRIST_RAD'))
     for command in ("evaluate", "demo"):
         p = commands.add_parser(command)
-        p.add_argument("--checkpoint", type=Path, default=ROOT/"reproduced"/"grasp_rl"/"policy.npz")
+        p.add_argument("--checkpoint", type=Path, default=ROOT/"reproduced"/"grasp_rl_prm"/"policy.npz")
         p.add_argument("--output", type=Path, default=ROOT/"reproduced"/f"grasp_rl_{command}")
         p.add_argument("--base", type=float, nargs=2, help="Override base for evaluation only; no weight updates")
         p.add_argument("--sweep", action="store_true")

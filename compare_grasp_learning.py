@@ -23,7 +23,7 @@ from collect_grasp_data import (DEFAULT_DATA, context, load_records, physics_job
 from simulate import ROOT, save_trial
 from train_grasp_rl import Adam, Policy, rollout, write_json
 
-DEFAULT_OUTPUT = ROOT / "reproduced" / "grasp_learning_comparison"
+DEFAULT_OUTPUT = ROOT / "reproduced" / "grasp_learning_comparison_prm"
 METHODS = ("supervised", "reinforce", "supervised_on_rl")
 LABELS = {"supervised": "监督学习（完整角度采样）", "reinforce": "REINFORCE（在线探索）",
           "supervised_on_rl": "监督学习（复用 RL 记录）", "fixed_zero": "固定 0°",
@@ -123,6 +123,9 @@ def train(args):
         train_interactions_per_method_per_seed=budget, supervised_updates=args.sl_updates,
         supervised_lr=args.sl_lr, rl_lr=args.rl_lr, rl_batch_size=args.batch_size,
         entropy_coef=.02, checkpoint_selection="Final weights only; no validation or test selection")
+    config['preparation'] = manifest['physics'].get('prm')
+    config['budget_unit'] = ('scheduled end-to-end decisions; PRM rejection may skip opening execution'
+                             if config['preparation'] else 'physical opening attempts')
     write_json(args.output/"experiment_config.json", config)
     # A useful non-neural baseline, selected from training labels only.
     means = [float(np.mean([t["reward"] for t in records if t["action_index"] == a]))
@@ -181,7 +184,9 @@ def train(args):
             costs[f"supervised_on_rl_fitting_{seed}"] = time.perf_counter()-t0
             unique = len({(t["scene_id"], t["action_index"]) for t in rl_records})
             write_json(folder/"coverage.json", dict(supervised_unique_pairs=budget, rl_unique_pairs=unique,
-                                                    total_interactions_each=budget))
+                total_interactions_each=budget,
+                rl_opening_trials_executed=sum(t.get('opening_tested', True) for t in rl_records),
+                sl_opening_trials_executed=sum(t.get('opening_tested', True) for t in records)))
     write_json(args.output/"training_costs.json", dict(seconds=costs, total_seconds=time.perf_counter()-start,
         note="Supervised fitting time excludes its dataset generation; report both when comparing cost."))
     print("All model weights frozen. Run evaluate to open held-out outcomes.", flush=True)
@@ -301,7 +306,7 @@ def write_report(output, manifest, summary, selections, examples):
         "## 数据与公平性", "",
         f"- 训练 / 验证 / 测试场景数：{sum(s['split']=='train' for s in manifest['scenes'])} / {sum(s['split']=='validation' for s in manifest['scenes'])} / {n}。所有角度按场景分组，划分先于仿真。",
         f"- 每场景 {len(manifest['angles_deg'])} 个角度：−20° 至 +20°、间隔 2°。物理仿真产生标签，无人工指定最佳角度。",
-        f"- 每种主方法每个种子使用 {summary['protocol']['train_interactions_per_method_per_seed']} 次训练交互。训练种子：{seeds}。",
+        f"- 每种主方法每个种子安排 {summary['protocol']['train_interactions_per_method_per_seed']} 次候选决策。训练种子：{seeds}。预算单位：{summary['protocol'].get('budget_unit', 'physical opening attempts')}。",
         "- 同一网络规模、输入、归一化、控制器、奖励、场景访问次数。SL 全角度采样；RL 在线按当前策略采样，允许重复。",
         "- 监督学习使用更多离线梯度更新，因此比较的是相同物理交互预算，不是相同优化步数或总计算量。",
         "- 第三组用同一份 RL 记录训练监督模型，不增加物理试验，用于部分区分数据覆盖与学习目标的影响。",
@@ -340,7 +345,9 @@ def write_report(output, manifest, summary, selections, examples):
         f"冻结后重新执行了 {summary['fresh_test_verification']['unique_attempts']} 个去重后的测试位置–角度组合，全部与原始物理记录一致。", "",
         "原始数据位于数据目录的 train/validation/test.csv 和 .jsonl；完整方法选择见 selections.json；指标见 evaluation.json；模型、训练历史与探索记录位于 seed_*。",
         "",
-        "局限：固定门族、固定抓点高度/力/速度、已知感知结果、预抓取初始化、离散角度，没有在线重抓或拒绝动作。SL 的输出是奖励预测值，不是校准成功概率。",
+        "局限：固定门族、固定抓点高度/力/速度、已知感知结果、离散角度，没有在线重抓或拒绝动作。" +
+        ("使用固定初始关节姿态的 PRM 准备，抓住后仍为固定铰链弧线。" if summary['protocol'].get('preparation') else "使用预抓取初始化。") +
+        "SL 的输出是奖励预测值，不是校准成功概率。",
         "实验设计参考：https://www.jmlr.org/papers/volume25/23-0183/23-0183.pdf", ""]
     (output/"REPORT.md").write_text("\n".join(lines), encoding="utf-8")
 

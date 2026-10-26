@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PRM 如何找到抓持前的路径</title>
+<style>
+:root{--bg:#f6f7fa;--paper:#fff;--text:#182a3d;--muted:#56697b;--line:#d5dce4;--blue:#2264b3;--green:#16815f;--red:#bb423b;--purple:#8555af}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.65 system-ui,-apple-system,"PingFang SC",sans-serif}main{max-width:1240px;margin:auto;padding:32px 24px 56px}h1{font-size:32px;line-height:1.3;margin:6px 0 12px}h2{font-size:19px;margin:0 0 10px}.muted{color:var(--muted)}nav,.controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center}nav{margin:24px 0}button,select{font:inherit;padding:9px 12px;border:1px solid var(--line);background:var(--paper);color:var(--text);border-radius:7px}button[aria-pressed=true]{background:var(--blue);color:white;border-color:var(--blue)}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--blue);outline-offset:3px}.status{padding:18px 20px;background:var(--paper);border-left:5px solid var(--green);margin:16px 0}.status p{margin:6px 0 0}.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:18px 0}.fact{border-top:2px solid var(--line);padding-top:10px}.fact strong{display:block;font-size:23px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.panel{background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:18px;min-width:0}canvas{display:block;width:100%;height:auto;aspect-ratio:1.35;background:var(--paper)}label{display:flex;align-items:center;gap:8px}input[type=range]{min-width:120px;flex:1}.controls{margin:12px 0}.legend{font-size:13px;line-height:1.8}.foot{border-top:1px solid var(--line);margin-top:24px;padding-top:18px}code{font-size:14px;overflow-wrap:anywhere}.tag{font-weight:650;color:var(--blue)}@media(max-width:760px){main{padding:23px 14px}.grid{grid-template-columns:1fr}.facts{grid-template-columns:1fr 1fr}h1{font-size:26px}nav button{flex:1;min-width:130px}label{flex-wrap:wrap}}
+</style></head><body><main>
+<div class="muted">MuJoCo · 四维关节空间 · 固定底座</div>
+<h1>先确认能走到把手，再尝试开门</h1>
+<p>采样配置 → 检查姿态 → 连接邻居 → 验证路径 → 实际运动。路径找到后，仍需验证抓持和开门。</p>
+<nav id="cases" aria-label="选择例子"></nav>
+<section class="status" aria-live="polite"><strong id="title"></strong><p id="description"></p><div id="result" class="tag"></div></section>
+<div class="facts"><div class="fact">有效随机节点<strong id="nodes"></strong></div><div class="fact">本次姿态检查<strong id="checks"></strong></div><div class="fact">路径点数<strong id="waypoints"></strong></div><div class="fact">最终门角度<strong id="door"></strong></div></div>
+<div class="grid"><section class="panel"><h2>路线图：肩关节—肘关节投影</h2>
+<label>显示阶段<select id="stage"><option value="nodes">1 · 采样节点</option><option value="edges">2 · 候选连边</option><option value="path" selected>3 · 搜索出的路径</option></select></label>
+<canvas id="graph" width="640" height="480" role="img" aria-label="四维 PRM 的肩肘二维投影"></canvas>
+<div class="legend">● 蓝：起点　■ 紫：目标　灰点：无碰撞样本<br>灰线：候选边　红线：已检查失败　绿线：已验证的最终路径</div>
+<p class="muted">升降和腕关节未显示；投影中线段相交，不表示四维空间中的节点相连。</p>
+</section><section class="panel"><h2>机器人：实际积分轨迹的俯视重放</h2>
+<div class="controls"><button id="play" type="button">播放 · 2 倍速</button><label>过程 <input id="time" type="range" min="0" max="1" step="1" value="0"></label><output id="clock"></output></div>
+<canvas id="robot" width="640" height="480" role="img" aria-label="机械臂接近和开门的实际轨迹重放"></canvas>
+<div class="legend" id="pose"></div><p class="muted">蓝色机械臂，棕色门，红色方块为 B/C 的障碍。俯视投影会隐藏高度差，请结合升降读数理解绕行。</p>
+</section></div>
+<section class="foot"><strong>判断边界</strong><p>“找到预抓取路径”只说明当前关节范围与离散碰撞检查下存在一条候选路线。“有限预算未找到”不等于绝对不可行。执行失败和开门失败分别记录。</p><div id="command"></div></section>
+</main><script>
+const DATA=__PRM_DATA__;
+const $=id=>document.getElementById(id);let selected=1,frame=0,running=false,last=0;
+const statusText={direct_path:'直连通过',roadmap_path:'路线图找到绕行',no_path_within_budget:'当前预算未找到路径',goal_ik_unreachable:'目标逆运动学不可达',invalid_start:'初始姿态碰撞或越界',invalid_goal:'目标姿态碰撞或越界'};
+function axis(ctx,w,h,xlabel,ylabel){ctx.clearRect(0,0,w,h);ctx.strokeStyle='#d5dce4';ctx.lineWidth=1;ctx.strokeRect(54,25,w-78,h-79);ctx.fillStyle='#56697b';ctx.font='14px system-ui';ctx.fillText(xlabel,w/2-75,h-10);ctx.save();ctx.translate(17,h/2+55);ctx.rotate(-Math.PI/2);ctx.fillText(ylabel,0,0);ctx.restore()}
+function graph(){const d=DATA[selected],q=d.query,c=$('graph'),ctx=c.getContext('2d'),w=c.width,h=c.height;axis(ctx,w,h,'肩关节角度 / °','肘关节角度 / °');
+ const xy=q=>[54+(q[1]*180/Math.PI+170)/340*(w-78),h-54-(q[2]*180/Math.PI+170)/340*(h-79)];
+ for(const deg of [-150,-75,0,75,150]){ctx.fillStyle='#56697b';ctx.font='12px system-ui';ctx.fillText(deg,54+(deg+170)/340*(w-78)-10,h-33);ctx.fillText(deg,24,h-54-(deg+170)/340*(h-79)+4)}
+ function line(a,b,color,width=1){const p=xy(a),r=xy(b);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(...p);ctx.lineTo(...r);ctx.stroke()}
+ const g=q.graph||{nodes:[],candidate_edges:[],checked_edges:[]};
+ if($('stage').value!=='nodes'){for(const [i,j] of g.candidate_edges)line(g.nodes[i],g.nodes[j],'#dfe4e9',.6);for(const [i,j,valid] of g.checked_edges)if(!valid)line(g.nodes[i],g.nodes[j],'#d99b97',1)}
+ for(const p of g.nodes){const v=xy(p);ctx.fillStyle='#8494a6';ctx.beginPath();ctx.arc(...v,2.3,0,Math.PI*2);ctx.fill()}
+ if($('stage').value==='path')for(let i=1;i<q.path_q.length;i++)line(q.path_q[i-1],q.path_q[i],'#16815f',4);
+ if(q.initial_q){const p=xy(q.initial_q);ctx.fillStyle='#2264b3';ctx.beginPath();ctx.arc(...p,7,0,Math.PI*2);ctx.fill();ctx.fillText('起点',p[0]+10,p[1]-8)}
+ if(q.goal_q){const p=xy(q.goal_q);ctx.fillStyle='#8555af';ctx.fillRect(p[0]-6,p[1]-6,12,12);ctx.fillText('目标',p[0]+10,p[1]-8)}
+ if(q.status==='direct_path'){ctx.fillStyle='#56697b';ctx.fillText('直连有效，无需随机建图',75,47)}
+}
+function robot(){const d=DATA[selected],f=d.frames[frame],c=$('robot'),ctx=c.getContext('2d'),w=c.width,h=c.height;axis(ctx,w,h,'世界坐标 x / m','世界坐标 y / m');
+ const xy=(x,y)=>[54+(x+.4)/3.4*(w-78),h-54-(y+1.9)/2.6*(h-79)];
+ const line=(a,b,color,width)=>{ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(...xy(...a));ctx.lineTo(...xy(...b));ctx.stroke()};
+ const door=f[5],end=[.9*Math.cos(door),-.9*Math.sin(door)];line([0,0],end,'#946442',11);
+ const initialHandle=[.8,-.11],handle=[Math.cos(door)*initialHandle[0]+Math.sin(door)*initialHandle[1],-Math.sin(door)*initialHandle[0]+Math.cos(door)*initialHandle[1]];const hp=xy(...handle);ctx.fillStyle='#d49c13';ctx.beginPath();ctx.arc(...hp,6,0,Math.PI*2);ctx.fill();
+ if(d.obstacle){const a=xy(d.obstacle[0]-.035,d.obstacle[1]+.035),b=xy(d.obstacle[0]+.035,d.obstacle[1]-.035);ctx.fillStyle='#bb423b';ctx.fillRect(a[0],a[1],b[0]-a[0],b[1]-a[1])}
+ let point=d.base.slice(),angle=Math.PI/2;const joints=[point.slice()];for(let i=0;i<3;i++){angle+=f[i+2];const length=[.6,.55,.18][i],next=[point[0]+length*Math.cos(angle),point[1]+length*Math.sin(angle)];line(point,next,'#2264b3',i===2?7:11);point=next;joints.push(point.slice())}
+ for(const j of joints){const p=xy(...j);ctx.fillStyle='#182a3d';ctx.beginPath();ctx.arc(...p,4,0,Math.PI*2);ctx.fill()}
+ const bp=xy(...d.base);ctx.fillStyle='#56697b';ctx.fillRect(bp[0]-12,bp[1]-12,24,24);
+ $('clock').textContent=f[0].toFixed(1)+' s';$('pose').textContent='升降 '+f[1].toFixed(3)+' m；门 '+(f[5]*180/Math.PI).toFixed(1)+'°；底座 ('+d.base.join(', ')+') m';
+}
+function select(i){selected=i;frame=0;running=false;$('play').textContent='播放 · 2 倍速';const d=DATA[i],q=d.query;
+ document.querySelectorAll('#cases button').forEach((b,j)=>b.setAttribute('aria-pressed',String(i===j)));
+ $('title').textContent=d.title;$('description').textContent=d.explanation;$('result').textContent=statusText[q.status]+' → '+(d.opening?d.opening.stop_reason:d.execution?d.execution.stop_reason:'未执行开门');
+ $('nodes').textContent=q.accepted_nodes||0;$('checks').textContent=q.state_checks||0;$('waypoints').textContent=q.path_q.length;$('door').textContent=d.opening?d.opening.final_angle_deg.toFixed(2)+'°':'未执行';
+ $('time').max=d.frames.length-1;$('time').value=0;$('play').disabled=d.frames.length<2;
+ $('command').textContent='实时 MuJoCo：mjpython prm_examples.py --view '+d.key;graph();robot();
+}
+DATA.forEach((d,i)=>{const b=document.createElement('button');b.type='button';b.textContent=d.title;b.addEventListener('click',()=>select(i));$('cases').append(b)});
+$('stage').addEventListener('change',graph);$('time').addEventListener('input',()=>{frame=Number($('time').value);robot()});$('play').addEventListener('click',()=>{running=!running;last=0;$('play').textContent=running?'暂停':'播放 · 2 倍速';if(frame>=DATA[selected].frames.length-1)frame=0});
+function tick(now){if(running){if(!last)last=now;const target=DATA[selected].frames[frame][0]+(now-last)/1000*2;while(frame<DATA[selected].frames.length-1&&DATA[selected].frames[frame+1][0]<=target)frame++;if(now-last>=50){last=now;$('time').value=frame;robot()}if(frame===DATA[selected].frames.length-1){running=false;$('play').textContent='播放 · 2 倍速'}}requestAnimationFrame(tick)}
+select(selected);requestAnimationFrame(tick);
+</script></body></html>

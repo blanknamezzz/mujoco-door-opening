@@ -1,0 +1,538 @@
+[
+  {
+    "key": "direct",
+    "title": "A：直接到达并全开",
+    "base": [
+      0.6,
+      -1.0
+    ],
+    "angle": 8.0,
+    "explanation": "直连局部路径通过检查，使用起点到目标的直接边。无需为了展示随机采样而强行建图。",
+    "obstacle": null,
+    "execution": {
+      "success": true,
+      "stop_reason": "path_executed",
+      "collision": null,
+      "duration_s": 5.295000000000103,
+      "integration_steps": 5295,
+      "joint_error": [
+        0.0,
+        3.1585907223075083e-09,
+        5.713789441585959e-09,
+        2.7018927095667777e-08
+      ],
+      "actual_goal_q": [
+        0.0,
+        0.5266629351309282,
+        -2.034480724651059,
+        1.6474441052159485
+      ],
+      "door_angle_deg": 0.0
+    },
+    "opening": {
+      "outcome": "D_full_open",
+      "grasp_acquired": true,
+      "stop_reason": "full_open_and_hold",
+      "target_angle_deg": 90.0,
+      "opening_direction": 1,
+      "operating_side": "front",
+      "final_signed_angle_deg": 89.676,
+      "first_unexpected_contact": null,
+      "diagnostic_continue_after_slip": false,
+      "held_open_one_second": true,
+      "max_angle_deg": 89.676,
+      "final_angle_deg": 89.676,
+      "slip_detected": false,
+      "first_slip_s": null,
+      "contact_lost": false,
+      "first_contact_loss_s": null,
+      "unexpected_contact_samples": 0,
+      "peak_relative_drift_mm": 4.838,
+      "execution_plan": {
+        "schema_version": 1,
+        "trajectory": "door_hinge_arc",
+        "handle_center_world_m": [
+          0.8,
+          -0.11,
+          0.85
+        ],
+        "height_offset_m": 0.0,
+        "approach_angle_deg": 8.0,
+        "ik_branch": -1,
+        "approach_distance_m": 0.16,
+        "grip_force_limit_N": 35.0,
+        "opening_angle_deg": 90.0,
+        "timing": {
+          "settle_s": 0.5,
+          "approach_s": 2.0,
+          "close_s": 1.0,
+          "close_motion_s": 0.6,
+          "open_s": 10.0,
+          "hold_s": 2.0
+        }
+      },
+      "point_world_m": [
+        0.8,
+        -0.11,
+        0.85
+      ],
+      "yaw_offset_deg": 8.0,
+      "ik_branch": -1
+    },
+    "query": {
+      "path_found": true,
+      "status": "direct_path",
+      "path_q": [
+        [
+          0.0,
+          -1.5707963267948966,
+          -2.0943951023931953,
+          0.0
+        ],
+        [
+          0.0,
+          0.5266629382895189,
+          -2.0344807303648484,
+          1.6474441322348756
+        ]
+      ],
+      "initial_q": [
+        0.0,
+        -1.5707963267948966,
+        -2.0943951023931953,
+        0.0
+      ],
+      "goal_q": [
+        0.0,
+        0.5266629382895189,
+        -2.0344807303648484,
+        1.6474441322348756
+      ],
+      "settings": {
+        "samples": 240,
+        "neighbors": 18,
+        "seed": 7,
+        "joint_step_rad": 0.06,
+        "lift_step_m": 0.008,
+        "penetration_tolerance_m": 1e-05,
+        "initial_q": [
+          0.0,
+          -1.5707963267948966,
+          -2.0943951023931953,
+          0.0
+        ]
+      },
+      "direct_path_clear": true,
+      "accepted_nodes": 0,
+      "attempted_samples": 0,
+      "rejected_samples": 0,
+      "state_checks": 38,
+      "link_checks": 1,
+      "elapsed_seconds": 0.0026539999998931307,
+      "interpretation": "Geometric pregrasp query only. Finite failure does not prove infeasibility.",
+      "pregrasp_world_m": [
+        0.8222676961536105,
+        -0.26844289099865126,
+        0.85
+      ]
+    }
+  },
+  {
+    "key": "detour",
+    "title": "B：直连受阻，路线图绕行",
+    "base": [
+      0.6,
+      -1.0
+    ],
+    "angle": 8.0,
+    "explanation": "与 A 相同的站位和目标，增加一个小障碍。直连失败后采样关节姿态，搜索利用现有升降轴的绕行路径。",
+    "obstacle": [
+      1.1816153636012094,
+      -0.8849590023664262,
+      0.85
+    ],
+    "execution": {
+      "success": true,
+      "stop_reason": "path_executed",
+      "collision": null,
+      "duration_s": 6.33400000000045,
+      "integration_steps": 6334,
+      "joint_error": [
+        8.145782940689849e-10,
+        8.551915620103046e-09,
+        3.2394598115104145e-09,
+        2.7984114137069582e-08
+      ],
+      "actual_goal_q": [
+        8.145782940689849e-10,
+        0.5266629297376033,
+        -2.0344807271253886,
+        1.6474441602189898
+      ],
+      "door_angle_deg": 0.0
+    },
+    "opening": {
+      "outcome": "D_full_open",
+      "grasp_acquired": true,
+      "stop_reason": "full_open_and_hold",
+      "target_angle_deg": 90.0,
+      "opening_direction": 1,
+      "operating_side": "front",
+      "final_signed_angle_deg": 89.676,
+      "first_unexpected_contact": null,
+      "diagnostic_continue_after_slip": false,
+      "held_open_one_second": true,
+      "max_angle_deg": 89.676,
+      "final_angle_deg": 89.676,
+      "slip_detected": false,
+      "first_slip_s": null,
+      "contact_lost": false,
+      "first_contact_loss_s": null,
+      "unexpected_contact_samples": 0,
+      "peak_relative_drift_mm": 4.838,
+      "execution_plan": {
+        "schema_version": 1,
+        "trajectory": "door_hinge_arc",
+        "handle_center_world_m": [
+          0.8,
+          -0.11,
+          0.85
+        ],
+        "height_offset_m": 0.0,
+        "approach_angle_deg": 8.0,
+        "ik_branch": -1,
+        "approach_distance_m": 0.16,
+        "grip_force_limit_N": 35.0,
+        "opening_angle_deg": 90.0,
+        "timing": {
+          "settle_s": 0.5,
+          "approach_s": 2.0,
+          "close_s": 1.0,
+          "close_motion_s": 0.6,
+          "open_s": 10.0,
+          "hold_s": 2.0
+        }
+      },
+      "point_world_m": [
+        0.8,
+        -0.11,
+        0.85
+      ],
+      "yaw_offset_deg": 8.0,
+      "ik_branch": -1
+    },
+    "query": {
+      "path_found": true,
+      "status": "roadmap_path",
+      "path_q": [
+        [
+          0.0,
+          -1.5707963267948966,
+          -2.0943951023931953,
+          0.0
+        ],
+        [
+          -0.05501852366724288,
+          -1.5069139757250412,
+          -2.2856278459152173,
+          0.32085874380078055
+        ],
+        [
+          -0.09573624771488189,
+          -0.6877823243289631,
+          -2.109614312862288,
+          0.9639753726055759
+        ],
+        [
+          -0.05758305974226467,
+          0.08939342665193825,
+          -2.3009440643134726,
+          1.6638049506593617
+        ],
+        [
+          0.0,
+          0.5266629382895189,
+          -2.0344807303648484,
+          1.6474441322348756
+        ]
+      ],
+      "initial_q": [
+        0.0,
+        -1.5707963267948966,
+        -2.0943951023931953,
+        0.0
+      ],
+      "goal_q": [
+        0.0,
+        0.5266629382895189,
+        -2.0344807303648484,
+        1.6474441322348756
+      ],
+      "settings": {
+        "samples": 500,
+        "neighbors": 18,
+        "seed": 7,
+        "joint_step_rad": 0.06,
+        "lift_step_m": 0.008,
+        "penetration_tolerance_m": 1e-05,
+        "initial_q": [
+          0.0,
+          -1.5707963267948966,
+          -2.0943951023931953,
+          0.0
+        ]
+      },
+      "raw_path_indices": [
+        500,
+        492,
+        43,
+        427,
+        501
+      ],
+      "direct_path_clear": false,
+      "accepted_nodes": 500,
+      "attempted_samples": 715,
+      "rejected_samples": 215,
+      "state_checks": 775,
+      "link_checks": 8,
+      "elapsed_seconds": 0.08116387500194833,
+      "interpretation": "Geometric pregrasp query only. Finite failure does not prove infeasibility.",
+      "pregrasp_world_m": [
+        0.8222676961536105,
+        -0.26844289099865126,
+        0.85
+      ]
+    }
+  },
+  {
+    "key": "limited_budget",
+    "title": "C：同一障碍，采样预算不足",
+    "base": [
+      0.6,
+      -1.0
+    ],
+    "angle": 8.0,
+    "explanation": "与 B 的物理场景完全相同，但关闭随机采样。直连失败且无替代边，返回本次未找到，不能据此判定位置绝对不可行。",
+    "obstacle": [
+      1.1816153636012094,
+      -0.8849590023664262,
+      0.85
+    ],
+    "execution": null,
+    "opening": null,
+    "query": {
+      "path_found": false,
+      "status": "no_path_within_budget",
+      "path_q": [],
+      "initial_q": [
+        0.0,
+        -1.5707963267948966,
+        -2.0943951023931953,
+        0.0
+      ],
+      "goal_q": [
+        0.0,
+        0.5266629382895189,
+        -2.0344807303648484,
+        1.6474441322348756
+      ],
+      "settings": {
+        "samples": 0,
+        "neighbors": 18,
+        "seed": 7,
+        "joint_step_rad": 0.06,
+        "lift_step_m": 0.008,
+        "penetration_tolerance_m": 1e-05,
+        "initial_q": [
+          0.0,
+          -1.5707963267948966,
+          -2.0943951023931953,
+          0.0
+        ]
+      },
+      "reason": "finite_roadmap_disconnected",
+      "direct_path_clear": false,
+      "accepted_nodes": 0,
+      "attempted_samples": 0,
+      "rejected_samples": 0,
+      "state_checks": 5,
+      "link_checks": 1,
+      "elapsed_seconds": 0.0005622499993478414,
+      "interpretation": "Geometric pregrasp query only. Finite failure does not prove infeasibility.",
+      "pregrasp_world_m": [
+        0.8222676961536105,
+        -0.26844289099865126,
+        0.85
+      ]
+    }
+  },
+  {
+    "key": "partial",
+    "title": "D：能到把手，开门中途受限",
+    "base": [
+      0.3,
+      -0.9
+    ],
+    "angle": 0.0,
+    "explanation": "PRM 只证明到预抓取位置的几何路径。实际开门仍会遇到后续工作空间限制。",
+    "obstacle": null,
+    "execution": {
+      "success": true,
+      "stop_reason": "path_executed",
+      "collision": null,
+      "duration_s": 4.754999999999923,
+      "integration_steps": 4755,
+      "joint_error": [
+        0.0,
+        4.438543907414605e-10,
+        4.221617055932825e-09,
+        4.3439944530376806e-08
+      ],
+      "actual_goal_q": [
+        0.0,
+        0.048941863108044166,
+        -1.8946073378468296,
+        1.845665435076603
+      ],
+      "door_angle_deg": 0.0
+    },
+    "opening": {
+      "outcome": "C_grasped_but_failed",
+      "grasp_acquired": true,
+      "stop_reason": "arm_workspace_limit",
+      "target_angle_deg": 90.0,
+      "opening_direction": 1,
+      "operating_side": "front",
+      "final_signed_angle_deg": 42.505,
+      "first_unexpected_contact": null,
+      "diagnostic_continue_after_slip": false,
+      "held_open_one_second": false,
+      "max_angle_deg": 42.505,
+      "final_angle_deg": 42.505,
+      "slip_detected": false,
+      "first_slip_s": null,
+      "contact_lost": false,
+      "first_contact_loss_s": null,
+      "unexpected_contact_samples": 0,
+      "peak_relative_drift_mm": 1.952,
+      "execution_plan": {
+        "schema_version": 1,
+        "trajectory": "door_hinge_arc",
+        "handle_center_world_m": [
+          0.8,
+          -0.11,
+          0.85
+        ],
+        "height_offset_m": 0.0,
+        "approach_angle_deg": 0.0,
+        "ik_branch": -1,
+        "approach_distance_m": 0.16,
+        "grip_force_limit_N": 35.0,
+        "opening_angle_deg": 90.0,
+        "timing": {
+          "settle_s": 0.5,
+          "approach_s": 2.0,
+          "close_s": 1.0,
+          "close_motion_s": 0.6,
+          "open_s": 10.0,
+          "hold_s": 2.0
+        }
+      },
+      "point_world_m": [
+        0.8,
+        -0.11,
+        0.85
+      ],
+      "yaw_offset_deg": 0.0,
+      "ik_branch": -1
+    },
+    "query": {
+      "path_found": true,
+      "status": "direct_path",
+      "path_q": [
+        [
+          0.0,
+          -1.5707963267948966,
+          -2.0943951023931953,
+          0.0
+        ],
+        [
+          0.0,
+          0.04894186355189856,
+          -1.8946073420684466,
+          1.8456654785165476
+        ]
+      ],
+      "initial_q": [
+        0.0,
+        -1.5707963267948966,
+        -2.0943951023931953,
+        0.0
+      ],
+      "goal_q": [
+        0.0,
+        0.04894186355189856,
+        -1.8946073420684466,
+        1.8456654785165476
+      ],
+      "settings": {
+        "samples": 240,
+        "neighbors": 18,
+        "seed": 7,
+        "joint_step_rad": 0.06,
+        "lift_step_m": 0.008,
+        "penetration_tolerance_m": 1e-05,
+        "initial_q": [
+          0.0,
+          -1.5707963267948966,
+          -2.0943951023931953,
+          0.0
+        ]
+      },
+      "direct_path_clear": true,
+      "accepted_nodes": 0,
+      "attempted_samples": 0,
+      "rejected_samples": 0,
+      "state_checks": 34,
+      "link_checks": 1,
+      "elapsed_seconds": 0.002257791998999892,
+      "interpretation": "Geometric pregrasp query only. Finite failure does not prove infeasibility.",
+      "pregrasp_world_m": [
+        0.8,
+        -0.27,
+        0.85
+      ]
+    }
+  },
+  {
+    "key": "unreachable",
+    "title": "E：目标超出当前分支工作空间",
+    "base": [
+      2.0,
+      -1.2
+    ],
+    "angle": 8.0,
+    "explanation": "预抓取目标没有当前肘分支的合法逆运动学解，先排除该目标，不浪费采样。其他抓点或移动底座属于另一个问题。",
+    "obstacle": null,
+    "execution": null,
+    "opening": null,
+    "query": {
+      "path_found": false,
+      "status": "goal_ik_unreachable",
+      "path_q": [],
+      "initial_q": [
+        0.0,
+        -1.5707963267948966,
+        -2.0943951023931953,
+        0.0
+      ],
+      "pregrasp_world_m": [
+        0.8222676961536105,
+        -0.26844289099865126,
+        0.85
+      ],
+      "reason": "pregrasp has no IK on selected branch within joint limits",
+      "interpretation": "This target/branch is excluded; not a proof about other grasps or branches."
+    }
+  }
+]

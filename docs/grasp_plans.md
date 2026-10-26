@@ -85,7 +85,9 @@ mjpython simulate.py --plan examples/grasp_plan_slow.json \
 `--plan` 不能与抓握/时序/力参数覆盖选项或 `--oracle` 混用，以避免执行的方案与文件不同。
 
 当前单案例默认使用包内的固定 RGB-D 观测，并非每次启动都实时重新检测。
-当前仍重置机械臂到预抓取姿态，不包含从任意初始关节状态出发的路径规划。
+这里直接调用 `simulate.py` 的单案例接口仍重置到预抓取姿态。新学习与数据采集流程已增加
+[PRM 准备步骤](prm_pregrasp.md)：从显式初始关节姿态规划并实际执行到位，再以
+`trial(reset_before_trial=False)` 继续抓持。该准备步骤不等于抓住后的约束路径规划。
 
 ## 程序接口与学习模块
 

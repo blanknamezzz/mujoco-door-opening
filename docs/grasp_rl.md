@@ -1,5 +1,7 @@
 # 用强化学习选择抓取角度
 
+新增默认 PRM 准备：从显式初始关节姿态规划并实际运动到预抓取位置，再执行开门。详见 [PRM 流程](prm_pregrasp.md)。默认输出/权重目录改为 `reproduced/grasp_rl_prm`；`--no-prm` 保留旧的预抓取初始化基线。先前报告中的 256 回合结果属于旧基线。
+
 入口是 `train_grasp_rl.py`。新增代码调用现有 `Experiment.trial()`，不修改机器人模型、接触判据或底层控制器。只需要现有 requirements.txt 的依赖；小型神经网络与 Adam 用 NumPy 实现。
 
 仓库不分发生成的权重和大数据；先训练再演示。以下 `grasp_rl_new` 路径由训练命令生成。
