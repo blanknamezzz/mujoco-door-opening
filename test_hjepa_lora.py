@@ -6,7 +6,7 @@ import tempfile
 import unittest
 import hjepa_runtime
 import torch
-from hjepa_lora import LoRALinear, install_lora, freeze_core_statistics, frozen_core_digest, adapter_state
+from hjepa_lora import LoRALinear, install_lora, resume_lora, freeze_core_statistics, frozen_core_digest, adapter_state
 from hjepa_model import DoorHJEPA, compact_config, save_checkpoint, load_checkpoint
 from structural_scene import diverse_structural_scenes, structural_scene_from_spec
 
@@ -64,6 +64,25 @@ class LoRAContracts(unittest.TestCase):
         model.model.test_bn(torch.randn(8, 4))
         self.assertEqual(before, frozen_core_digest(model))
         self.assertTrue(all('lora_' in n for n, p in model.model.named_parameters() if p.requires_grad))
+
+    def test_continuation_reuses_adapter_without_stacking_or_resetting(self):
+        model = DoorHJEPA(compact_config())
+        install_lora(model, rank=2)
+        for name, p in model.named_parameters():
+            if 'lora_B' in name:
+                p.data.normal_(std=.01)
+        before = {n: p.clone() for n, p in model.named_parameters()}
+        parameter_ids = {n: id(p) for n, p in model.named_parameters()}
+        model.requires_grad_(False)
+        result = resume_lora(model, rank=2)
+        self.assertTrue(result['continued_existing_adapter'])
+        self.assertEqual(parameter_ids, {n: id(p) for n, p in model.named_parameters()})
+        for name, p in model.named_parameters():
+            torch.testing.assert_close(p, before[name], atol=0, rtol=0)
+            if name.startswith('model.'):
+                self.assertEqual(p.requires_grad, 'lora_' in name)
+        with self.assertRaisesRegex(ValueError, 'saved LoRA'):
+            resume_lora(model, rank=3)
 
     def test_diverse_suite_is_reproducible_balanced_and_physically_constructible(self):
         scenes = diverse_structural_scenes()

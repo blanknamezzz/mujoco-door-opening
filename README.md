@@ -1,5 +1,11 @@
 # MuJoCo Door Opening
 
+## 整体实验进度（2026-10-26）
+
+本地 H-JEPA 与远端抓持学习、PRM 更新已整合。三个模块已有独立实验，
+但 PRM 和独立角度策略尚未接入 H-JEPA 主链路，不能将各模块指标当作统一
+端到端成功率。见 [整体评估与合并验证](docs/experiment_progress_20261026.md)。
+
 ## Grasping：抓持方案的判断与执行
 
 对每个指定的底座位置与朝向，记录初始关节姿态，再判断候选抓持方案能否完成以下步骤：
@@ -78,12 +84,94 @@ python compare_grasp_learning.py evaluate
 mjpython compare_grasp_learning.py demo --scene test_021 --method reinforce --seed 42
 ```
 
-默认使用 36/12/24 个训练/验证/测试站位、21 个角度和 3 个训练种子。
+默认使用 36/12/24 个训练/验证/测试站位、21 个角度，新增实验默认种子为 42。
+已发布历史比较使用 42/43/44，复现时显式传入 `--seeds 42 43 44`。
 报告和小型指标文件随代码发布；大数据、视频和模型权重在忽略的 `reproduced/` 中由命令生成。
 历史无 PRM 的 36/12/24 站位实验中，SL 未优于 RL，训练集选出的固定 +18° 同样达到 10/24。新增 PRM 流程以 12/4/8 站位、504 次候选流程和 252 次 RL 决策完成接入验证；这两组实验不用于直接比较 PRM 的成功率增益，也不代表新门型或真实机器人表现。
 
 回归检查：`python -m unittest test_prm test_grasp_plan test_grasp_learning test_grasp_rl test_git_size -v`。
 默认 `trial(point)` 会恢复构造时的肘分支和执行器力上限，避免继承上一回合的方案设置。
+
+## H-JEPA: positioning and staged policies
+
+Latest completed experiment: **refusal offset vs binary side-feasibility**,
+with two matched 240-step LoRA continuations from the same patch-mean model.
+Validation selects rank continuation + offset (**73/96** development), but
+on a fresh 96-scene test it scores **67/96**, equal to the frozen starting
+model. BCE scores **69/96** but was not selected; no test-driven promotion
+occurs. The selected method opens 57/68 feasible doors and correctly refuses
+10/28 impossible scenes, versus 61 and 6 initially. All **288 physical replays**
+match, and original core weights stay frozen. See
+[refusal study](docs/hjepa_setup.md#refusal-calibration-and-binary-side-supervision-2026-10-26)
+and [figure](docs/hjepa_refusal_seed42_results.png).
+
+Previous experiment: positioning-only **native ViT CLS vs patch mean**,
+same 192-dimensional head input, paired cameras, seed 42, 576 train / 96 val,
+240 LoRA updates per arm. Validation selects patch mean at step 160. A fresh
+96-scene test scores **60/96** versus CLS **59/96**, previous coverage model
+**54/96**, and historical decomposed model **57/96**. Patch mean opens 56/66
+feasible doors but correctly refuses only 4/30 impossible scenes; its advantage
+over CLS is small. Both arms have 96 matching physical replays, and original
+core weights remain unchanged. See [pooling study](docs/hjepa_setup.md#native-vit-pooling-study-2026-10-26)
+and [figure](docs/hjepa_pooling_seed42_results.png).
+
+Completed coverage study: **seed 42**, matched paired-view LoRA, 240 updates
+per arm, **192 vs 576 training scenes**, the same fresh 96 validation scenes,
+then 96 independent tests. Validation selects the expanded arm at step 160.
+Test correct decisions change **49/96 -> 51/96**, false refusals **19 -> 14**,
+and collisions **15 -> 9**, but wrong-side choices increase **11 -> 14**.
+The historical decomposed candidate still scores **56/96** on this suite;
+more data has not solved generalization. All 96 selected-policy physical
+replays match; original core weights remain frozen. See
+[protocol/results](docs/hjepa_setup.md#seed-42-coverage-expansion-2026-10-26)
+and [figure](docs/hjepa_coverage_seed42_results.png).
+
+Latest observation experiment: matched-compute **front x2 vs front+rear**, both
+LoRA, 160 updates. On a fresh 48-scene test the dual-camera candidate scores
+**29/48**, repeated-front control **23/48**, and untrained dual-camera routing
+**28/48**. Dual-camera training still has six false refusals. Validation had
+selected the single-camera arm, so the test winner was **not** promoted.
+Both arms have 48 matching live physical replays. Endpoint-only collection
+reduces this test dataset to about 54 MB. See
+[method/results](docs/hjepa_setup.md#fixed-camera-observation-ablation-2026-10-26)
+and [figure](docs/hjepa_paired_view_results.png).
+
+Position training now defaults to **door-side reward v1**: openable side +2,
+wrong side when the other opens -2, neither side opens -1, refusal 0. A separate
+within-side base term is weighted 0.25. The objective and validation distinguish
+side choice, base choice and grasp errors. See
+[reward definition and commands](docs/hjepa_setup.md#door-side-specific-position-reward-2026-10-26).
+
+Completed side-reward study: both 240-step arms select step 80 on validation.
+On 48 fresh scenes, the selected head update changes correct decisions
+**20/48 -> 22/48**, wrong-side errors **14 -> 9**, collisions **12 -> 6**, but
+adds four false refusals. Three old wrong-side cases become correct-side
+choices, three become refusals, and one new wrong-side error appears. The LoRA
+arm also scores 22/48; the previous decomposed candidate scores 24/48 on this
+same suite. See [full comparison](docs/hjepa_setup.md#door-side-reward-full-study-2026-10-26)
+and [figure](docs/hjepa_side_reward_results.png). Existing defaults remain intact.
+
+Latest controlled experiment (2026-10-26): **240 position-head updates vs
+240 position-head + LoRA updates**, with successful-action-set supervision.
+The final LoRA fits training (**185/192** correct) but generalizes poorly
+(**9/24** validation); neither arm beats its initialization on validation.
+Both therefore retain the original scalar LoRA at checkpoint selection. On a
+fresh 48-scene test that frozen fallback scores **24/48**, versus **21/48** for
+the previous decomposed candidate. This is a negative experiment, not a model
+improvement. See [method and results](docs/hjepa_setup.md#successful-action-set-position-experiment-2026-10-26)
+and [comparison figure](docs/hjepa_listwise_results.png).
+
+Previous study (2026-10-26): literature-guided outcome/progress decomposition,
+within-scene preferences, **600 LoRA steps**, then one validation-fitted
+execution/refusal threshold. On a newly frozen 48-scene test, openings change
+**27/35 -> 24/35**, correct refusals **0/13 -> 3/13**, and collisions **8 -> 3**.
+Overall correct decisions remain **27/48**, with five false refusals: this is
+a more conservative candidate, not an overall accuracy improvement. Original
+weights and the default checkpoint are preserved. See
+[method, papers and results](docs/hjepa_setup.md#literature-guided-reward-decomposition-2026-10-26),
+[test figure](docs/hjepa_reward_calibrated.png), and the training wait rule in
+[AGENTS.md](AGENTS.md).
+
 
 Current continuation uses **LoRA**, with the original H-JEPA core frozen and
 unmerged. The expanded suite has 240 independent scenes (192/24/24), twelve
@@ -95,6 +183,31 @@ scenes. See [LoRA continuation and progress](docs/hjepa_setup.md#lora-continuati
 .\.venv\Scripts\python.exe run_hjepa_lora_experiment.py
 .\.venv\Scripts\python.exe hjepa_lora_status.py
 ```
+
+The next continuation uses a **separate 48-scene test-only dataset**, seed
+20261019. Its training manifest contains only the 192 train / 24 validation
+scenes; test arrays are never opened by the trainer. The previous 24-scene test
+has been physically replayed and retained as a historical comparison (LoRA
+opens 12/18 feasible scenes, original checkpoint 9/18).
+
+```powershell
+.\.venv\Scripts\python.exe prepare_hjepa_splits.py
+.\.venv\Scripts\python.exe continue_hjepa_lora.py
+.\.venv\Scripts\python.exe hjepa_lora_status.py
+```
+
+Progress: `runs/hjepa/lora_continued_model/status.json`. Independent test data:
+`runs/hjepa/independent_test_data/`. Generate the
+[scene-level test report](docs/hjepa_setup.md#separate-independent-test-set)
+with `python report_hjepa_holdout.py`.
+
+The continuation and **all 48 independent physical replays are complete**.
+Full openings improve from previous LoRA **24/35 to 26/35** feasible scenes;
+correct refusals remain **0/13**. Overall correct decisions are **26/48**,
+equal to the original base's 26/48 (23 openings plus 3 correct refusals).
+This is a limited opening gain, not a solved task. See the
+[independent test figure](docs/hjepa_lora_independent.png) and
+[measured results](docs/hjepa_setup.md#completed-independent-test-results).
 
 The commands below document the earlier full-model training baseline; the LoRA
 continuation preserves that checkpoint and writes a separate adapter.

@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -12,6 +13,22 @@ from compare_grasp_learning import (RewardModel, encode, fit_supervised, load_mo
 
 
 class LearningComparisonTests(unittest.TestCase):
+    def test_new_cli_defaults_seed42_without_rewriting_historical_opt_in(self):
+        import compare_grasp_learning as comparison
+        import collect_grasp_data as collection
+        from prm import PRMSettings
+        with patch('sys.argv',['compare_grasp_learning.py','train']),patch.object(comparison,'train') as call:
+            comparison.main()
+            self.assertEqual(call.call_args.args[0].seeds,[42])
+        with patch('sys.argv',['compare_grasp_learning.py','train','--seeds','42','43','44']),patch.object(comparison,'train') as call:
+            comparison.main()
+            self.assertEqual(call.call_args.args[0].seeds,[42,43,44])
+        with patch('sys.argv',['collect_grasp_data.py']),patch.object(collection,'collect') as call:
+            collection.main()
+            args=call.call_args.args[0]
+            self.assertEqual((args.seed,args.prm_seed),(42,42))
+        self.assertEqual(PRMSettings().seed,42)
+
     def manifest(self):
         return dict(scenes=make_scenes([4, 2, 2], 5), angles_deg=[-2., 0., 2.],
                     physics=dict(plan=dict(handle_center_world_m=[.8, -.11, .85])))

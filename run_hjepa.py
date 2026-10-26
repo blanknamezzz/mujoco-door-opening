@@ -15,6 +15,7 @@ from hjepa_scene import (BASE_CANDIDATES, GRASP_OFFSETS, DoorScene, action_at,
 from perception import observe, estimate_frame
 from simulate import save_trial
 from train_hjepa import rgb_tensor, state_tensor
+from position_observation import encode_position_views,position_features,observe_rear_camera,position_decision_logits
 
 
 def select_and_execute(model, checkpoint, scene, method='world-model', horizon=1.,
@@ -45,17 +46,20 @@ def select_and_execute(model, checkpoint, scene, method='world-model', horizon=1
     initial = scene.experiment()
     initial_frame = observe(initial)
     with torch.no_grad():
-        latent = encode(initial, initial_frame, position=True)
+        rear=(small_rgb(observe_rear_camera(initial),size,model.is_official)
+              if model.config.get('position_views','single')=='paired' else None)
+        latent = encode_position_views(model,rgb_tensor(small_rgb(initial_frame,size,model.is_official)[None],device),
+            state_tensor(proprio(initial)[None],mean,std,device),rgb_tensor(rear[None],device) if rear is not None else None)
         features = torch.tensor(np.stack([base_features(b) for b in base_pool]), device=device)
         if abstention:
             features = torch.cat([features, features.new_zeros(1, 4)])
-        scores = model.position_policy(torch.cat([latent.expand(len(features), -1), features], -1)).flatten()
+        scores = position_decision_logits(model,position_features(latent,features[None])[0]).flatten()
         base_id = int(scores.argmax()) if base_mode == 'learned' else fixed_base_id
     if abstention and base_id == count:
         result = dict(outcome='E_policy_abstained', stop_reason='policy_abstention',
                       final_angle_deg=0., max_angle_deg=0., grasp_acquired=False,
                       executor_called=False)
-        plan = dict(scene=asdict(scene), method=method, horizon=horizon, base_mode=base_mode,
+        plan = dict(scene=asdict(scene), method=method, horizon=horizon, base_mode=base_mode,position_views=model.config.get('position_views','single'),
                     base_id=None, grasp_id=None, base_scores=scores.cpu().tolist(),
                     decision='abstain', fresh_arrival_observation=False,
                     planning_time_s=time.perf_counter()-start, result=result,
@@ -71,7 +75,7 @@ def select_and_execute(model, checkpoint, scene, method='world-model', horizon=1
         result = dict(outcome='B_perception_failed', grasp_acquired=False,
                       stop_reason='perception_failure', final_angle_deg=0.,
                       max_angle_deg=0., perception_error=str(error))
-        plan = dict(scene=asdict(scene), method=method, horizon=horizon, base_mode=base_mode,
+        plan = dict(scene=asdict(scene), method=method, horizon=horizon, base_mode=base_mode,position_views=model.config.get('position_views','single'),
                     base_id=base_id, base_pose=list(base), grasp_id=None,
                     operating_side=reached.operating_side, opening_direction=reached.opening_direction,
                     base_scores=scores.cpu().tolist(), fresh_arrival_observation=True,
@@ -117,7 +121,7 @@ def select_and_execute(model, checkpoint, scene, method='world-model', horizon=1
     grasp_id = int(max(eligible, key=lambda i: float(candidate_scores[i]))) if len(eligible) else int(candidate_scores.argmax())
     planning_s = time.perf_counter()-start
     point, yaw = candidates[grasp_id]
-    plan = dict(scene=asdict(scene), method=method, horizon=horizon, base_mode=base_mode,
+    plan = dict(scene=asdict(scene), method=method, horizon=horizon, base_mode=base_mode,position_views=model.config.get('position_views','single'),
                 base_id=base_id, base_pose=list(base), grasp_id=grasp_id,
                 point_world_m=point.tolist(), yaw_offset_rad=yaw, planning_time_s=planning_s,
                 base_scores=scores.cpu().tolist(), grasp_scores=candidate_scores.cpu().tolist(),

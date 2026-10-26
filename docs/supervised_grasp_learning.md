@@ -30,7 +30,7 @@ source .venv/bin/activate
 # 默认 36 个训练、12 个验证、24 个测试站位，每站位 21 个角度。
 python collect_grasp_data.py --output reproduced/grasp_learning_data_new
 
-# 默认种子 42 / 43 / 44；每种方法每个种子 756 次训练交互。
+# 新实验默认种子 42；每种方法每个种子 756 次训练交互。
 python compare_grasp_learning.py train \
   --data reproduced/grasp_learning_data_new \
   --output reproduced/grasp_learning_comparison_new
@@ -40,6 +40,12 @@ python compare_grasp_learning.py evaluate \
   --data reproduced/grasp_learning_data_new \
   --output reproduced/grasp_learning_comparison_new
 ```
+
+2026-10-26 合并后，新数据、模型与 PRM 采样默认种子统一为42。
+已发布的无 PRM 历史报告保留原数据种子20261026、训练种子42/43/44；
+复现该历史设置须显式使用 `collect_grasp_data.py --no-prm --seed 20261026`
+和 `compare_grasp_learning.py train --seeds 42 43 44`，并指定新的数据/输出目录。
+`prm_examples.py` 是已发布五例的复现入口，显式保留其历史采样种子7。
 
 第一次采集若中断，可以用同一数据目录加 `--resume` 继续；manifest 中的物理相关代码哈希必须相同。已生成的完整记录不会重复执行。训练输出目录必须为空；训练本身未实现断点续训。
 
