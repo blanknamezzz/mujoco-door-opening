@@ -17,12 +17,13 @@ import time
 import mujoco
 import numpy as np
 
+from grasp_angles import add_angle_arguments, resolve_angles, has_explicit_angles
 from grasp_plan import GraspPlan
 from perception import estimate
 from simulate import ROOT
 from train_grasp_rl import rollout, write_json, features
 
-DEFAULT_DATA = ROOT / "reproduced" / "grasp_learning_data_prm"
+DEFAULT_DATA = ROOT / "reproduced" / "grasp_learning_data_prm_diverse29"
 
 
 def make_scenes(counts, seed):
@@ -122,12 +123,15 @@ def validate_records(manifest, records, split):
 
 
 def collect(args):
+    angles = resolve_angles(args, require_zero=True)
     args.output.mkdir(parents=True, exist_ok=True)
     manifest_path = args.output / "manifest.json"
     if manifest_path.exists():
         if not args.resume:
             raise ValueError("Dataset exists. Use --resume or a new --output.")
         manifest = json.loads(manifest_path.read_text())
+        if has_explicit_angles(args) and angles != manifest["angles_deg"]:
+            raise ValueError("Cannot change the angle grid while resuming. Use a new dataset directory.")
         for name, digest in manifest["source_sha256"].items():
             if hashlib.sha256((ROOT/name).read_bytes()).hexdigest() != digest:
                 raise ValueError(f"Source changed since collection: {name}. Use a new dataset directory.")
@@ -142,13 +146,13 @@ def collect(args):
                                          initial_q=args.initial_q).to_dict()
         manifest = dict(schema_version=2, seed=args.seed,
             scope="Held-out base poses for the same door family; no new door geometry or real-robot claim.",
-            angles_deg=np.arange(-20., 20.1, 2.).tolist(),
+            angles_deg=angles,
             scenes=make_scenes([args.train_scenes, args.validation_scenes, args.test_scenes], args.seed),
             bounds=dict(base_x=[.35, .95], base_y=[-1.15, -.75], base_yaw_deg=[60., 120.]),
             physics=physics,
             versions=dict(mujoco=mujoco.__version__, numpy=np.__version__),
             source_sha256={n: hashlib.sha256((ROOT/n).read_bytes()).hexdigest()
-                           for n in ("scene.xml", "simulate.py", "grasp_plan.py", "prm.py", "station_feasibility.py", "train_grasp_rl.py", "collect_grasp_data.py")})
+                           for n in ("scene.xml", "simulate.py", "grasp_angles.py", "grasp_plan.py", "prm.py", "station_feasibility.py", "train_grasp_rl.py", "collect_grasp_data.py")})
         write_json(manifest_path, manifest)
     start = time.perf_counter()
     summary = {}
@@ -202,7 +206,12 @@ def main():
     p.add_argument('--prm-seed', type=int, default=42)
     p.add_argument('--initial-q', type=float, nargs=4, default=[0., -np.pi/2, -2*np.pi/3, 0.],
                    metavar=('LIFT_M', 'SHOULDER_RAD', 'ELBOW_RAD', 'WRIST_RAD'))
+    add_angle_arguments(p)
     a = p.parse_args()
+    try:
+        resolve_angles(a, require_zero=True)
+    except ValueError as error:
+        p.error(str(error))
     if min(a.train_scenes, a.validation_scenes, a.test_scenes, a.workers) < 1 or min(a.seed, a.prm_seed, a.prm_samples) < 0:
         p.error("Counts must be positive and seed nonnegative")
     collect(a)

@@ -1,0 +1,261 @@
+{
+  "scene": {
+    "scene_id": "train_000",
+    "split": "train",
+    "base_xy_m": [
+      0.8143736291335779,
+      -0.974448624099179
+    ],
+    "base_yaw_deg": 111.51587519468295
+  },
+  "legacy_success_angles_deg": [
+    6.0,
+    8.0,
+    10.0,
+    12.0,
+    14.0,
+    16.0,
+    18.0,
+    20.0
+  ],
+  "added_success_angles_deg": [
+    30.0,
+    45.0,
+    60.0
+  ],
+  "preparation_failures": 1,
+  "candidates": [
+    {
+      "angle_deg": -90.0,
+      "reward": -3.744606090738151,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 59.774
+    },
+    {
+      "angle_deg": -60.0,
+      "reward": -3.212152724002642,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 69.443
+    },
+    {
+      "angle_deg": -45.0,
+      "reward": -2.9407865579430146,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 74.377
+    },
+    {
+      "angle_deg": -30.0,
+      "reward": -2.6689358859178998,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 79.324
+    },
+    {
+      "angle_deg": -20.0,
+      "reward": -2.490785140072104,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 82.571
+    },
+    {
+      "angle_deg": -18.0,
+      "reward": -2.4577909132249314,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 83.173
+    },
+    {
+      "angle_deg": -16.0,
+      "reward": -2.4221378664688227,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 83.824
+    },
+    {
+      "angle_deg": -14.0,
+      "reward": -2.3881465036596543,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 84.445
+    },
+    {
+      "angle_deg": -12.0,
+      "reward": -2.355866598189288,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 85.035
+    },
+    {
+      "angle_deg": -10.0,
+      "reward": -2.3253146212741975,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 85.594
+    },
+    {
+      "angle_deg": -8.0,
+      "reward": -2.2934609592719455,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 86.177
+    },
+    {
+      "angle_deg": -6.0,
+      "reward": -2.260966710956847,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 86.773
+    },
+    {
+      "angle_deg": -4.0,
+      "reward": -2.2312997478222076,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 87.318
+    },
+    {
+      "angle_deg": -2.0,
+      "reward": -2.1999598870744834,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 87.895
+    },
+    {
+      "angle_deg": 0.0,
+      "reward": -2.170850938903745,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 88.433
+    },
+    {
+      "angle_deg": 2.0,
+      "reward": -2.144410351900089,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 88.924
+    },
+    {
+      "angle_deg": 4.0,
+      "reward": -2.118474201911091,
+      "outcome": "C_grasped_but_failed",
+      "stop_reason": "unexpected_collision",
+      "opening_tested": true,
+      "final_angle_deg": 89.412
+    },
+    {
+      "angle_deg": 6.0,
+      "reward": 12.883290627555285,
+      "outcome": "D_full_open",
+      "stop_reason": "full_open_and_hold",
+      "opening_tested": true,
+      "final_angle_deg": 89.698
+    },
+    {
+      "angle_deg": 8.0,
+      "reward": 12.883399200070091,
+      "outcome": "D_full_open",
+      "stop_reason": "full_open_and_hold",
+      "opening_tested": true,
+      "final_angle_deg": 89.7
+    },
+    {
+      "angle_deg": 10.0,
+      "reward": 12.883604003402104,
+      "outcome": "D_full_open",
+      "stop_reason": "full_open_and_hold",
+      "opening_tested": true,
+      "final_angle_deg": 89.704
+    },
+    {
+      "angle_deg": 12.0,
+      "reward": 12.883837819581146,
+      "outcome": "D_full_open",
+      "stop_reason": "full_open_and_hold",
+      "opening_tested": true,
+      "final_angle_deg": 89.708
+    },
+    {
+      "angle_deg": 14.0,
+      "reward": 12.884166330395365,
+      "outcome": "D_full_open",
+      "stop_reason": "full_open_and_hold",
+      "opening_tested": true,
+      "final_angle_deg": 89.714
+    },
+    {
+      "angle_deg": 16.0,
+      "reward": 12.884554802119196,
+      "outcome": "D_full_open",
+      "stop_reason": "full_open_and_hold",
+      "opening_tested": true,
+      "final_angle_deg": 89.721
+    },
+    {
+      "angle_deg": 18.0,
+      "reward": 12.885001441799133,
+      "outcome": "D_full_open",
+      "stop_reason": "full_open_and_hold",
+      "opening_tested": true,
+      "final_angle_deg": 89.729
+    },
+    {
+      "angle_deg": 20.0,
+      "reward": 12.885504087899243,
+      "outcome": "D_full_open",
+      "stop_reason": "full_open_and_hold",
+      "opening_tested": true,
+      "final_angle_deg": 89.738
+    },
+    {
+      "angle_deg": 30.0,
+      "reward": 12.888664132098903,
+      "outcome": "D_full_open",
+      "stop_reason": "full_open_and_hold",
+      "opening_tested": true,
+      "final_angle_deg": 89.795
+    },
+    {
+      "angle_deg": 45.0,
+      "reward": 12.893776473357251,
+      "outcome": "D_full_open",
+      "stop_reason": "full_open_and_hold",
+      "opening_tested": true,
+      "final_angle_deg": 89.887
+    },
+    {
+      "angle_deg": 60.0,
+      "reward": 12.89733894119849,
+      "outcome": "D_full_open",
+      "stop_reason": "full_open_and_hold",
+      "opening_tested": true,
+      "final_angle_deg": 89.951
+    },
+    {
+      "angle_deg": 90.0,
+      "reward": -5.0,
+      "outcome": "P_pregrasp_unconfirmed",
+      "stop_reason": "prm_invalid_goal",
+      "opening_tested": false,
+      "final_angle_deg": 0.0
+    }
+  ]
+}

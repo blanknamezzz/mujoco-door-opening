@@ -1,0 +1,154 @@
+{
+  "scope": "Pipeline smoke test only; one held-out test pose is not a generalization benchmark.",
+  "seed": 42,
+  "angles_deg": [
+    -90.0,
+    -60.0,
+    -45.0,
+    -30.0,
+    -20.0,
+    -18.0,
+    -16.0,
+    -14.0,
+    -12.0,
+    -10.0,
+    -8.0,
+    -6.0,
+    -4.0,
+    -2.0,
+    0.0,
+    2.0,
+    4.0,
+    6.0,
+    8.0,
+    10.0,
+    12.0,
+    14.0,
+    16.0,
+    18.0,
+    20.0,
+    30.0,
+    45.0,
+    60.0,
+    90.0
+  ],
+  "collection": {
+    "train": {
+      "scenes": 1,
+      "attempts": 29,
+      "successful_attempts": 11,
+      "opening_trials_executed": 28,
+      "preparation_failures": 1
+    },
+    "validation": {
+      "scenes": 1,
+      "attempts": 29,
+      "successful_attempts": 17,
+      "opening_trials_executed": 29,
+      "preparation_failures": 0
+    },
+    "test": {
+      "scenes": 1,
+      "attempts": 29,
+      "successful_attempts": 0,
+      "opening_trials_executed": 27,
+      "preparation_failures": 2
+    },
+    "collection_seconds_this_run": 17.639162667001074,
+    "note": "Collecting held-out reference labels does not authorize using them for training."
+  },
+  "architecture": "4 -> 16 tanh -> 29 outputs; softmax only for RL",
+  "test_metrics": {
+    "supervised_42": {
+      "n_scenes": 1,
+      "successes": 0,
+      "success_rate": 0.0,
+      "feasible_scenes": 0,
+      "feasible_success_rate": null,
+      "mean_reward": -5.0,
+      "mean_regret": 3.53335942809513,
+      "collisions": 0,
+      "slips": 0,
+      "workspace_failures": 0,
+      "unreachable": 0,
+      "all_candidate_reward_mae": 5.851738286789729
+    },
+    "reinforce_42": {
+      "n_scenes": 1,
+      "successes": 0,
+      "success_rate": 0.0,
+      "feasible_scenes": 0,
+      "feasible_success_rate": null,
+      "mean_reward": -1.8490871904301487,
+      "mean_regret": 0.38244661852527884,
+      "collisions": 0,
+      "slips": 0,
+      "workspace_failures": 1,
+      "unreachable": 0
+    },
+    "supervised_on_rl_42": {
+      "n_scenes": 1,
+      "successes": 0,
+      "success_rate": 0.0,
+      "feasible_scenes": 0,
+      "feasible_success_rate": null,
+      "mean_reward": -1.9251628086210826,
+      "mean_regret": 0.4585222367162127,
+      "collisions": 0,
+      "slips": 0,
+      "workspace_failures": 1,
+      "unreachable": 0,
+      "all_candidate_reward_mae": 3.8197193569364583
+    },
+    "fixed_zero": {
+      "n_scenes": 1,
+      "successes": 0,
+      "success_rate": 0.0,
+      "feasible_scenes": 0,
+      "feasible_success_rate": null,
+      "mean_reward": -1.6534839941244206,
+      "mean_regret": 0.18684342221955075,
+      "collisions": 0,
+      "slips": 0,
+      "workspace_failures": 1,
+      "unreachable": 0
+    },
+    "best_fixed_train": {
+      "n_scenes": 1,
+      "successes": 0,
+      "success_rate": 0.0,
+      "feasible_scenes": 0,
+      "feasible_success_rate": null,
+      "mean_reward": -5.0,
+      "mean_regret": 3.53335942809513,
+      "collisions": 0,
+      "slips": 0,
+      "workspace_failures": 0,
+      "unreachable": 0
+    }
+  },
+  "fresh_test_checks": [
+    {
+      "scene_id": "test_000",
+      "angle_deg": 60.0,
+      "matched": true
+    },
+    {
+      "scene_id": "test_000",
+      "angle_deg": 10.0,
+      "matched": true
+    },
+    {
+      "scene_id": "test_000",
+      "angle_deg": 20.0,
+      "matched": true
+    },
+    {
+      "scene_id": "test_000",
+      "angle_deg": 0.0,
+      "matched": true
+    }
+  ],
+  "total_seconds": 25.10492137500114,
+  "midcourse_feedback_implemented": false
+}

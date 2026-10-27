@@ -1,6 +1,6 @@
 # 参考结果：按 case 整理
 
-这些是原有六组参考实验，目录整理没有重新运行仿真或修改结果。PRM、学习对比和站位诊断的后续实验仍在 `reproduced/`，相关报告在 `docs/`。
+前六组是原有参考实验，目录整理未修改结果。新增角度扩展实验以独立 case 保存小型摘要；完整训练数据和模型仍在忽略的 `reproduced/`，相关报告在 `docs/`。
 
 | 文件夹 | 案例含义 | 结果 |
 |---|---|---|
@@ -10,6 +10,8 @@
 | [workspace_limit/](workspace_limit/) | 开到约 42.5°，下一参考目标超出关节范围 | [workspace_limit.json](workspace_limit/workspace_limit.json) |
 | [unreachable/](unreachable/) | 初始位置够不到把手 | [unreachable.json](unreachable/unreachable.json) |
 | [no_grip/](no_grip/) | 未形成抓握，无法带动门 | [no_grip.json](no_grip/no_grip.json) |
+
+新增实验：[angle_diversity/](angle_diversity/README.md)，包含 `train_000`、`validation_000`、`test_000` 三个站位 case，以及29角度的结果摘要与来源哈希。
 
 共享文件保留在本目录：
 

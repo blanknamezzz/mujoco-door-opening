@@ -1,6 +1,6 @@
 """Supervised reward prediction vs REINFORCE on held-out robot base poses.
 
-Same 4->16->21 network, features, reward, controller, action grid and number of
+Same 4->16->K network, features, reward, controller, action grid and number of
 training interactions per seed. SL sweeps candidates; RL explores on-policy.
 A third arm fits SL to the exact RL records, isolating part of the data effect.
 Only train.jsonl is read by training. Validation/test are loaded after weights
@@ -23,7 +23,7 @@ from collect_grasp_data import (DEFAULT_DATA, context, load_records, physics_job
 from simulate import ROOT, save_trial
 from train_grasp_rl import Adam, Policy, rollout, write_json
 
-DEFAULT_OUTPUT = ROOT / "reproduced" / "grasp_learning_comparison_prm"
+DEFAULT_OUTPUT = ROOT / "reproduced" / "grasp_learning_comparison_prm_diverse29"
 METHODS = ("supervised", "reinforce", "supervised_on_rl")
 LABELS = {"supervised": "监督学习（完整角度采样）", "reinforce": "REINFORCE（在线探索）",
           "supervised_on_rl": "监督学习（复用 RL 记录）", "fixed_zero": "固定 0°",
@@ -119,7 +119,7 @@ def train(args):
         manifest_sha256=hashlib.sha256((args.data/"manifest.json").read_bytes()).hexdigest(),
         train_data_sha256=hashlib.sha256((args.data/"train.jsonl").read_bytes()).hexdigest(),
         source_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-        architecture="4 -> 16 tanh -> 21 outputs; softmax only for RL", normalizer=norm,
+        architecture=f"4 -> 16 tanh -> {n_actions} outputs; softmax only for RL", normalizer=norm,
         train_interactions_per_method_per_seed=budget, supervised_updates=args.sl_updates,
         supervised_lr=args.sl_lr, rl_lr=args.rl_lr, rl_batch_size=args.batch_size,
         entropy_coef=.02, checkpoint_selection="Final weights only; no validation or test selection")
@@ -305,7 +305,7 @@ def write_report(output, manifest, summary, selections, examples):
         "结论仅适用于这批场景与实现。新场景指同一扇门周围未参与训练的底座位置和朝向，不代表新门型、未知摩擦或真实机器人。", "",
         "## 数据与公平性", "",
         f"- 训练 / 验证 / 测试场景数：{sum(s['split']=='train' for s in manifest['scenes'])} / {sum(s['split']=='validation' for s in manifest['scenes'])} / {n}。所有角度按场景分组，划分先于仿真。",
-        f"- 每场景 {len(manifest['angles_deg'])} 个角度：−20° 至 +20°、间隔 2°。物理仿真产生标签，无人工指定最佳角度。",
+        f"- 每场景 {len(manifest['angles_deg'])} 个角度：{manifest['angles_deg']}。物理仿真产生标签，无人工指定最佳角度。",
         f"- 每种主方法每个种子安排 {summary['protocol']['train_interactions_per_method_per_seed']} 次候选决策。训练种子：{seeds}。预算单位：{summary['protocol'].get('budget_unit', 'physical opening attempts')}。",
         "- 同一网络规模、输入、归一化、控制器、奖励、场景访问次数。SL 全角度采样；RL 在线按当前策略采样，允许重复。",
         "- 监督学习使用更多离线梯度更新，因此比较的是相同物理交互预算，不是相同优化步数或总计算量。",
@@ -337,7 +337,7 @@ def write_report(output, manifest, summary, selections, examples):
     for item in examples:
         a, b = item["supervised"], item["reinforce"]
         lines.append(f"- {item['kind']}：{item['scene']['scene_id']}，SL {a['angle_deg']:+g}° / {a['result']['stop_reason']}；RL {b['angle_deg']:+g}° / {b['result']['stop_reason']}。")
-    lines += ["", "## 复现", "", "```bash", "python collect_grasp_data.py --output reproduced/grasp_learning_data_new",
+    lines += ["", "## 复现", "", "```bash", f"python collect_grasp_data.py --output reproduced/grasp_learning_data_new --seed {manifest['seed']} --prm-seed {(manifest['physics'].get('prm') or {}).get('seed', 42)} --angles-deg " + " ".join(map(str, manifest["angles_deg"])) + ("" if manifest["physics"].get("prm") else " --no-prm"),
         "python compare_grasp_learning.py train --data reproduced/grasp_learning_data_new --output reproduced/grasp_learning_comparison_new",
         "python compare_grasp_learning.py evaluate --data reproduced/grasp_learning_data_new --output reproduced/grasp_learning_comparison_new", "```", "",
         "用默认已生成模型观看某个场景：", "", "```bash", "mjpython compare_grasp_learning.py demo --scene test_000 --method supervised --seed 42",

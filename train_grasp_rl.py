@@ -17,6 +17,7 @@ import time
 
 import numpy as np
 
+from grasp_angles import add_angle_arguments, resolve_angles
 from grasp_plan import GraspPlan, SkillTiming
 from perception import estimate
 from simulate import Experiment, ROOT, save_trial
@@ -226,11 +227,8 @@ def evaluate(policy, config, output, base=None, sweep=False, viewer=False, fixed
 def train(args):
     if args.output.exists() and any(args.output.iterdir()):
         raise ValueError("Training output must be empty. Choose a new --output to preserve previous runs.")
+    angles = resolve_angles(args)
     args.output.mkdir(parents=True, exist_ok=True)
-    count = round((args.angle_max - args.angle_min) / args.angle_step)
-    if count < 1 or not np.isclose(args.angle_min + count*args.angle_step, args.angle_max):
-        raise ValueError("Angle range must be an integer multiple of --angle-step, with at least two angles")
-    angles = np.linspace(args.angle_min, args.angle_max, count+1).tolist()
     center = tuple(estimate(args.observation)["center_world_m"])
     plan = GraspPlan(center, height_offset_m=args.height, ik_branch=args.ik_branch,
                      grip_force_limit_N=args.grip_force, timing=SkillTiming(open_s=args.open_seconds))
@@ -242,7 +240,7 @@ def train(args):
         hinge_resistance=args.hinge_resistance, plan=plan.to_dict(), angles_deg=angles,
         observation_path=str(args.observation.resolve()),
         source_sha256={name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
-                       for name in ("scene.xml", "simulate.py", "grasp_plan.py", "prm.py", "train_grasp_rl.py")})
+                       for name in ("scene.xml", "simulate.py", "grasp_angles.py", "grasp_plan.py", "prm.py", "train_grasp_rl.py")})
     if not args.no_prm:
         from prm import PRMSettings
         config['prm'] = PRMSettings(samples=args.prm_samples, initial_q=args.initial_q).to_dict()
@@ -310,7 +308,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     p = commands.add_parser("train", help="Train from fresh MuJoCo episodes")
-    p.add_argument("--output", type=Path, default=ROOT/"reproduced"/"grasp_rl_prm")
+    p.add_argument("--output", type=Path, default=ROOT/"reproduced"/"grasp_rl_prm_diverse29")
     p.add_argument("--observation", type=Path, default=ROOT/"results"/"observation.npz")
     p.add_argument("--episodes", type=int, default=256)
     p.add_argument("--batch-size", type=int, default=8)
@@ -320,9 +318,7 @@ def main():
     p.add_argument("--base", type=float, nargs=2, default=[.8, -1.])
     p.add_argument("--base-jitter", type=float, nargs=2, default=[0., 0.], metavar=("DX", "DY"))
     p.add_argument("--base-yaw-deg", type=float, default=90.)
-    p.add_argument("--angle-min", type=float, default=-20.)
-    p.add_argument("--angle-max", type=float, default=20.)
-    p.add_argument("--angle-step", type=positive, default=2.)
+    add_angle_arguments(p)
     p.add_argument("--height", type=float, default=0.)
     p.add_argument("--ik-branch", type=int, choices=[-1, 1], default=-1)
     p.add_argument("--grip-force", type=positive, default=35.)
@@ -336,7 +332,7 @@ def main():
                    metavar=('LIFT_M', 'SHOULDER_RAD', 'ELBOW_RAD', 'WRIST_RAD'))
     for command in ("evaluate", "demo"):
         p = commands.add_parser(command)
-        p.add_argument("--checkpoint", type=Path, default=ROOT/"reproduced"/"grasp_rl_prm"/"policy.npz")
+        p.add_argument("--checkpoint", type=Path, default=ROOT/"reproduced"/"grasp_rl_prm_diverse29"/"policy.npz")
         p.add_argument("--output", type=Path, default=ROOT/"reproduced"/f"grasp_rl_{command}")
         p.add_argument("--base", type=float, nargs=2, help="Override base for evaluation only; no weight updates")
         p.add_argument("--sweep", action="store_true")
@@ -350,8 +346,12 @@ def main():
     if args.command == "train":
         if args.episodes < 1 or args.batch_size < 1 or args.entropy < 0 or args.hinge_resistance < 0:
             parser.error("Invalid episode count, batch size, entropy, or hinge resistance")
-        if args.seed < 0 or min(args.base_jitter) < 0 or args.angle_max <= args.angle_min:
+        if args.seed < 0 or min(args.base_jitter) < 0:
             parser.error("Invalid seed, jitter, or angle range")
+        try:
+            resolve_angles(args)
+        except ValueError as error:
+            parser.error(str(error))
         train(args)
     else:
         policy, config = load_checkpoint(args.checkpoint)

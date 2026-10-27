@@ -1,0 +1,29 @@
+{
+  "source_files_sha256": {
+    "reproduced/angle_diversity_smoke_20261027/data/manifest.json": "7ffb2646505a0f2e31e6e818896e1c67b3cc80e728a83728edfe7785281ddf2e",
+    "reproduced/angle_diversity_smoke_20261027/data/collection_summary.json": "2c910a1b48910a936ebc79affbb226f1328b87f8a08aa24b287786e38ac2d43f",
+    "reproduced/angle_diversity_smoke_20261027/comparison/evaluation.json": "65e67438ac2b25ccba687448ea8c4ca1a6509a39d2e4e3a4789e0384ef673188",
+    "reproduced/angle_diversity_smoke_20261027/comparison/fresh_test_checks.json": "6a619c4f162d5b4c1f48c540bcf3194cb310b2a77a045528588e9bc78cb2e4be",
+    "reproduced/angle_diversity_smoke_20261027/comparison/experiment_config.json": "89725075c6da0a621025976cdde5bbc3484921b0525c4641e2c51e3c21e1b2b5",
+    "reproduced/angle_diversity_smoke_20261027/data/train.jsonl": "6051907b82e4f5c9aaf54a5cee014ce74bb2f05d4fcb1e4b17cee297a664322e",
+    "reproduced/angle_diversity_smoke_20261027/data/validation.jsonl": "397988e0c2b1c520c2ee875278d52d2c3db1d9ce3bb8c292ddede3277edb1369",
+    "reproduced/angle_diversity_smoke_20261027/data/test.jsonl": "9e61f1417ce51f3898cedc7a82fa528186942a739f1c88e1f21390cd33540874"
+  },
+  "collection_source_sha256": {
+    "scene.xml": "839729842eb7b3000deb2a2948ef7555df3eef9d3dac5ce89b8d496d02f24ccf",
+    "simulate.py": "05d28fa9954735baf2ebef15dbfb310d4042aa6e2f2f4c21defbccb01f971ff2",
+    "grasp_angles.py": "df892ba55247591030a634437bef9b15c80e06db85f8641a9c0308a9e1634383",
+    "grasp_plan.py": "807898af44604aed26d0d72300a8db3639941c6116a7c30c84d46e8f650a8e59",
+    "prm.py": "42098c3534dcaf917762e02deff8254b19046f24d849e7c28ff3d0d954d2e66c",
+    "station_feasibility.py": "4f9aa0b42ee03a4cea3f47a08b5f6cfabcda9bacfc3b5fec2174d84a507bb268",
+    "train_grasp_rl.py": "1fb1f6b1159faad9efbf73ee2dd8a67e6037590fc1ca3a743bd60b3b51174da3",
+    "collect_grasp_data.py": "d7ac73fda983837d56439a719c9d01bae5f10fb5cdb5ce05fd4cd4f7980444e2"
+  },
+  "model_training_source_sha256": "fa549d7cc7542e0481f85bcbddc9813fc90bb91f79e97cb322602341675950c9",
+  "versions": {
+    "mujoco": "3.16.0",
+    "numpy": "2.5.4"
+  },
+  "started_utc": "2026-10-27T12:07:03.739637+00:00",
+  "raw_artifacts_location": "reproduced/angle_diversity_smoke_20261027"
+}

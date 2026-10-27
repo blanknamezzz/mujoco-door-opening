@@ -84,7 +84,9 @@ python compare_grasp_learning.py evaluate
 mjpython compare_grasp_learning.py demo --scene test_021 --method reinforce --seed 42
 ```
 
-默认使用 36/12/24 个训练/验证/测试站位、21 个角度，新增实验默认种子为 42。
+新实验默认使用 36/12/24 个训练/验证/测试站位、29 个角度（原 21 个细粒度角度加 ±30°、±45°、±60°、±90°），默认种子为 42。
+可用 `--angle-grid legacy21` 保留旧角度网格，或 `--angles-deg` / 范围参数自定义；详见 [角度多样性与验证](docs/grasp_angle_diversity.md) 和 [按站位整理的实测结果](results/angle_diversity/README.md)。
+新默认数据和比较目录为 `reproduced/grasp_learning_data_prm_diverse29/` 与 `reproduced/grasp_learning_comparison_prm_diverse29/`。
 已发布历史比较使用 42/43/44，复现时显式传入 `--seeds 42 43 44`。
 报告和小型指标文件随代码发布；大数据、视频和模型权重在忽略的 `reproduced/` 中由命令生成。
 历史无 PRM 的 36/12/24 站位实验中，SL 未优于 RL，训练集选出的固定 +18° 同样达到 10/24。新增 PRM 流程以 12/4/8 站位、504 次候选流程和 252 次 RL 决策完成接入验证；这两组实验不用于直接比较 PRM 的成功率增益，也不代表新门型或真实机器人表现。
@@ -387,7 +389,7 @@ python station_feasibility.py examples
 若沿用 72 站位实验的采样、PRM 和三种子训练设置，请显式指定参数并使用新的输出目录：
 
 ```bash
-python collect_grasp_data.py --output reproduced/prm_full72_explicit_seeds_new --train-scenes 36 --validation-scenes 12 --test-scenes 24 --seed 20261026 --prm-seed 7
+python collect_grasp_data.py --output reproduced/prm_full72_explicit_seeds_new --angle-grid legacy21 --train-scenes 36 --validation-scenes 12 --test-scenes 24 --seed 20261026 --prm-seed 7
 python compare_grasp_learning.py train --data reproduced/prm_full72_explicit_seeds_new --output reproduced/prm_full72_explicit_seeds_models_new --seeds 42 43 44
 python compare_grasp_learning.py evaluate --data reproduced/prm_full72_explicit_seeds_new --output reproduced/prm_full72_explicit_seeds_models_new
 ```
