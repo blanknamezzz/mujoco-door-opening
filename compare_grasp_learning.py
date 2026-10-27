@@ -378,7 +378,7 @@ def main():
         if name != "demo":
             p.add_argument("--workers", type=int, default=4)
         if name == "train":
-            p.add_argument("--seeds", type=int, nargs="+", default=[42, 43, 44])
+            p.add_argument("--seeds", type=int, nargs="+", default=[42])
             p.add_argument("--sl-updates", type=int, default=1200)
             p.add_argument("--sl-lr", type=float, default=.01)
             p.add_argument("--rl-lr", type=float, default=.02)

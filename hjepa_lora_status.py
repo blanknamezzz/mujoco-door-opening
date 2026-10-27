@@ -10,6 +10,8 @@ def status(data, model):
     if not path.exists():
         return dict(stage='not_started')
     report = json.loads(path.read_text(encoding='utf-8'))
+    if report.get('evaluation_only_dataset'):
+        data = Path(report['evaluation_only_dataset'])
     shards, completed_scenes, episodes = [], set(), 0
     for directory in sorted(data.glob('shard_*')):
         manifest = directory/'manifest.json'
@@ -28,6 +30,9 @@ def status(data, model):
                            complete=(directory/'manifest.json').exists()))
     age = time.time()-report.get('updated_at', report['started_at'])
     result = {key: report.get(key) for key in ('stage', 'pid', 'scenes', 'splits', 'steps', 'lora_rank', 'error')}
+    if report.get('independent_test_scenes'):
+        result['independent_test_scenes'] = report['independent_test_scenes']
+        result['independent_test_dataset'] = str(data)
     result.update(elapsed_minutes=round((time.time()-report['started_at'])/60, 1),
                   heartbeat_age_seconds=round(age, 1),
                   collection_completed_scenes=len(completed_scenes), collection_completed_records=episodes, shards=shards)
@@ -35,12 +40,22 @@ def status(data, model):
         log = model/filename
         if log.exists():
             result[filename] = log.read_text(encoding='utf-8', errors='replace').splitlines()[-2:]
+            if filename == 'training.log':
+                for line in reversed(log.read_text(encoding='utf-8', errors='replace').splitlines()):
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if 'step' in entry:
+                        result['last_logged_training_step'] = entry['step']
+                        break
     return result
 
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--data', type=Path, default=Path('runs/hjepa/diverse_lora_data'))
-    p.add_argument('--model', type=Path, default=Path('runs/hjepa/diverse_lora_model'))
+    latest = Path('runs/hjepa/lora_continued_model')
+    p.add_argument('--model', type=Path, default=latest if (latest/'status.json').exists() else Path('runs/hjepa/diverse_lora_model'))
     args = p.parse_args()
     print(json.dumps(status(args.data, args.model), indent=2))

@@ -23,7 +23,8 @@ def resolve_device(device='auto'):
 def load_upstream():
     if not (UPSTREAM/'h_jepa'/'models'/'hjepa.py').is_file():
         raise RuntimeError('Run python setup_hjepa.py first to fetch the official release.')
-    revision = subprocess.check_output(['git', '-C', str(UPSTREAM), 'rev-parse', 'HEAD'], text=True).strip()
+    revision = subprocess.check_output(['git', '-c', f'safe.directory={UPSTREAM.as_posix()}',
+                                        '-C', str(UPSTREAM), 'rev-parse', 'HEAD'], text=True).strip()
     if revision != UPSTREAM_COMMIT:
         raise RuntimeError(f'Expected H-JEPA {UPSTREAM_COMMIT}, found {revision}.')
     sys.path.insert(0, str(UPSTREAM/'h_jepa'))
@@ -115,6 +116,9 @@ class DoorHJEPA(nn.Module):
         self.grasp_policy = MLP(low_dim+5, 128, 1)
         self.value_low = MLP(low_dim, 128, 1)
         self.value_high = MLP(high_dim, 128, 1)
+        if self.config.get('reward_decomposition'):
+            from decomposed_reward import configure_decomposition
+            configure_decomposition(self, self.config['reward_decomposition'])
         if self.config.get('lora'):
             from hjepa_lora import install_lora
             lora = dict(self.config['lora'])
@@ -164,7 +168,11 @@ class DoorHJEPA(nn.Module):
             if not vit.training or not torch.is_grad_enabled():
                 return original_forward(pixel_values, **kwargs)
             def encode_chunk(chunk):
-                return original_forward(chunk, **kwargs).last_hidden_state[:, :1]
+                hidden = original_forward(chunk, **kwargs).last_hidden_state
+                # Spatial pooling needs the actual patch sequence during both
+                # the first forward and checkpoint recomputation. Legacy
+                # projected/CLS paths retain their original compact output.
+                return hidden if self.config.get('position_encoder') == 'backbone_patch_mean' else hidden[:, :1]
             outputs = [checkpoint(encode_chunk, chunk, use_reentrant=False, preserve_rng_state=True)
                        for chunk in pixel_values.split(chunk_size)]
             return SimpleNamespace(last_hidden_state=torch.cat(outputs))
@@ -217,10 +225,17 @@ class DoorHJEPA(nn.Module):
         Dynamics/value/grasp latents remain the official projected embedding.
         This adds no parameters and never changes world-model inference.
         """
-        if self.config.get('position_encoder') == 'backbone_cls':
+        mode = self.config.get('position_encoder')
+        if mode in ('backbone_cls', 'backbone_patch_mean'):
             if not self.is_official:
-                raise ValueError('Backbone CLS positioning requires the official ViT.')
-            return self.model.get_level(1).encoder.encoder(self.normalize_pixels(pixels)).last_hidden_state[:, 0]
+                raise ValueError('Backbone positioning requires the official ViT.')
+            hidden = self.model.get_level(1).encoder.encoder(self.normalize_pixels(pixels)).last_hidden_state
+            if mode == 'backbone_patch_mean':
+                expected = (self.config['image_size']//self.config['patch_size'])**2
+                if hidden.size(1) != expected+1:
+                    raise ValueError('Patch pooling requires the complete native token sequence.')
+                return hidden[:, 1:].mean(1)
+            return hidden[:, 0]
         return self.encode(pixels, proprio)
 
     def imagine(self, latent, actions, level=1):
@@ -267,12 +282,15 @@ def load_checkpoint(path, device='cpu'):
         model, source = load_checkpoint(base, device)
         from hjepa_lora import install_lora
         config = checkpoint['config']
+        if config.get('reward_decomposition'):
+            from decomposed_reward import configure_decomposition
+            configure_decomposition(model, config['reward_decomposition'])
         lora = config['lora']
         install_lora(model, lora['rank'], lora['alpha'], lora['dropout'])
         if model.config['lora']['targets'] != lora['targets']:
             raise ValueError('Adapter target layer mismatch.')
         expected = {n for n in model.state_dict() if 'lora_' in n or
-                    n.startswith(('position_policy.', 'grasp_policy.', 'value_low.', 'value_high.'))}
+                    n.startswith(('position_policy.', 'grasp_policy.', 'value_low.', 'value_high.', 'progress_low.', 'progress_high.'))}
         if set(checkpoint['adapter']) != expected:
             raise ValueError('Adapter/task-head tensors are missing or unexpected.')
         model.load_state_dict(checkpoint['adapter'], strict=False)

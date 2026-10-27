@@ -169,7 +169,7 @@ def structural_training_scenes(seed=20261017):
     return specs
 
 
-def diverse_structural_scenes(seed=20261018, train_per_family=16, val_per_family=2, test_per_family=2):
+def diverse_structural_scenes(seed=20261018, train_per_family=16, val_per_family=2, test_per_family=2, stream=None):
     """Scene-disjoint geometry/view randomization; no outcome labels as inputs.
 
     The old 24 scenes are not reused. Outside-arc posts teach that a visible
@@ -183,7 +183,19 @@ def diverse_structural_scenes(seed=20261018, train_per_family=16, val_per_family
     families = ['free-two-way', 'pillar-front', 'pillar-back', 'pillar-both',
                 'front-access-only', 'back-access-only', 'front-only-blocked',
                 'back-only-blocked', 'outside-arc', 'mixed-posts', 'low-front', 'low-back']
-    rng = np.random.default_rng(seed)
+    # Explicit named streams permit disjoint future cohorts while preserving
+    # the user's global seed42. The default path is bit-for-bit historical.
+    if stream is not None:
+        import hashlib
+        import re
+        if not re.fullmatch(r'[a-zA-Z0-9_-]{1,64}',stream):
+            raise ValueError('Scene stream needs 1..64 letters, numbers, underscores or hyphens.')
+        digest=hashlib.sha256(stream.encode('utf-8')).digest()
+        spawn_key=tuple(int.from_bytes(digest[i:i+4],'little') for i in range(0,16,4))
+        rng=np.random.default_rng(np.random.SeedSequence(seed,spawn_key=spawn_key))
+    else:
+        rng = np.random.default_rng(seed)
+    identity=f'{seed}_{stream}' if stream is not None else str(seed)
     specs = []
     splits = ['train']*train_per_family+['val']*val_per_family+['test']*test_per_family
     for family in families:
@@ -201,7 +213,7 @@ def diverse_structural_scenes(seed=20261018, train_per_family=16, val_per_family
                 'low-front': (post(low=True),), 'low-back': (post(-1, low=True),)}.get(family, ())
             front_only = family in ('front-access-only', 'front-only-blocked')
             back_only = family in ('back-access-only', 'back-only-blocked')
-            scene = StructuralDoor(f'diverse_{seed}_{family}_{variant:03d}',
+            scene = StructuralDoor(f'diverse_{identity}_{family}_{variant:03d}',
                 handle_x=float(rng.uniform(.74, .85)), handle_z=float(rng.uniform(.82, .88)),
                 friction=float(rng.uniform(.55, .95)), hinge_resistance=float(rng.uniform(.8, 1.6)),
                 hinge_min_deg=0. if front_only else -90., hinge_max_deg=0. if back_only else 90.,
@@ -210,3 +222,19 @@ def diverse_structural_scenes(seed=20261018, train_per_family=16, val_per_family
                 camera_height_offset=float(rng.uniform(-.08, .18)), light_scale=float(rng.uniform(.75, 1.2)))
             specs.append(dict(**asdict(scene), split=split, family=family))
     return specs
+
+
+def independent_test_scenes(seed=20261019, per_family=4, stream=None):
+    """New seed and geometry, test-only; never appended to a training manifest."""
+    specs = diverse_structural_scenes(seed, 1, 1, per_family,stream=stream)
+    identity=f'{seed}_{stream}' if stream is not None else str(seed)
+    result = []
+    counters = {}
+    for spec in specs:
+        if spec['split'] != 'test':
+            continue
+        family = spec['family']
+        index = counters.get(family, 0)
+        counters[family] = index+1
+        result.append(dict(spec, scene_id=f'holdout_{identity}_{family}_{index:03d}'))
+    return result

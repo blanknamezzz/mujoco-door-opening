@@ -43,8 +43,9 @@ def install_lora(model, rank=8, alpha=16., dropout=.05):
         parent_name, _, child = name.rpartition('.')
         parent = model.model.get_submodule(parent_name) if parent_name else model.model
         setattr(parent, child, LoRALinear(layer, rank, alpha, dropout))
-    for name in ('position_policy', 'grasp_policy', 'value_low', 'value_high'):
-        getattr(model, name).requires_grad_(True)
+    for name in ('position_policy', 'grasp_policy', 'value_low', 'value_high', 'progress_low', 'progress_high'):
+        if hasattr(model, name):
+            getattr(model, name).requires_grad_(True)
     model.config['lora'] = dict(rank=rank, alpha=alpha, dropout=dropout,
                                 targets=[n for n, _ in targets], merged=False)
     freeze_core_statistics(model)
@@ -52,6 +53,30 @@ def install_lora(model, rank=8, alpha=16., dropout=.05):
                 adapter_parameters=sum(p.numel() for n, p in model.model.named_parameters() if 'lora_' in n),
                 trainable_parameters=sum(p.numel() for p in model.parameters() if p.requires_grad),
                 target_layers=len(targets))
+
+
+def resume_lora(model, rank=8, alpha=16., dropout=.05):
+    """Continue existing low-rank weights without stacking a second adapter."""
+    config = model.config.get('lora')
+    if not config:
+        return install_lora(model, rank, alpha, dropout)
+    if (config['rank'], config['alpha'], config['dropout']) != (rank, alpha, dropout):
+        raise ValueError('Continuation must use the saved LoRA rank, alpha and dropout.')
+    model.requires_grad_(False)
+    layers = [m for m in model.model.modules() if isinstance(m, LoRALinear)]
+    if len(layers) != len(config['targets']):
+        raise ValueError('Missing LoRA modules in continuation checkpoint.')
+    for layer in layers:
+        layer.lora_A.requires_grad_(True)
+        layer.lora_B.requires_grad_(True)
+    for name in ('position_policy', 'grasp_policy', 'value_low', 'value_high', 'progress_low', 'progress_high'):
+        if hasattr(model, name):
+            getattr(model, name).requires_grad_(True)
+    freeze_core_statistics(model)
+    return dict(core_parameters=sum(p.numel() for p in model.model.parameters()),
+                adapter_parameters=sum(p.numel() for n, p in model.model.named_parameters() if 'lora_' in n),
+                trainable_parameters=sum(p.numel() for p in model.parameters() if p.requires_grad),
+                target_layers=len(layers), continued_existing_adapter=True)
 
 
 def freeze_core_statistics(model):
@@ -77,4 +102,4 @@ def frozen_core_digest(model):
 
 def adapter_state(model):
     return {n: v.detach().cpu().clone() for n, v in model.state_dict().items()
-            if 'lora_' in n or n.startswith(('position_policy.', 'grasp_policy.', 'value_low.', 'value_high.'))}
+            if 'lora_' in n or n.startswith(('position_policy.', 'grasp_policy.', 'value_low.', 'value_high.', 'progress_low.', 'progress_high.'))}

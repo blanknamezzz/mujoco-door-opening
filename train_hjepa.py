@@ -12,20 +12,48 @@ from torch import nn
 from hjepa_model import DoorHJEPA, compact_config, default_config, load_checkpoint, resolve_device, save_checkpoint
 
 
-def read_data(directory):
+def read_data(directory, required_splits=('train', 'val', 'test'), include_splits=None,policy_only=False):
     manifest = json.loads((directory/'manifest.json').read_text(encoding='utf-8'))
+    if manifest.get('evaluation_only') and include_splits and set(include_splits) & {'train', 'val'}:
+        raise ValueError('Evaluation-only dataset cannot be used for training or validation.')
+    specs = {s['scene_id']: s for s in manifest['scenes']}
     scene_splits = {}
     records = []
+    rear_cache = {}
+    endpoint_cache = {}
     for ep in manifest['episodes']:
+        if ep['scene_id'] not in specs or specs[ep['scene_id']]['split'] != ep['split']:
+            raise ValueError('Episode split differs from scene manifest.')
         previous = scene_splits.setdefault(ep['scene_id'], ep['split'])
         if previous != ep['split']:
             raise ValueError('Scene leakage between dataset splits.')
+        if include_splits is not None and ep['split'] not in include_splits:
+            continue  # Do not even open excluded RGB, arrays or outcome files.
         with np.load(directory/ep['file'], allow_pickle=False) as arrays:
-            record = {k: arrays[k].copy() for k in arrays.files}
-        if ep.get('pixels_file'):
+            keys=('initial_rgb','initial_proprio','arrival_rgb','arrival_proprio','base','grasp') if policy_only else arrays.files
+            record={}
+            for key in keys:
+                if key not in arrays.files:continue
+                value=arrays[key].copy()
+                if policy_only and key.startswith(('initial_','arrival_')):
+                    group=(ep['scene_id'],key,None if key.startswith('initial_') else ep['base_id'])
+                    if group in endpoint_cache:
+                        previous=endpoint_cache[group]
+                        if previous.dtype!=value.dtype or previous.shape!=value.shape or not np.array_equal(previous,value):
+                            raise ValueError('Inconsistent repeated endpoint observation: '+str(group))
+                        value=previous
+                    else:
+                        value.setflags(write=False);endpoint_cache[group]=value
+                record[key]=value
+        if ep.get('pixels_file') and not policy_only:
             record['pixels'] = np.load(directory/ep['pixels_file'], mmap_mode='r', allow_pickle=False)
+        rear_file=manifest.get('position_rear_files',{}).get(ep['scene_id'])
+        if rear_file:
+            if ep['scene_id'] not in rear_cache:
+                rear_cache[ep['scene_id']]=np.load(directory/rear_file,allow_pickle=False)
+            record['initial_rear_rgb']=rear_cache[ep['scene_id']]
         records.append((ep, record))
-    for split in ['train', 'val', 'test']:
+    for split in required_splits:
         if not any(ep['split'] == split for ep, _ in records):
             raise ValueError(f'Missing {split} scenes.')
     return manifest, records
@@ -37,12 +65,15 @@ def rgb_tensor(array, device, scale=True):
 
 
 def state_tensor(array, mean, std, device):
+    if isinstance(array,np.ndarray) and not array.flags.writeable:
+        array=array.copy()
     return ((torch.as_tensor(array, device=device).float()-mean)/std).clamp(-10, 10)
 
 
 def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', policy_updates=0,
           profile='official', epochs=None, activation_checkpointing=True, init_checkpoint=None,
-          lora_rank=None, lora_alpha=16., lora_dropout=.05):
+          lora_rank=None, lora_alpha=16., lora_dropout=.05,
+          adapter_lr=1e-4, head_lr=3e-4):
     started = time.perf_counter()
     if any((output/name).exists() for name in ['best.pt', 'last.pt', 'selected.pt', 'training.json']):
         raise FileExistsError('Training output already contains a run; choose a fresh --output.')
@@ -53,7 +84,9 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
     torch.manual_seed(seed)
     # Small models are much faster without large CPU thread pools.
     torch.set_num_threads(min(4, torch.get_num_threads()))
-    manifest, records = read_data(data)
+    manifest, records = read_data(data, required_splits=('train', 'val'), include_splits=('train', 'val'))
+    if manifest.get('endpoint_only') or manifest.get('temporal_sequences_available',True) is False:
+        raise ValueError('Endpoint-only data is for the policy trainer, not temporal world-model training.')
     budgets = dict(base_budget=manifest.get('base_budget', max(ep['base_id'] for ep, _ in records)+1),
                    grasp_budget=manifest.get('grasp_budget', max(ep['grasp_id'] for ep, _ in records)+1))
     if manifest.get('positioning_abstention'):
@@ -72,7 +105,7 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
     raw_interval = config.get('raw_observation_interval_s', config['observation_interval_s'])
     if abs(manifest['observation_interval_s']-raw_interval) > 1e-6:
         raise ValueError(f'{profile} requires {raw_interval}s raw observation intervals.')
-    initialization = None
+    initialization, adapter_base = None, None
     if init_checkpoint:
         model, source = load_checkpoint(init_checkpoint, device)
         if model.config.get('profile') != profile:
@@ -82,6 +115,16 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
         with init_checkpoint.open('rb') as f:
             initialization = dict(path=str(init_checkpoint), sha256=hashlib.file_digest(f, 'sha256').hexdigest(),
                                   step=source.get('step'), optimizer_resumed=False)
+        if model.config.get('lora'):
+            adapter_base = source.get('adapter_base_checkpoint')
+            if not adapter_base:
+                previous_report = init_checkpoint.parent/'training.json'
+                if not previous_report.exists():
+                    raise ValueError('Legacy LoRA continuation needs its training.json to identify the original base.')
+                previous = json.loads(previous_report.read_text(encoding='utf-8'))
+                adapter_base = previous.get('adapter_base_checkpoint', previous['initialization'])
+        else:
+            adapter_base = initialization
         del source
     else:
         model = DoorHJEPA(config).to(device)
@@ -89,9 +132,10 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
     if lora_rank is not None:
         if not init_checkpoint or not model.is_official:
             raise ValueError('LoRA requires an existing official checkpoint.')
-        from hjepa_lora import install_lora, frozen_core_digest
-        lora_info = install_lora(model, lora_rank, lora_alpha, lora_dropout)
+        from hjepa_lora import resume_lora, frozen_core_digest
+        lora_info = resume_lora(model, lora_rank, lora_alpha, lora_dropout)
         frozen_digest = frozen_core_digest(model)
+        budgets['adapter_base_checkpoint'] = adapter_base
     if model.is_official and lora_rank is None:
         actions = np.concatenate([x['action'] for _, x in training if len(x['action'])])
         model.action_mean.copy_(torch.tensor(actions.mean(0), device=device))
@@ -102,8 +146,8 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
     if lora_rank is not None:
         # Frozen parameters never enter the optimizer. Moderate adapter LR and
         # ordinary task heads; do not resume upstream epoch-scheduler state.
-        groups = [dict(params=[p for p in model.model.parameters() if p.requires_grad], lr=1e-4),
-                  dict(params=[p for n, p in model.named_parameters() if not n.startswith('model.') and p.requires_grad], lr=3e-4)]
+        groups = [dict(params=[p for p in model.model.parameters() if p.requires_grad], lr=adapter_lr),
+                  dict(params=[p for n, p in model.named_parameters() if not n.startswith('model.') and p.requires_grad], lr=head_lr)]
         optim = torch.optim.AdamW(groups, weight_decay=.01)
     elif profile == 'official':
         groups = [{'params': model.model.get_level(i).parameters(), 'lr': config[f'level{i}']['lr']}
@@ -125,7 +169,7 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
     for split in ['train', 'val', 'test']:
         windows[split] = [(ep, x, start) for ep, x in records if ep['split'] == split
                           for start in range(len(x['pixels'])-model.config['raw_clip_frames']+1)]
-        if not windows[split]:
+        if split != 'test' and not windows[split]:
             raise ValueError(f"No full {model.config['raw_clip_frames']}-frame raw clips in {split}; collect reachable trajectories.")
     steps_per_epoch = len(windows['train'])//batch_size
     if steps_per_epoch < 1:
@@ -299,8 +343,10 @@ def train(data, output, steps=None, batch_size=None, seed=42, device='cpu', poli
                   parameters=sum(p.numel() for p in model.parameters()),
                   scheduler=scheduler_info, elapsed_seconds=time.perf_counter()-started,
                   initialization=initialization, task_metadata=budgets, lora=lora_info,
+                  adapter_base_checkpoint=adapter_base,
+                  data_access_splits=['train', 'val'], test_arrays_opened=0,
                   frozen_core_unchanged=True if lora_info else None,
-                  checkpoint_selection='validation task return, predictive loss breaks ties' if lora_info else 'validation loss',
+                  checkpoint_selection='validation task return, validation total loss breaks ties' if lora_info else 'validation loss',
                   unadapted_validation=baseline_validation,
                   peak_allocated_mib=torch.cuda.max_memory_allocated()/2**20 if device == 'cuda' else None,
                   peak_reserved_mib=torch.cuda.max_memory_reserved()/2**20 if device == 'cuda' else None,
@@ -423,7 +469,7 @@ def finalize_selected_checkpoint(data, output, policy_updates=100, seed=42, devi
     random.seed(seed)
     torch.manual_seed(seed)
     model, source = load_checkpoint(output/'best.pt', device)
-    _, records = read_data(data)
+    _, records = read_data(data, required_splits=('train', 'val'), include_splits=('train', 'val'))
     training = [(ep, x) for ep, x in records if ep['split'] == 'train']
     validation = [(ep, x) for ep, x in records if ep['split'] == 'val']
     for parameter in model.model.parameters():
@@ -442,17 +488,17 @@ def finalize_selected_checkpoint(data, output, policy_updates=100, seed=42, devi
                     step=source['step'], training_steps=report['steps'], seed=seed,
                     base_budget=source['base_budget'], grasp_budget=source['grasp_budget'],
                     policy_updates=selection['selected_update'], policy_updates_executed=policy_updates, world_model_unchanged=True,
-                    **{k: source[k] for k in ['positioning_abstention', 'candidate_base_poses', 'abstention_reward'] if k in source},
-                    selection='minimum validation loss, followed by train-only stage policy updates')
+                    **{k: source[k] for k in ['positioning_abstention', 'candidate_base_poses', 'abstention_reward', 'adapter_base_checkpoint'] if k in source},
+                    selection=report['checkpoint_selection']+', followed by train-only stage policy updates')
     report.update(selected_checkpoint='selected.pt', selected_world_model_step=source['step'],
                   selected_policy_updates=selection['selected_update'], stage_policy_selection=selection,
                   selected_world_model_unchanged=True)
     if model.config.get('lora'):
         from hjepa_lora import adapter_state
         torch.save(dict(adapter=adapter_state(model), config=model.config,
-                        base_checkpoint=report['initialization'], state_mean=mean.cpu(), state_std=std.cpu(),
+                        base_checkpoint=report.get('adapter_base_checkpoint') or report['initialization'], state_mean=mean.cpu(), state_std=std.cpu(),
                         metadata={**{k: source[k] for k in ['base_budget', 'grasp_budget', 'positioning_abstention',
-                                                          'candidate_base_poses', 'abstention_reward'] if k in source},
+                                                          'candidate_base_poses', 'abstention_reward', 'adapter_base_checkpoint'] if k in source},
                                                           'step': source['step'], 'policy_updates': selection['selected_update']}),
                    output/'adapter.pt')
     report_path.write_text(json.dumps(report, indent=2), encoding='utf-8')
@@ -477,10 +523,13 @@ if __name__ == '__main__':
     p.add_argument('--lora-rank', type=int, help='Freeze original core and train reversible low-rank adapters only')
     p.add_argument('--lora-alpha', type=float, default=16.)
     p.add_argument('--lora-dropout', type=float, default=.05)
+    p.add_argument('--adapter-learning-rate', type=float, default=1e-4)
+    p.add_argument('--head-learning-rate', type=float, default=3e-4)
     a = p.parse_args()
     device = resolve_device(a.device)
     train(a.data, a.output, a.steps, a.batch_size, a.seed, device, a.policy_updates if a.profile != 'official' else 0,
           profile=a.profile, epochs=a.epochs, activation_checkpointing=not a.no_activation_checkpointing,
-          init_checkpoint=a.init_checkpoint, lora_rank=a.lora_rank, lora_alpha=a.lora_alpha, lora_dropout=a.lora_dropout)
+          init_checkpoint=a.init_checkpoint, lora_rank=a.lora_rank, lora_alpha=a.lora_alpha, lora_dropout=a.lora_dropout,
+          adapter_lr=a.adapter_learning_rate, head_lr=a.head_learning_rate)
     if a.profile == 'official':
         finalize_selected_checkpoint(a.data, a.output, a.policy_updates, a.seed, device)

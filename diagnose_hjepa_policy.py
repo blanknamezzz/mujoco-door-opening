@@ -12,7 +12,7 @@ from train_hjepa import read_data
 
 def diagnose(data, checkpoint, output, splits=('train', 'val')):
     torch.set_num_threads(2)
-    manifest, records = read_data(data)
+    manifest, records = read_data(data, required_splits=splits, include_splits=splits)
     model, source = load_checkpoint(checkpoint, 'cpu')
     report = {}
     for split in splits:

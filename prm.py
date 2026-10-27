@@ -48,7 +48,7 @@ def segment_box_distance_squared(a, b, half_size):
 class PRMSettings:
     samples: int = 240
     neighbors: int = 12
-    seed: int = 7
+    seed: int = 42
     joint_step_rad: float = .06
     lift_step_m: float = .008
     penetration_tolerance_m: float = 1e-5

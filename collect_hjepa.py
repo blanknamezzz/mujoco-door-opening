@@ -1,5 +1,6 @@
 """Collect physical RGB/state/action trajectories and staged counterfactuals."""
 import argparse
+from contextlib import nullcontext
 import json
 from pathlib import Path
 import mujoco
@@ -22,18 +23,27 @@ def small_rgb(frame, size, square_camera=False):
 
 def collect(output, scenes=12, seed=42, bases=5, grasp_count=4, image_size=224, resume=False,
             observation_interval=.1, mmap_pixels=True, structural=False, diverse=False,
-            train_per_family=16, val_per_family=2, test_per_family=2, shard_index=0, shard_count=1):
+            train_per_family=16, val_per_family=2, test_per_family=2, shard_index=0, shard_count=1,
+            test_only=False, test_cases_per_family=4, endpoint_only=False, scene_stream=None):
     if not 1 <= bases <= 5 or not 1 <= grasp_count <= 4:
         raise ValueError('Use 1..5 bases and 1..4 grasps.')
+    from experiment_reproducibility import seed_everything
+    reproducibility=seed_everything(seed)
     output = Path(output)
     if (output/'manifest.json').exists():
         raise FileExistsError('Use a new output directory to preserve the previous dataset.')
     output.mkdir(parents=True, exist_ok=True)
+    if test_only:
+        diverse = True
     if diverse:
         structural = True
+    if scene_stream is not None and not diverse:
+        raise ValueError('Named scene streams require the diverse structural generator.')
     if structural:
-        from structural_scene import structural_training_scenes, diverse_structural_scenes, STRUCTURAL_BASES
-        specs = (diverse_structural_scenes(seed, train_per_family, val_per_family, test_per_family)
+        from structural_scene import (structural_training_scenes, diverse_structural_scenes,
+                                      independent_test_scenes, STRUCTURAL_BASES)
+        specs = (independent_test_scenes(seed, test_cases_per_family,stream=scene_stream) if test_only else
+                 diverse_structural_scenes(seed, train_per_family, val_per_family, test_per_family,stream=scene_stream)
                  if diverse else structural_training_scenes(seed))
         base_pool = STRUCTURAL_BASES
         if bases != 5 or grasp_count != 4:
@@ -47,7 +57,9 @@ def collect(output, scenes=12, seed=42, bases=5, grasp_count=4, image_size=224, 
     manifest = dict(schema_version=2 if mmap_pixels else 1, seed=seed, image_size=image_size,
                     base_budget=bases, grasp_budget=grasp_count,
                     observation_interval_s=observation_interval, upstream='https://github.com/kevinghst/H-JEPA',
-                    scenes=specs, episodes=[], structural=structural,
+                    scenes=specs, episodes=[], structural=structural, evaluation_only=test_only,
+                    endpoint_only=endpoint_only,temporal_sequences_available=not endpoint_only,
+                    reproducibility=reproducibility,scene_stream=scene_stream,
                     candidate_base_poses=[list(b) for b in base_pool],
                     positioning_abstention=structural, abstention_reward=0. if structural else None,
                     positioning='reset placement; no simulated navigation',
@@ -57,7 +69,9 @@ def collect(output, scenes=12, seed=42, bases=5, grasp_count=4, image_size=224, 
         if not resume:
             raise FileExistsError('Interrupted dataset exists; use --resume or a new output directory.')
         previous = json.loads(partial.read_text(encoding='utf-8'))
-        for key in ['seed', 'image_size', 'scenes', 'observation_interval_s', 'structural']:
+        if previous.get('scene_stream') != scene_stream:
+            raise ValueError('Cannot resume with a changed geometry stream.')
+        for key in ['seed', 'image_size', 'scenes', 'observation_interval_s', 'structural','endpoint_only']:
             if previous.get(key, False) != manifest[key]:
                 raise ValueError(f'Cannot resume with changed {key}.')
         for key, budget in [('base_budget', bases), ('grasp_budget', grasp_count)]:
@@ -91,7 +105,7 @@ def collect(output, scenes=12, seed=42, bases=5, grasp_count=4, image_size=224, 
                     continue
                 exp = scene.experiment(base)
                 pixels, states, actions, times = [], [], [], []
-                with mujoco.Renderer(exp.m, height=image_size, width=image_size) as renderer:
+                with (nullcontext(None) if endpoint_only else mujoco.Renderer(exp.m, height=image_size, width=image_size)) as renderer:
                     def record(e, terminal):
                         # Terminal states closer than one full interval are kept
                         # in metrics, not treated as .5-second model transitions.
@@ -110,7 +124,7 @@ def collect(output, scenes=12, seed=42, bases=5, grasp_count=4, image_size=224, 
                                             stop_reason='perception_failure', final_angle_deg=0.,
                                             max_angle_deg=0., perception_error=perception_error), []
                     else:
-                        result, rows, _ = exp.trial(point, yaw, observer=record, reset_before_trial=False,
+                        result, rows, _ = exp.trial(point, yaw, observer=None if endpoint_only else record, reset_before_trial=False,
                                                   observation_interval=observation_interval)
                 metrics = task_reward(result, rows)
                 pixel_array = np.asarray(pixels, dtype=np.uint8).reshape(-1, image_size, image_size, 3)
@@ -164,6 +178,7 @@ if __name__ == '__main__':
     p.add_argument('--output', type=Path, default=Path('runs/hjepa/official_data'))
     p.add_argument('--scenes', type=int, default=12)
     p.add_argument('--seed', type=int, default=42)
+    p.add_argument('--scene-stream',default=None,help='Named deterministic geometry stream under the same seed.')
     p.add_argument('--bases', type=int, default=5)
     p.add_argument('--grasps', type=int, default=4)
     p.add_argument('--resume', action='store_true')
@@ -177,9 +192,14 @@ if __name__ == '__main__':
     p.add_argument('--test-per-family', type=int, default=2)
     p.add_argument('--shard-index', type=int, default=0)
     p.add_argument('--shard-count', type=int, default=1)
+    p.add_argument('--test-only', action='store_true', help='Collect a separate evaluation-only scene suite')
+    p.add_argument('--test-cases-per-family', type=int, default=4)
+    p.add_argument('--endpoint-only',action='store_true',help='Full physical trials, save only endpoint policy observations; no temporal frames')
     args = p.parse_args()
     collect(args.output, args.scenes, args.seed, args.bases, args.grasps, image_size=args.image_size,
             resume=args.resume, observation_interval=args.observation_interval,
             mmap_pixels=not args.compressed_pixels, structural=args.structural, diverse=args.diverse,
             train_per_family=args.train_per_family, val_per_family=args.val_per_family, test_per_family=args.test_per_family,
-            shard_index=args.shard_index, shard_count=args.shard_count)
+            shard_index=args.shard_index, shard_count=args.shard_count,
+            test_only=args.test_only, test_cases_per_family=args.test_cases_per_family,endpoint_only=args.endpoint_only,
+            scene_stream=args.scene_stream)

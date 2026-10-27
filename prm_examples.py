@@ -82,13 +82,15 @@ def cases():
 def run_case(case, output, viewer=None):
     plan = GraspPlan((.8, -.11, .85), approach_angle_deg=case['angle'])
     exp = Experiment(base=case['base'], model_xml=case.get('model_xml'))
-    roadmap = Roadmap(exp, PRMSettings(samples=case['samples'], neighbors=18))
+    # Reproduce the published examples' historical sampling stream explicitly;
+    # newly configured PRM experiments default to42.
+    roadmap = Roadmap(exp, PRMSettings(samples=case['samples'], neighbors=18, seed=7))
     query = roadmap.plan(plan, include_graph=True)
     execution, outcome, frames = None, None, []
     folder = output/case['key']
     folder.mkdir(parents=True, exist_ok=True)
     if case.get('model_xml'):
-        (folder/'scene.xml').write_text(case['model_xml'])
+        (folder/'scene.xml').write_text(case['model_xml'],encoding='utf-8')
     if query['path_found']:
         execution, rows, states = execute_path(exp, query['path_q'], viewer=viewer, record=True)
         if rows:
@@ -128,7 +130,7 @@ def main():
         case = next(c for c in cases() if c['key'] == args.view)
         exp = Experiment(base=case['base'], model_xml=case.get('model_xml'))
         plan = GraspPlan((.8, -.11, .85), approach_angle_deg=case['angle'])
-        query = Roadmap(exp, PRMSettings(samples=case['samples'], neighbors=18)).plan(plan)
+        query = Roadmap(exp, PRMSettings(samples=case['samples'], neighbors=18, seed=7)).plan(plan)
         print(json.dumps(query, indent=2), flush=True)
         if query['path_found']:
             with mujoco.viewer.launch_passive(exp.m, exp.d) as window:
@@ -143,7 +145,7 @@ def main():
         results.append(data)
         print(case['key'], data['query']['status'], (data['opening'] or {}).get('stop_reason'), flush=True)
     write_json(args.output/'summary.json', results)
-    html = (ROOT/'prm_examples_template.html').read_text()
+    html = (ROOT/'prm_examples_template.html').read_text(encoding='utf-8')
     html = html.replace('__PRM_DATA__', json.dumps(results, ensure_ascii=False).replace('</', '<\\/'))
     (args.output/'index.html').write_text(html, encoding='utf-8')
     lines = ['# PRM 预抓取路径：五个实际例子', '',
