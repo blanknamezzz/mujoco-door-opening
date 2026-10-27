@@ -1,5 +1,6 @@
 """Render saved physical trajectories; replay assignments do not run control."""
 import argparse
+from result_paths import case_directory
 import csv
 from pathlib import Path
 import mujoco
@@ -18,6 +19,7 @@ def font(size):
 
 
 def render_case(name, output, animated=True):
+    output = case_directory(output, name)
     base = (.3, -.9) if name == "workspace_limit" else (.6, -1.)
     e = Experiment(base, friction=.005 if name == "low_friction" else .8)
     arr = np.load(output/f"{name}.npz")
@@ -81,4 +83,4 @@ if __name__ == "__main__":
     board = Image.new("RGB", (1440, 1080), "white")
     for i, panel in enumerate(panels):
         board.paste(panel, ((i % 2)*720, (i//2)*540))
-    board.save(args.output/"opening_sequence.png")
+    board.save(case_directory(args.output, "nominal")/"opening_sequence.png")

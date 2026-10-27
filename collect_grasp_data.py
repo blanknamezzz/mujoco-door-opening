@@ -71,8 +71,11 @@ def preflight_job(job):
     queries = [dict(angle_deg=a, **roadmap.plan(replace(plan, approach_angle_deg=a)))
                for a in manifest['angles_deg']]
     found = [q['angle_deg'] for q in queries if q['path_found']]
+    from station_feasibility import workspace_certificate
+    station_bound = workspace_certificate(exp, target_deg=plan.opening_angle_deg)
     return dict(scene_id=scene['scene_id'], split=scene['split'], base_xy_m=scene['base_xy_m'],
         base_yaw_deg=scene['base_yaw_deg'], angles_with_path=found, queries=queries,
+        station_workspace_check=station_bound,
         status='pregrasp_path_found' if found else 'no_pregrasp_path_confirmed',
         note='Pregrasp only. Search failure is not a proof that full opening is impossible.')
 
@@ -145,7 +148,7 @@ def collect(args):
             physics=physics,
             versions=dict(mujoco=mujoco.__version__, numpy=np.__version__),
             source_sha256={n: hashlib.sha256((ROOT/n).read_bytes()).hexdigest()
-                           for n in ("scene.xml", "simulate.py", "grasp_plan.py", "prm.py", "train_grasp_rl.py", "collect_grasp_data.py")})
+                           for n in ("scene.xml", "simulate.py", "grasp_plan.py", "prm.py", "station_feasibility.py", "train_grasp_rl.py", "collect_grasp_data.py")})
         write_json(manifest_path, manifest)
     start = time.perf_counter()
     summary = {}

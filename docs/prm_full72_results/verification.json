@@ -1,0 +1,113 @@
+{
+  "pose_count": 72,
+  "split_pose_counts": {
+    "train": 36,
+    "validation": 12,
+    "test": 24
+  },
+  "candidate_records": 1512,
+  "same_poses_and_splits_as_legacy": true,
+  "source_files_match": {
+    "scene.xml": true,
+    "simulate.py": true,
+    "grasp_plan.py": true,
+    "prm.py": true,
+    "train_grasp_rl.py": true,
+    "collect_grasp_data.py": true
+  },
+  "dataset": {
+    "train": {
+      "scenes": 36,
+      "attempts": 756,
+      "successful_attempts": 251,
+      "opening_trials_executed": 756,
+      "preparation_failures": 0
+    },
+    "validation": {
+      "scenes": 12,
+      "attempts": 252,
+      "successful_attempts": 110,
+      "opening_trials_executed": 252,
+      "preparation_failures": 0
+    },
+    "test": {
+      "scenes": 24,
+      "attempts": 504,
+      "successful_attempts": 163,
+      "opening_trials_executed": 504,
+      "preparation_failures": 0
+    },
+    "collection_seconds_this_run": 204.18462904199987,
+    "note": "Collecting held-out reference labels does not authorize using them for training."
+  },
+  "prm_candidate_status_counts": {
+    "direct_path": 1512
+  },
+  "training_seeds": [
+    42,
+    43,
+    44
+  ],
+  "training_decisions_per_method_per_seed": 756,
+  "test_reference": {
+    "scenes": 24,
+    "grid_feasible_scenes": 10,
+    "uniform_random_expected_success_rate": 0.32341269841269843,
+    "grid_oracle_success_rate": 0.4166666666666667
+  },
+  "methods": {
+    "supervised": {
+      "successes_by_seed": [
+        9,
+        9,
+        9
+      ],
+      "mean_success_rate": 0.375,
+      "mean_reward": 3.4621178881163246,
+      "mean_collisions": 6.333333333333333,
+      "mean_workspace_failures": 8.666666666666666
+    },
+    "reinforce": {
+      "successes_by_seed": [
+        10,
+        9,
+        9
+      ],
+      "mean_success_rate": 0.3888888888888889,
+      "mean_reward": 3.5343966898989025,
+      "mean_collisions": 7,
+      "mean_workspace_failures": 7.666666666666667
+    },
+    "supervised_on_rl": {
+      "successes_by_seed": [
+        9,
+        8,
+        8
+      ],
+      "mean_success_rate": 0.3472222222222222,
+      "mean_reward": 2.6136372937760437,
+      "mean_collisions": 10.666666666666666,
+      "mean_workspace_failures": 5
+    }
+  },
+  "best_fixed_angle_deg": 18.0,
+  "best_fixed_metrics": {
+    "n_scenes": 24,
+    "successes": 10,
+    "success_rate": 0.4166666666666667,
+    "feasible_scenes": 10,
+    "feasible_success_rate": 1.0,
+    "mean_reward": 4.167627831700195,
+    "mean_regret": 0.4287147271558907,
+    "collisions": 4,
+    "slips": 0,
+    "workspace_failures": 10,
+    "unreachable": 0
+  },
+  "fresh_test": {
+    "unique_attempts": 179,
+    "all_matched": true
+  },
+  "tests_passed": 15,
+  "scope": "Same door family; 24 unique held-out test poses reused across three training seeds. Old implementation hashes differ, so changes cannot be attributed solely to PRM."
+}

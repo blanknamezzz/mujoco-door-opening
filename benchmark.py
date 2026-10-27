@@ -1,5 +1,6 @@
 """Reproduce the physical trials and independent causal/numerical checks."""
 import argparse
+from result_paths import case_directory
 import json
 import math
 from pathlib import Path
@@ -31,7 +32,7 @@ def main():
                       sliding_friction=.005 if name == "low_friction" else .8,
                       peak_tangent_speed_mm_s=1000*max((max(r["left_tangent_speed_m_s"],r["right_tangent_speed_m_s"]) for r in active), default=0),
                       peak_contact_centroid_migration_mm=1000*max((r["handle_contact_migration_m"] for r in active if np.isfinite(r["handle_contact_migration_m"])), default=0))
-        save_trial(name, result, rows, states, a.output)
+        save_trial(name, result, rows, states, case_directory(a.output, name))
         all_results.append(result)
     checks = {}
     by_name = {r["case"]: r for r in all_results}

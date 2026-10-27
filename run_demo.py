@@ -1,6 +1,7 @@
 """Reproduce observation, physical trials, and GIFs with one command."""
 from __future__ import annotations
 import argparse
+from result_paths import case_directory
 from pathlib import Path
 import shutil
 import subprocess
@@ -41,10 +42,10 @@ def main():
         "render_results.py", "--output", output)
     run("导出正常速度的滑移到脱手近景及完整参数。",
         "render_slip_detail.py", "--output", output)
-    print(f"\n运行完成。正常开门动画：{output / 'nominal.gif'}", flush=True)
-    print(f"滑脱动画：{output / 'low_friction.gif'}", flush=True)
-    print(f"滑脱近景与参数：{output / 'low_friction_closeup.gif'}，{output / 'low_friction_parameters.json'}", flush=True)
-    print(f"半开失败动画：{output / 'workspace_limit.gif'}", flush=True)
+    print(f"\n运行完成。正常开门动画：{case_directory(output, 'nominal') / 'nominal.gif'}", flush=True)
+    print(f"滑脱动画：{case_directory(output, 'low_friction') / 'low_friction.gif'}", flush=True)
+    print(f"滑脱近景与参数：{case_directory(output, 'low_friction') / 'low_friction_closeup.gif'}，{case_directory(output, 'low_friction') / 'low_friction_parameters.json'}", flush=True)
+    print(f"半开失败动画：{case_directory(output, 'workspace_limit') / 'workspace_limit.gif'}", flush=True)
     print(f"实验与验证结果：{output / 'summary.json'}", flush=True)
 
 

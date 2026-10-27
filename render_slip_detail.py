@@ -1,5 +1,6 @@
 """Render the recorded grip-to-slip-to-loss transition at normal speed."""
 import argparse
+from result_paths import case_directory
 import csv
 import json
 from pathlib import Path
@@ -15,7 +16,7 @@ def main():
     parser.add_argument("--output", type=Path, default=ROOT/"results",
                         help="Directory containing low_friction.npz and .csv")
     args = parser.parse_args()
-    output = args.output
+    output = case_directory(args.output, "low_friction")
     states = np.load(output/"low_friction.npz")
     rows = list(csv.DictReader((output/"low_friction.csv").open()))
     result = json.loads((output/"low_friction.json").read_text())

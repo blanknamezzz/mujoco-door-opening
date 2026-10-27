@@ -39,3 +39,10 @@ datasets/
 artifacts/
 # Keep small source documents and existing tracked reference results.
 # Git does not apply ignore patterns retroactively to tracked files.
+
+# Preserve the existing bundled trajectories after moving them into case folders.
+!results/nominal/nominal.npz
+!results/reach_only/reach_only.npz
+!results/low_friction/low_friction.npz
+!results/workspace_limit/workspace_limit.npz
+!results/no_grip/no_grip.npz

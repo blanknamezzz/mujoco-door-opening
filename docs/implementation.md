@@ -150,7 +150,7 @@ v_tangent = (I - n nᵀ) · v_rel
 
 ### 半开失败案例的精确原因
 
-`results/workspace_limit.gif` 展示固定底座 `(0.3,-0.9)` m 的失败案例。门实际打开到 42.505° 时，保存轨迹中的肘角为 -163.589°；两侧夹持力约 23.04、23.06 N，没有滑移或接触丢失告警。
+`results/workspace_limit/workspace_limit.gif` 展示固定底座 `(0.3,-0.9)` m 的失败案例。门实际打开到 42.505° 时，保存轨迹中的肘角为 -163.589°；两侧夹持力约 23.04、23.06 N，没有滑移或接触丢失告警。
 
 第一个被拒绝的参考目标出现在 8.404 s，其参考门角为 43.704°，需要肘角 -165.0005°，超出模型约 -165° 的下限。门转动时，保持当前抓握朝向所需的腕关节位置越来越靠近肩部，两段手臂需要继续折叠。它们长度为 0.60、0.55 m；在肘角限制下，肩—腕距离最小约为 0.158079 m，而被拒绝目标要求约 0.158074 m，刚好越过边界。
 
@@ -158,13 +158,13 @@ v_tangent = (I - n nᵀ) · v_rel
 
 限制针对该底座、抓点、手的朝向和既定连续轨迹。将底座改为 `(0.6,-1.0)` m，保持相同抓点和朝向，正常案例可打开至约 89.68°。这说明初始抓握成功不能保证整段开门轨迹可行。
 
-运行 `python diagnose_workspace.py` 可生成 `results/workspace_limit_diagnosis.json`，同时保留实际状态与首个越界参考目标。运行 `python render_results.py --case workspace_limit` 可单独导出该案例动画。
+运行 `python diagnose_workspace.py` 可生成 `results/workspace_limit/workspace_limit_diagnosis.json`，同时保留实际状态与首个越界参考目标。运行 `python render_results.py --case workspace_limit` 可单独导出该案例动画。
 
 为了研究“先滑动、后脱手”的完整过程，批量测试对低摩擦案例显式启用诊断继续模式。普通 `simulate.py --case low_friction` 默认在持续滑移告警时结束试验，不继续执行后续拉门轨迹。
 
 ### 脱手案例与参数
 
-`results/low_friction_closeup.gif` 以正常速度展示 2.7–5.5 s 的近景，覆盖闭合、双侧接触、滑移与最终分离。`results/low_friction_parameters.json` 保存摩擦、驱动器、把手、门铰链、时序、检测阈值和实际事件时间。低摩擦系数由 `Experiment(friction=0.005)` 设置，会统一覆盖全部 geom 的滑动摩擦系数；扭转与滚动系数保持 XML 中的值。当前 `condim=4` 不使用滚动摩擦约束。
+`results/low_friction/low_friction_closeup.gif` 以正常速度展示 2.7–5.5 s 的近景，覆盖闭合、双侧接触、滑移与最终分离。`results/low_friction/low_friction_parameters.json` 保存摩擦、驱动器、把手、门铰链、时序、检测阈值和实际事件时间。低摩擦系数由 `Experiment(friction=0.005)` 设置，会统一覆盖全部 geom 的滑动摩擦系数；扭转与滚动系数保持 XML 中的值。当前 `condim=4` 不使用滚动摩擦约束。
 
 在 3.401 s，左右指垫法向力约 23.08、23.03 N；3.771 s 滑移告警时，切向相对速度约 15.0、15.6 mm/s，仍维持双侧接触；4.731 s 接触丢失确认时，两侧接触力均为 0 N，手—把手相对平移约 49 mm。门的正向开度最大约 0.006°，即几乎未被拉开。
 
@@ -234,10 +234,10 @@ python render_results.py
 - `diagnose_workspace.py`：核对半开案例的实际状态、首个越界参考目标及具体受限关节。
 - `render_slip_detail.py`：导出正常速度的滑脱近景，并保存完整参数 JSON。
 - `results/summary.json`：分类、阈值、感知误差与验证结果。
-- `results/*.csv`：100 Hz 的时间序列，包含双侧力、切向速度、接触位置、相对位姿漂移与告警。无有效接触时的接触位置为 NaN，不要当作零点。
-- `results/*.npz`：动力学轨迹或初始 RGB-D 观测。
-- `results/nominal.gif`、`low_friction.gif`：正常开门与滑脱动画，约 2 倍速。
-- `results/nominal_grasp_closeup.png`：实体指垫夹持把手的特写。
+- `results/<case>/*.csv`：100 Hz 的时间序列，包含双侧力、切向速度、接触位置、相对位姿漂移与告警。无有效接触时的接触位置为 NaN，不要当作零点。
+- `results/<case>/*.npz`：动力学轨迹；`results/observation.npz`：共享初始 RGB-D 观测。
+- `results/nominal/nominal.gif`、`results/low_friction/low_friction.gif`：正常开门与滑脱动画，约 2 倍速。
+- `results/nominal/nominal_grasp_closeup.png`：实体指垫夹持把手的特写。
 
 本次 8 项验证全部通过。仿真步长从 1 ms 改为 0.5 ms 与 2 ms 时，正常实验最终角度分别约 89.681° 与 89.676°，差异小于 0.01°。这是该单一确定性场景的数值一致性检查，不是通用成功率或真实机器人验证。
 

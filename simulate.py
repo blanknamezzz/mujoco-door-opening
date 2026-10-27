@@ -5,6 +5,7 @@ has no actuator, equality constraint, or externally applied force.
 """
 from __future__ import annotations
 import argparse
+from result_paths import case_directory
 import csv
 import json
 import math
@@ -392,6 +393,7 @@ def main():
         p.error('Scene parameters must be finite; friction and hinge resistance must be nonnegative.')
     exp = Experiment(base, friction=friction, base_yaw=math.radians(a.base_yaw_deg),
                      hinge_resistance=a.hinge_resistance)
+    a.output = case_directory(a.output, a.case)
     a.output.mkdir(parents=True, exist_ok=True)
     try:
         if a.plan:

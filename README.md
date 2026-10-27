@@ -185,17 +185,17 @@ rejected. See [training results and remaining failures](docs/hjepa_structural_tr
 
 ### 完整打开
 
-![完整打开：约 89.68°](results/nominal.gif)
+![完整打开：约 89.68°](results/nominal/nominal.gif)
 
 ### 开到一半后失败
 
-![轨迹越过肘关节角度限制](results/workspace_limit.gif)
+![轨迹越过肘关节角度限制](results/workspace_limit/workspace_limit.gif)
 
 实际门角约 42.5° 时，下一参考目标需要肘关节超过 -165° 下限，控制器提前终止。此时夹爪仍保持接触；42.5° 是仿真终止时的实际角度，不是精确的物理最大开度。
 
 ### 滑动与脱手
 
-![低摩擦下从夹持到滑移及脱手的近景](results/low_friction_closeup.gif)
+![低摩擦下从夹持到滑移及脱手的近景](results/low_friction/low_friction_closeup.gif)
 
 低摩擦故障案例使用 μ=0.005；约 3.77 s 触发持续滑移告警，约 4.73 s 确认接触丢失。该极低摩擦参数用于复现故障，未对应实测材料。
 
@@ -255,6 +255,26 @@ python render_slip_detail.py
 
 六个案例保持正常场景选出的抓点和朝向不变，分别改变站位、摩擦或闭合状态。8 项参考验证结果及步长敏感性结果见 [summary.json](results/summary.json)。
 
+## 区分站位限制与抓法限制
+
+新增 `station_feasibility.py`：先检查不依赖抓角的保守接触范围；未被排除时，执行基线并扩大角度、高度、肘分支、力与时间搜索。返回“物理验证成功方案”“证书条件下的工作空间排除”或“搜索未确认”。有限搜索失败不会被标成站位绝对无解。
+
+```bash
+python station_feasibility.py diagnose --base 0.8 -1.0 --baseline-angle 0
+python station_feasibility.py diagnose --base 1.4 -0.4 --max-rollouts 0
+python station_feasibility.py examples
+```
+
+采集前的 `*_prm_preflight.jsonl` 增加 `station_workspace_check`，与原有预抓取路径状态分开；该字段不自动删除训练站位或改变奖励。[说明与复现](docs/station_feasibility.md) · [实测例子](docs/station_feasibility_results/REPORT.md)。
+
+## PRM 完整 72 站位数据与三种子验证（2026-10-27）
+
+已重新采集与早期完整实验坐标、朝向和划分一致的 36 / 12 / 24 个训练、验证、测试站位，共 1,512 条带 PRM 准备与实际执行的候选记录。训练种子为 42、43、44，每种方法每个种子 756 次训练决策。SL 成功数为 9、9、9 /24（平均 37.5%），REINFORCE 为 10、9、9 /24（平均 38.89%），训练集选出的固定 +18° 为 10/24（41.67%）。179 组去重后测试动作重新执行，全部匹配。
+
+本批预抓取路径均通过直连检查，因此不能用该结果证明随机路线图绕行的增益。测试网格中 10/24 个站位存在全开方案；其他角度或控制器仍可能改变结果。三个训练种子共享 24 个测试站位，不应视为 72 个独立测试站位。旧版代码哈希不同，前后差异不能单独归因于 PRM。
+
+[完整实测报告](docs/prm_full72_results/REPORT.md) · [72 个站位坐标与候选结果](docs/prm_full72_results/positions.csv) · [核对记录](docs/prm_full72_results/verification.json)。原始数据在 `reproduced/prm_full72_data_20261027/`，模型与训练记录在 `reproduced/prm_full72_comparison_20261027/`，旧小规模实验保留。
+
 ## 文件说明
 
 | 文件 | 作用 |
@@ -262,6 +282,7 @@ python render_slip_detail.py
 | `scene.xml` | 门、把手、机械臂、夹爪、接触和驱动参数 |
 | `perception.py` | RGB-D 采集、颜色分割和拉杆截面拟合 |
 | `planning.py` | 9 个抓取候选与几何轨迹筛选 |
+| `station_feasibility.py` | 站位几何排除、扩大抓法搜索和成功/未知诊断 |
 | `prm.py` | 初始关节姿态到预抓取目标的 Lazy PRM，以及实际准备路径跟踪 |
 | `prm_examples.py` | 五个点位例子、路线图分析、实际轨迹重放和可选 GIF |
 | `collect_grasp_data.py` | 按站位划分数据，先做 PRM 预检再记录候选执行结果 |
@@ -272,9 +293,9 @@ python render_slip_detail.py
 | `render_results.py` | 从保存的物理轨迹渲染动画 |
 | `render_slip_detail.py` | 脱手近景动画和参数导出 |
 | `run_demo.py` | 完整复现入口 |
-| `results/` | 参考动画、输入观测、轨迹、接触数据与诊断 |
+| `results/` | 按六个 case 分目录的参考结果；见 [案例索引](results/README.md) |
 
-[详细实现、坐标与判据](docs/implementation.md) · [脱手案例完整参数](results/low_friction_parameters.json) · [半开失败诊断](results/workspace_limit_diagnosis.json)
+[详细实现、坐标与判据](docs/implementation.md) · [脱手案例完整参数](results/low_friction/low_friction_parameters.json) · [半开失败诊断](results/workspace_limit/workspace_limit_diagnosis.json)
 
 ## 当前范围
 

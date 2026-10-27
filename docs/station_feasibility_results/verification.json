@@ -1,0 +1,177 @@
+{
+  "tests_passed": 40,
+  "collection_smoke_candidate_records": 63,
+  "collection_checks": [
+    {
+      "split": "train",
+      "preflight_positions": 1,
+      "new_field_present": true
+    },
+    {
+      "split": "validation",
+      "preflight_positions": 1,
+      "new_field_present": true
+    },
+    {
+      "split": "test",
+      "preflight_positions": 1,
+      "new_field_present": true
+    }
+  ],
+  "cases": {
+    "angle_rescue": {
+      "status": "feasible_with_alternative_grasp",
+      "base_xy_m": [
+        0.8,
+        -1.0
+      ],
+      "physical_rollouts": 2,
+      "proposed_candidates": 2,
+      "geometry_rejections": 0,
+      "baseline_stop": "unexpected_collision",
+      "baseline_angle_deg": 89.292,
+      "witness_plan": {
+        "schema_version": 1,
+        "trajectory": "door_hinge_arc",
+        "handle_center_world_m": [
+          0.8000117904658494,
+          -0.11008222419987264,
+          0.8523992847609788
+        ],
+        "height_offset_m": 0.0,
+        "approach_angle_deg": 8.0,
+        "ik_branch": -1,
+        "approach_distance_m": 0.16,
+        "grip_force_limit_N": 35.0,
+        "opening_angle_deg": 90.0,
+        "timing": {
+          "settle_s": 0.5,
+          "approach_s": 2.0,
+          "close_s": 1.0,
+          "close_motion_s": 0.6,
+          "open_s": 10.0,
+          "hold_s": 2.0
+        }
+      },
+      "certificate": {
+        "certified_exclusion": false,
+        "status": "not_excluded",
+        "scope": "Known fixed-base planar 3R + lift model within its joint limits, vertical handle and continuous finger-pad/handle contact. Moving the base, pushing the panel, letting the door coast, regrasping and model changes are outside this certificate. Passing does not prove feasibility.",
+        "link_lengths_m": [
+          0.6,
+          0.55,
+          0.18
+        ],
+        "tcp_max_radius_m": 1.33,
+        "pad_offset_bound_m": 0.09882104733265301,
+        "bar_radius_m": 0.015,
+        "uncertainty_m": 0.005,
+        "handle_axis_radius_bound_m": 1.4488210473326528,
+        "minimum_success_angle_deg": 88.0,
+        "witness_door_angle_deg": 88.0,
+        "required_axis_distance_m": 0.9036693074742862,
+        "excess_m": -0.5451517398583666,
+        "reason": "Outer-reach necessary condition passes only"
+      }
+    },
+    "workspace_excluded": {
+      "status": "excluded_by_workspace_bound",
+      "base_xy_m": [
+        1.4,
+        -0.4
+      ],
+      "physical_rollouts": 0,
+      "proposed_candidates": 0,
+      "geometry_rejections": 0,
+      "baseline_stop": null,
+      "baseline_angle_deg": null,
+      "witness_plan": null,
+      "certificate": {
+        "certified_exclusion": true,
+        "status": "workspace_exclusion",
+        "scope": "Known fixed-base planar 3R + lift model within its joint limits, vertical handle and continuous finger-pad/handle contact. Moving the base, pushing the panel, letting the door coast, regrasping and model changes are outside this certificate. Passing does not prove feasibility.",
+        "link_lengths_m": [
+          0.6,
+          0.55,
+          0.18
+        ],
+        "tcp_max_radius_m": 1.33,
+        "pad_offset_bound_m": 0.0988210473326529,
+        "bar_radius_m": 0.015,
+        "uncertainty_m": 0.005,
+        "handle_axis_radius_bound_m": 1.4488210473326528,
+        "minimum_success_angle_deg": 88.0,
+        "witness_door_angle_deg": 88.0,
+        "required_axis_distance_m": 1.5359219436892741,
+        "excess_m": 0.08710089635662133,
+        "reason": "Handle axis lies outside even an orientation-independent contact envelope at a mandatory door angle"
+      }
+    },
+    "partial_unknown": {
+      "status": "unconfirmed_after_search",
+      "base_xy_m": [
+        0.3,
+        -0.9
+      ],
+      "physical_rollouts": 1,
+      "proposed_candidates": 1,
+      "geometry_rejections": 0,
+      "baseline_stop": "arm_workspace_limit",
+      "baseline_angle_deg": 42.505,
+      "witness_plan": null,
+      "certificate": {
+        "certified_exclusion": false,
+        "status": "not_excluded",
+        "scope": "Known fixed-base planar 3R + lift model within its joint limits, vertical handle and continuous finger-pad/handle contact. Moving the base, pushing the panel, letting the door coast, regrasping and model changes are outside this certificate. Passing does not prove feasibility.",
+        "link_lengths_m": [
+          0.6,
+          0.55,
+          0.18
+        ],
+        "tcp_max_radius_m": 1.33,
+        "pad_offset_bound_m": 0.09882104733265298,
+        "bar_radius_m": 0.015,
+        "uncertainty_m": 0.005,
+        "handle_axis_radius_bound_m": 1.4488210473326528,
+        "minimum_success_angle_deg": 88.0,
+        "witness_door_angle_deg": 0.0,
+        "required_axis_distance_m": 0.9349331526906082,
+        "excess_m": -0.5138878946420447,
+        "reason": "Outer-reach necessary condition passes only"
+      }
+    },
+    "partial_expanded": {
+      "status": "unconfirmed_after_search",
+      "base_xy_m": [
+        0.3,
+        -0.9
+      ],
+      "physical_rollouts": 32,
+      "proposed_candidates": 364,
+      "geometry_rejections": 332,
+      "baseline_stop": "arm_workspace_limit",
+      "baseline_angle_deg": 42.505,
+      "witness_plan": null,
+      "certificate": {
+        "certified_exclusion": false,
+        "status": "not_excluded",
+        "scope": "Known fixed-base planar 3R + lift model within its joint limits, vertical handle and continuous finger-pad/handle contact. Moving the base, pushing the panel, letting the door coast, regrasping and model changes are outside this certificate. Passing does not prove feasibility.",
+        "link_lengths_m": [
+          0.6,
+          0.55,
+          0.18
+        ],
+        "tcp_max_radius_m": 1.33,
+        "pad_offset_bound_m": 0.09882104733265298,
+        "bar_radius_m": 0.015,
+        "uncertainty_m": 0.005,
+        "handle_axis_radius_bound_m": 1.4488210473326528,
+        "minimum_success_angle_deg": 88.0,
+        "witness_door_angle_deg": 0.0,
+        "required_axis_distance_m": 0.9349331526906082,
+        "excess_m": -0.5138878946420447,
+        "reason": "Outer-reach necessary condition passes only"
+      }
+    }
+  }
+}

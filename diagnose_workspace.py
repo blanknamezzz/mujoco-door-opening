@@ -4,6 +4,7 @@ The final logged physical pose and next infeasible reference are different:
 the controller terminates before commanding a target outside the joint range.
 """
 import argparse
+from result_paths import case_directory
 import csv
 import json
 import math
@@ -16,7 +17,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--results", type=Path, default=ROOT/"results")
     args = parser.parse_args()
-    folder = args.results
+    folder = case_directory(args.results, "workspace_limit")
     result = json.loads((folder/"workspace_limit.json").read_text())
     if "point_world_m" in result:
         point = np.array(result["point_world_m"])
