@@ -6,6 +6,8 @@ The 2026-11-22 revision improved figure placement and presentation. Figures 2 an
 
 The prose revision condensed repeated audit, checkpoint-selection, and scope statements and named the three test cohorts A, B, and C. Figure 3 now shows the primary policy's recorded replay from cohort C, and the methods section explains the initialization source. Archived experiment identifiers and checkpoint identities are listed in `EVIDENCE.md` and `COHORTS.json`.
 
+The author-reported original experiment dates span 2026-10-01 to 2026-11-03. The version-to-date mapping is listed in `EVIDENCE.md` and `COHORTS.json`.
+
 The latest reading copy is `CS5478_Team42_Final_Report_Aligned_20261122.pdf`, with the same content in `main.pdf`. The Overleaf source package is `CS5478_Team42_Final_Report_Aligned_Source_20261122.zip`.
 
 The 40.3% reduction in Section 5.2 refers to additional inspections. A clickable GitHub repository link appears at the bottom left of the first page.

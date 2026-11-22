@@ -1,7 +1,45 @@
 {
+  "author_reported_chronology": {
+    "source": "Project owner",
+    "date_precision": "day",
+    "mapping_rule": "Dates in the supplied order, assigned to the main experimental versions in ascending order",
+    "versions": [
+      {
+        "version": "v3",
+        "original_run_date": "2026-10-01",
+        "stage": "Active mobile door opening"
+      },
+      {
+        "version": "v4",
+        "original_run_date": "2026-10-07",
+        "stage": "Outcome-supervised continuation"
+      },
+      {
+        "version": "v5",
+        "original_run_date": "2026-10-12",
+        "stage": "Partial-map and depth features"
+      },
+      {
+        "version": "v6",
+        "original_run_date": "2026-10-17",
+        "stage": "Inspection decision regret"
+      },
+      {
+        "version": "v8",
+        "original_run_date": "2026-10-24",
+        "stage": "Branch-balanced continuation"
+      },
+      {
+        "version": "v10",
+        "original_run_date": "2026-11-03",
+        "stage": "Output retention"
+      }
+    ]
+  },
   "cohorts": {
     "A": {
       "archive_id": "v6",
+      "author_reported_original_date": "2026-10-17",
       "run": "runs/mobile_inspection_regret_evaluation_seed42_20261110",
       "primary_policy": "joint_regret",
       "seed": 42,
@@ -17,6 +55,7 @@
     },
     "B": {
       "archive_id": "v8",
+      "author_reported_original_date": "2026-10-24",
       "run": "runs/mobile_branch_balance_evaluation_seed42_20261110",
       "primary_policy": "paired_ce",
       "seed": 42,
@@ -32,6 +71,7 @@
     },
     "C": {
       "archive_id": "v10",
+      "author_reported_original_date": "2026-11-03",
       "run": "runs/mobile_partial_workspace_seed42_20261109/runs/p10t_seed42_20261111",
       "primary_policy": "standard",
       "seed": 42,

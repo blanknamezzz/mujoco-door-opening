@@ -1,5 +1,11 @@
 # Changes
 
+## 2026-11-22 - Author-reported experiment chronology
+
+- Recorded the original run dates supplied by the project owner for v3/v4/v5/v6/v8/v10.
+- Mapped the dates to the main versions in ascending order and linked cohorts A/B/C.
+- Kept author-reported dates separate from archived run timestamps and source identities.
+
 ## 2026-11-22 - English documentation
 
 - Translated the detailed README and Overleaf instructions into English.

@@ -12,6 +12,7 @@ READ
   title.tex contains the title and authors.
   sections/ contains completed English prose; methods and experiments are modular.
   EVIDENCE.md and COHORTS.json map paper cohorts and initialization to saved records.
+  They also list the original experiment dates supplied by the project owner.
 
 BUILD
   Select main.tex as the main document and pdfLaTeX as the compiler.

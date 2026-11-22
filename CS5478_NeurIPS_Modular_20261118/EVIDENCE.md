@@ -14,6 +14,21 @@ Reviewed against repository revision `0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0` 
 | Joint-limit diagnostic | `results/workspace_limit/workspace_limit_diagnosis.json` | Preserved CSV and image, figure manifest |
 | Physical inspection example (cohort C primary policy) | `docs/mobile_retention_results.md` | `runs/mobile_partial_workspace_seed42_20261109/runs/p10t_seed42_20261111/policy_results/standard/replays/mobile_retention_v10_20261111_test_g000_front_blocked/` |
 
+## Author-reported experiment chronology
+
+The project owner supplied the following original run dates, assigned to the main experimental versions in ascending order.
+
+| Version | Stage | Author-reported date |
+| --- | --- | --- |
+| v3 | Active mobile door opening | 2026-10-01 |
+| v4 | Outcome-supervised continuation | 2026-10-07 |
+| v5 | Partial-map and depth features | 2026-10-12 |
+| v6 | Inspection decision regret | 2026-10-17 |
+| v8 | Branch-balanced continuation | 2026-10-24 |
+| v10 | Output retention | 2026-11-03 |
+
+`COHORTS.json` stores this chronology and the corresponding dates for cohorts A, B, and C. Archived run identifiers, receipt timestamps, and source hashes retain their recorded values.
+
 ## Definitions used in the report
 
 A mobile scene contributes 16 candidate trials: two inspection branches, four stations, and two grasps. Candidate feasibility is the union of successful recorded candidates. Correct decisions combine successful feasible openings and correct library-infeasible refusals. Episode time is measured in simulated seconds. The distance/time term in the inspection objective uses the inspection prefix only.
