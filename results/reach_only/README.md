@@ -1,9 +1,9 @@
-# reach_only：到达并抓住；未测试开门
+# reach_only: reach and grasp; opening not tested
 
-文件：
+Files:
 
 - [reach_only.csv](reach_only.csv)
 - [reach_only.json](reach_only.json)
 - [reach_only.npz](reach_only.npz)
 
-共享输入与总汇总见 [上级索引](../README.md)。
+See the [parent index](../README.md) for shared inputs and aggregate results.

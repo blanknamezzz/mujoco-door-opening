@@ -1,93 +1,93 @@
-# 观察决策后悔正式测试（v6，2026-11-10）
+# Formal inspection-regret test (v6, 2026-11-10)
 
-训练／验证选定的 **`joint_regret`** 在全新 18 组、72 个场景上正确决策 **68/72**：完整打开 **47/48 个候选可行场景**，正确拒绝 **21/24 个候选不可行场景**，策略回放碰撞 **0**。同批冻结 v5 自主观察也是 68/72，逐场景成功、拒绝、碰撞向量完全一致；新目标将补看从 **49 次降到 43 次，净减少 6 次（12.2%）**。
+Training/validation-selected **`joint_regret`** makes **68/72** correct decisions on 18 fresh groups and 72 scenes: **47/48 feasible openings**, **21/24 correct refusals**, **0** collisions. Frozen v5 learned inspection also scores 68/72 with identical per-scene success/refusal/collision vectors. The new objective reduces inspections from **49 to 43: 6 fewer (12.2%)**.
 
-这批测试与此前 v5 的 72/72 测试不同，不能把两个数字解释为模型退步或提升。当前主策略并未提高任务准确率，明确收益是同批、相同执行结果下减少观察成本。正确决策包括拒绝，“可行／不可行”仅针对冻结的 16 个实际候选，不表示连续动作空间的全局可解性。候选未成功也可能来自感知失败，不能全部解释为门在物理上无法打开。
+This differs from v5's earlier 72/72 test, so scores do not establish model regression or improvement. The benefit is lower inspection cost with matched task outcomes. Correctness includes refusals; feasibility refers to 16 frozen physical candidates, not global continuous-action solvability. Candidate failure can also reflect perception failure.
 
-![六种冻结策略的同批结果](mobile_inspection_regret_results.png)
+![Matched results for six frozen policies](mobile_inspection_regret_results.png)
 
-## 冻结设计与实现
+## Frozen design and implementation
 
-三组从同一 v5 深度特征 `selected_pg.pt` 初始化，均完成 1600 次 I 更新；原核心、已有 rank-8 LoRA、P/G、归一化与地图参数全冻结，仅比较 I 的目标。原结果监督为实际补看后结果交叉熵与成本 MSE；联合目标增加按实际净收益差加权的观察决策 BCE；纯后悔目标去掉结果交叉熵。标签取固定 P/G 在两条真实物理分支**各自所选动作**的回报差，不取事后最优动作。
+Initialize three arms from v5 depth-feature `selected_pg.pt`, completing 1600 I updates each. Freeze core, rank-8 LoRA, P/G, normalization, and maps. Original supervision uses post-inspection outcome CE and cost MSE; joint adds return-difference-weighted decision BCE; regret-only removes outcome CE. Labels compare returns of **actions selected on each physical branch** by fixed P/G rather than oracle actions.
 
-三组只用原 72 训练／36 验证场景。验证选定步数分别为 280／40／120；联合与纯后悔目标验证指标并列，按运行前声明的顺序选 `joint_regret`。主选择于 **2026-11-10 06:19:51 +08:00** 冻结，新测试排除 526 个历史几何身份。检查点、主策略、阈值与地图参数在读取新测试结果后均未改变。
+Use 72 training and 36 validation scenes. Selected updates are 280/40/120; joint/regret-only validation metrics tie, selecting `joint_regret` by preregistered order. Freeze primary at **2026-11-10 06:19:51 +08:00** and exclude 526 historical geometries. New-test results change no checkpoint, primary choice, threshold, or map setting.
 
-I 仅接收初始图像特征、相对观察目标、声明 risk、初始已见深度特征。补看通过真实底盘移动，P 在实际补看到达后选站位，G 在实际站位到达后选抓持。沿用未经修改的 v5 物理采集器与实时回放器，只更换冻结检查点路由。初始与补看地图均从当时实际 RGB-D 重新构建，实时动作不读取缓存地图或未来图像。
+I receives initial-image features, relative inspection target, declared risk, and observed initial depth. Physical base motion precedes P's station choice, and station arrival precedes G's grasp choice. Retain unmodified v5 collection/replay with frozen checkpoint routing. Rebuild maps from current RGB-D without cached maps or future images in live decisions.
 
-开门约束使用当前深度与门／机器人 CAD，导航及机械臂准备仍使用已知地图。底盘为理想全向 x/y/yaw 伺服，开门阶段保持站位，由夹爪实际接触推动被动门。该实验不代表未知环境全流程导航或真实轮式硬件。
+Opening constraints use current depth and door/robot CAD; navigation and preparation use known maps. An ideal x/y/yaw base stays at its selected station during gripper-contact opening of a passive door. Scope is simulation rather than full unknown-environment navigation or wheeled hardware.
 
-[训练与验证记录](mobile_inspection_regret_development.md) · [训练前设计](mobile_inspection_regret_plan.md) · [正式测试协议](mobile_inspection_regret_evaluation_plan.md)。
+[Training/validation records](mobile_inspection_regret_development.md) · [Training design](mobile_inspection_regret_plan.md) · [Formal test protocol](mobile_inspection_regret_evaluation_plan.md).
 
-## 同批独立测试
+## Matched independent test
 
-| 策略 | 开门 /48 | 正确拒绝 /24 | 误拒绝 | 正确 /72 | 碰撞 | 补看 | 平均净回报 |
+| Policy | Open /48 | Correct refusal /24 | False refusal | Correct /72 | Collisions | Inspections | Mean net utility |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 本轮结果监督 | 47 | 21 | 1 | 68 | 0 | 49 | 0.4868 |
-| **结果监督＋决策后悔〔主策略〕** | **47** | **21** | **1** | **68** | **0** | **43** | **0.5015** |
-| 纯决策后悔 | 47 | 21 | 0 | 68 | 0 | 42 | 0.4901 |
-| 冻结 v5，自主观察 | 47 | 21 | 1 | 68 | 0 | 49 | 0.4868 |
-| 冻结 v5，始终观察 | 47 | 21 | 1 | 68 | 0 | 72 | 0.4295 |
-| 冻结 v5，从不观察 | 31 | 16 | 16 | 47 | 0 | 0 | 0.3056 |
+| Current outcome supervision | 47 | 21 | 1 | 68 | 0 | 49 | 0.4868 |
+| **Outcome + decision regret (primary)** | **47** | **21** | **1** | **68** | **0** | **43** | **0.5015** |
+| Decision regret only | 47 | 21 | 0 | 68 | 0 | 42 | 0.4901 |
+| Frozen v5, learned inspection | 47 | 21 | 1 | 68 | 0 | 49 | 0.4868 |
+| Frozen v5, always inspect | 47 | 21 | 1 | 68 | 0 | 72 | 0.4295 |
+| Frozen v5, never inspect | 31 | 16 | 16 | 47 | 0 | 0 | 0.3056 |
 
-三种 v5 模式在本轮训练前已声明，不根据测试添加或重选。所有策略使用相同终局效用与实际观察成本，不能以某种训练损失的数值代替任务回报。
+The three v5 modes were declared before training rather than added or reselected from testing. All policies share terminal utility and actual inspection cost; training-loss values are not task returns.
 
-| 指标 | 冻结 v5 自主观察 | 联合后悔目标 | 变化 |
+| Metric | Frozen v5 learned inspection | Joint regret | Change |
 | --- | ---: | ---: | ---: |
-| 正确决策 | 68/72 | 68/72 | 逐场景保持 |
-| 实际补看 | 49 | 43 | −12.2% |
-| 平均回合仿真秒 | 40.86 | 37.15 | −9.1% |
-| 平均底盘路程 m | 3.257 | 2.832 | −13.0% |
-| 平均净回报 | 0.4868 | 0.5015 | +0.0147 |
+| Correct decisions | 68/72 | 68/72 | Identical per scene |
+| Physical inspections | 49 | 43 | -12.2% |
+| Mean episode, simulated seconds | 40.86 | 37.15 | -9.1% |
+| Mean base path, m | 3.257 | 2.832 | -13.0% |
+| Mean net utility | 0.4868 | 0.5015 | +0.0147 |
 
-与始终观察相比，主策略补看 **72→43（−40.3%）**，逐场景任务结果也完全一致。与旧自主策略相比实际取消 7 次补看、另增加 1 次，净减少 6 次，不能表述为所有场景的观察集合严格缩小。
+Against always inspection, primary reduces inspections **72 to 43 (-40.3%)** with identical per-scene task outcomes. Relative to old learned inspection, it removes 7 inspections and adds 1: a net reduction of 6 rather than a strict subset of inspected scenes.
 
-纯后悔目标虽然补看少 1 次，但有 1 次导航／错误侧尝试，终局效用与净回报均低于联合目标，不能只按观察次数宣称更好。验证选定主策略仍保留，不做测试后选择。
+Regret-only uses one fewer inspection but adds one navigation/wrong-side attempt, giving lower terminal/net utility. Retain the validation-selected primary rather than selecting by test inspection counts.
 
-## 剩余四个错误
+## Four remaining errors
 
-1. **同一几何组的三个布局**（`g002_front_blocked`、`g002_rear_blocked`、`g002_free`）在当前候选集合不可行，策略仍尝试执行。三次实际选中续段均在感知阶段因 `handle_not_detected` 结束；正确拒绝不足，I 的新目标没有消除这个下游问题。
-2. **`g008_rear_blocked` 发生一次误拒绝。** 两条实际分支中站位 0、抓持 0 均能成功，完整几何约束也允许该站位；当前深度掩码初始已排除它，融合后所有站位均被排除。主策略补看后拒绝。这验证了部分深度约束会排除实际成功站位，尚未据此定位或修正具体点云来源。
+1. **Three layouts in one geometry group** (`g002_front_blocked`, `g002_rear_blocked`, `g002_free`) are library-infeasible but still attempted. Selected continuations terminate at perception with `handle_not_detected`. The new I objective does not resolve this downstream failure or the missing correct refusals.
+2. **One false refusal in `g008_rear_blocked`.** Station 0/grasp 0 succeeds on both physical branches and passes full geometry. Initial depth already excludes that station; fusion excludes all stations, and primary refuses after inspection. This establishes exclusion of a successful station, without locating or correcting its specific point-cloud cause.
 
-这些分析只解释冻结测试的结果，没有修改建图、模型或阈值。本批主策略与冻结 v5 自主／始终策略的四个失败完全相同，不能把失败原因归于新后悔目标。也不能从零碰撞推出地图约束完备或动力学安全保证。
+This analysis explains frozen outcomes without changing maps, models, or thresholds. Primary and frozen-v5 learned/always share all four errors, so they cannot be attributed to the new regret objective. Zero observed collisions does not establish complete map constraints or dynamic safety.
 
-## 权重、信息与物理核验
+## Weight, information, and physics verification
 
-- **1152 条**新物理候选，**432/432** 次独立实时策略回放匹配观察／拒绝／站位／抓持／开门／碰撞及地图掩码。
-- **266 次**开门入口 q/v 连续检查、**255 次**实际补看；每个回合仅初始化一次，所有记录时间轴单调，补看成功期间门未提前被推动。
-- 最大记录平移速度 **0.28124 m/s**，最大相邻记录位移 **0.01659 m**。
-- 六份本轮阶段检查点及冻结 v5 参考核验：所有非 I 张量、原 **422** 核心张量、归一化均逐位保持；历史输入、模型、源码和 manifest 哈希保持。
-- 六种部署策略均零碰撞；探索性候选采集仍包含碰撞。完整已知几何查询排除全部 **148** 条碰撞候选并保留全部 **176** 条成功候选，这些是相关候选记录，不是独立场景数。
-- 新采集、回放及分析固定 seed=42，Python／NumPy／Torch／CUDA／hash 设置均记录。存在 warn-only 非确定性算子与 OpenGL 舍入限制，不能声称跨运行完全确定。
+- **1152** new candidates and **432/432** live replays match inspection/refusal/station/grasp/opening/collision outcomes and map masks.
+- **266** continuous opening-entry q/v checks and **255** physical inspections pass. Episodes initialize once, timestamps increase monotonically, and successful inspection does not push the door early.
+- Maximum recorded translation speed **0.28124 m/s**; maximum adjacent displacement **0.01659 m**.
+- Six stage checkpoints and frozen-v5 references preserve every non-I tensor, **422** core tensors, and normalization bitwise. Historical input/model/source/manifest hashes remain unchanged.
+- All six deployed policies have zero collisions; exploratory collection includes collisions. Full geometry excludes all **148** collision candidates and retains all **176** successful candidates, which are correlated records rather than independent scenes.
+- New collection/replay/analysis fixes seed=42 and records Python/NumPy/Torch/CUDA/hash settings. Warn-only nondeterministic operators and OpenGL rounding limit cross-run bitwise reproducibility.
 
-按 9 个模板聚类的探索性配对分析中，平均净回报差为 +0.01472，bootstrap 95% 区间 **−0.00023 至 +0.02979**，精确符号翻转检验 p=0.1875。此分析未预注册、未校正多重比较，区间跨零，不能宣称稳定的统计优势。它不用于重选策略。当前只有 9 个既有模板、18 个新参数组、一个训练种子，训练／验证集亦重复用于开发。
+Exploratory paired analysis clustered by 9 templates gives mean utility difference +0.01472, bootstrap 95% interval **-0.00023 to +0.02979**, and exact sign-flip p=0.1875. It is unregistered, unadjusted for multiple comparisons, and includes zero, without stable statistical-advantage evidence or policy reselection. Scope remains 9 familiar templates, 18 new groups, one seed, and reused development data.
 
-## 运行与实际耗时
+## Runtime and measured durations
 
-4 场景小流程预计 15 分钟、排队 0，实际 **655.66 秒**；64 候选、24 回放全部匹配，权威会话 **8385** 退出码 0。代理连续休眠 874.52 秒，到原截止检查同一会话。
+Four-scene smoke estimate: 15 minutes, queue 0. Actual **655.66 seconds**, matching 64 candidates and 24 replays; session **8385**, exit 0. The agent sleeps continuously for 874.52 seconds and inspects the same session at deadline.
 
-正式测试预计 **4 小时、排队 0**。依据小流程分阶段外推约 3 小时 17 分钟，并参考前轮无训练并发的正式采集与回放，保守保留余量。**06:44:32** 启动，实际评估 PID **29412**，控制器 **14988**，权威会话 **64988**；预热启动 8.29 秒、首条开门候选 6.46 秒。代理一次连续休眠 **14372.29 秒**至 10:44:32 预计截止，再检查同一会话，确认已于 **09:23:46** 完成，退出码 **0**。实际评估 **9552.94 秒（2 小时 39 分 13 秒）**，控制器 9555.15 秒。
+Formal estimate **4 hours, queue 0**, from a roughly 3-hour-17-minute phase extrapolation and previous collection/replay without concurrent training, plus margin. Launch **06:44:32**: evaluator **29412**, controller **14988**, session **64988**. Startup 8.29 seconds; first opening candidate 6.46. Sleep once for **14372.29 seconds** until 10:44:32, then confirm completion at **09:23:46**, exit **0**. Actual evaluation **9552.94 seconds (2 hours 39 minutes 13 seconds)**; controller 9555.15.
 
-| 阶段 | 实际秒 | 分钟 |
+| Phase | Actual seconds | Minutes |
 | --- | ---: | ---: |
-| 1152 候选采集，2 workers | 5200.48 | 86.67 |
-| 缓存策略计算 | 54.19 | 0.90 |
-| 432 次实时回放 | 4245.76 | 70.76 |
-| 全量张量与物理审计 | 26.92 | 0.45 |
-| 启动、I/O 与其余 | 25.58 | 0.43 |
+| 1152-candidate collection, 2 workers | 5200.48 | 86.67 |
+| Cached policy computation | 54.19 | 0.90 |
+| 432 live replays | 4245.76 | 70.76 |
+| Full tensor/physics audit | 26.92 | 0.45 |
+| Startup, I/O, other | 25.58 | 0.43 |
 
-没有与 LoRA 训练并发。估计与实测分别保留；本轮采集更快不能解释为算法提速，正式时间估计仍应区分主机负载与动作组成。
+No concurrent LoRA training. Keep estimates and measurements separate; faster collection alone is not algorithmic speedup evidence. Future estimates must account for host load and action composition.
 
-## 文件与呈现范围
+## Files and presentation scope
 
-原始数组、权重、日志、轨迹、遥测及源码都在新 ignored `runs/`，根目录只保留实现、报告和结果图。
+Keep arrays, weights, logs, trajectories, telemetry, and archived source in new ignored `runs/`; the repository stores implementation, reports, and figures.
 
-- [正式报告与逐阶段耗时](../runs/mobile_inspection_regret_evaluation_seed42_20261110/report.json)
-- [测试前选择与哈希](../runs/mobile_inspection_regret_evaluation_seed42_20261110/evaluation_frozen.json)
-- [张量与物理核验](../runs/mobile_inspection_regret_evaluation_seed42_20261110/tensor_and_physics_audit.json)
-- [逐场景对照、失败分析与探索性统计](../runs/mobile_inspection_regret_evaluation_seed42_20261110/post_analysis.json)
-- [运行、等待和完成核验](../runs/mobile_inspection_regret_evaluation_seed42_20261110/verification.json)
-- [图表与分析脚本](../runs/mobile_inspection_regret_evaluation_seed42_20261110/post_analysis.py)
+- [Formal report and phase durations](../runs/mobile_inspection_regret_evaluation_seed42_20261110/report.json)
+- [Pre-test selection and hashes](../runs/mobile_inspection_regret_evaluation_seed42_20261110/evaluation_frozen.json)
+- [Tensor/physics audit](../runs/mobile_inspection_regret_evaluation_seed42_20261110/tensor_and_physics_audit.json)
+- [Per-scene controls, failures, and exploratory statistics](../runs/mobile_inspection_regret_evaluation_seed42_20261110/post_analysis.json)
+- [Runtime, waiting, and completion verification](../runs/mobile_inspection_regret_evaluation_seed42_20261110/verification.json)
+- [Plotting and analysis script](../runs/mobile_inspection_regret_evaluation_seed42_20261110/post_analysis.py)
 
-实际工作区为 `runs/mobile_partial_workspace_seed42_20261109/`，实际输出为其下 `runs/p6_test_seed42_20261110/`。复现应使用归档源码身份与新输出目录，不混用根目录另一物理版本，也不覆盖已冻结运行。
+Actual workspace `runs/mobile_partial_workspace_seed42_20261109/`, output `runs/p6_test_seed42_20261110/`. Reproduce with archived source and new outputs, preserving frozen runs without mixing root physics.
 
-Final 汇报应同时呈现这批 68/72 与[历史 v5 批次的 72/72](mobile_partial_results.md)，说明它们是不同测试。现在支持的主张是：完整任务执行与观察成本优化已有证据；识别失败、保守排除和跨种子／类别泛化仍有限，世界模型想象 rollout 的优势仍未验证。
+Present this 68/72 cohort alongside the [historical v5 72/72 cohort](mobile_partial_results.md), identifying separate tests. Evidence supports full-task execution and inspection-cost reduction, with remaining perception/exclusion failures and limited cross-seed/category scope. Imagined-rollout advantages remain unverified.

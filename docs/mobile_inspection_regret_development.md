@@ -1,53 +1,53 @@
-# 观察决策后悔训练与开发集结果（v6，2026-11-10）
+# Inspection-regret training and development results (v6, 2026-11-10)
 
-三组各完成 **1600 次 I 更新**。在相同的 36 个验证场景上，原结果监督为 **35/36** 正确、补看 **23** 次；加入决策后悔目标及仅决策后悔目标均为 **35/36** 正确、补看 **21** 次，碰撞均为 **0**。验证按预先声明的顺序选中 `joint_regret` 第 **40** 步。本文保留当时的开发集记录，后续[新冻结独立测试已完成](mobile_inspection_regret_results.md)，开发指标不改写为测试结果。
+Three arms each complete **1600 I updates**. On the same 36 validation scenes, outcome supervision scores **35/36** with **23** inspections; joint-regret and regret-only objectives score **35/36** with **21** inspections, all with **0** collisions. The predefined order selects `joint_regret` at update **40**. Preserve these development records separately from the subsequent [new frozen independent test](mobile_inspection_regret_results.md).
 
-## 对照与信息范围
+## Controls and information scope
 
-三组从同一 v5 深度特征 `selected_pg.pt` 初始化。网络容量、输入、采样顺序、1600 步预算、学习率 3e-4 和权重衰减 0.01 相同。固定 seed=42，设置 Python、NumPy、Torch、CUDA、hash seed 及 warn-only 确定性。模型沿用已有 H-JEPA／rank-8 LoRA，原核心、LoRA、P/G、归一化全冻结，仅更新 I，以隔离目标函数的作用，没有全模型训练。
+Initialize all arms from the same v5 depth-feature `selected_pg.pt`, matching capacity, inputs, sampling, 1600 updates, rate 3e-4, and weight decay 0.01. Set Python/NumPy/Torch/CUDA/hash seed=42 and warn-only determinism. Retain H-JEPA/rank-8 LoRA with core/LoRA/P/G/normalization frozen; update I only to isolate the objective, without full-model training.
 
-新监督比较固定 P/G 在不补看与真实补看两条分支实际所选动作的回报，扣除真实观察成本；不选事后最优候选。按实际净收益差的绝对值加权决策 BCE。三组的部署接口均保持 v5 原样，比较预测补看价值与初始最佳站位／拒绝价值。后视角及执行结果仅作训练标签，I 输入仍只有初始图像、相对目标、声明 risk 和初始深度特征。[预先固定的实验设计](mobile_inspection_regret_plan.md)。
+Supervision compares returns of actual actions selected by frozen P/G on direct/physical-inspection branches, minus actual inspection cost, rather than oracle candidates. Weight decision BCE by the absolute net-return difference. Deployment retains v5's comparison of predicted inspection value against initial station/refusal value. Future views and outcomes supply labels only; I sees initial image, relative target, declared risk, and initial depth features. [Fixed design](mobile_inspection_regret_plan.md).
 
-| 目标 | 更新数 | 选中步 | 开门 /26 | 正确拒绝 /10 | 正确 /36 | 碰撞 | 补看 | 平均净回报 |
+| Objective | Updates | Selected update | Open /26 | Correct refusal /10 | Correct /36 | Collisions | Inspections | Mean net utility |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 结果交叉熵＋成本 MSE | 1600 | 280 | 25 | 10 | 35 | 0 | 23 | 0.5774 |
-| **结果监督＋决策后悔〔验证选定〕** | **1600** | **40** | **25** | **10** | **35** | **0** | **21** | **0.5876** |
-| 决策后悔＋成本 MSE | 1600 | 120 | 25 | 10 | 35 | 0 | 21 | 0.5876 |
+| Outcome CE + cost MSE | 1600 | 280 | 25 | 10 | 35 | 0 | 23 | 0.5774 |
+| **Outcome + decision regret (validation selected)** | **1600** | **40** | **25** | **10** | **35** | **0** | **21** | **0.5876** |
+| Decision regret + cost MSE | 1600 | 120 | 25 | 10 | 35 | 0 | 21 | 0.5876 |
 
-两组新目标在验证上保留同一开门／拒绝计数，平均路程从 3.137 m 降至 2.772 m，平均回合从 40.86 降至 37.95 仿真秒。原结果监督组重现 v5 深度组的验证指标；两组后悔目标指标完全并列，按预先声明的组顺序保留联合目标。
+Both new objectives retain opening/refusal counts, reducing mean path from 3.137 to 2.772 m and mean duration from 40.86 to 37.95 simulated seconds. Outcome supervision reproduces v5 depth validation metrics. Both regret arms tie, so preregistered arm order retains the joint objective.
 
-这些验证场景已用于前轮开发，不能视为独立新证据。纯决策目标可能通过补偿 P0 价值误差改变 I，其结果 logits 不能宣称为已校准概率。当前仍是单种子、固定后续策略、既有类别与已知地图导航，没有新的 P/G 或 LoRA 准确率改善证据。
+Validation scenes were used in previous development and are not independent new evidence. Regret-only training may compensate for P0 value errors, so its logits are not calibrated probabilities. Scope remains one seed, frozen continuation, familiar categories, and known-map navigation, without new P/G or LoRA accuracy gains.
 
-## 冻结与核验
+## Freezing and verification
 
-新清单冻结 **18 组、72 个测试场景**，排除 **526** 个已记录历史几何身份；旧训练／验证 72/36 不变。主策略冻结于 **2026-11-10 06:19:51 +08:00**，清单 SHA256 为 `7cab1ea9650ba28f80eda83bad381350897d41aee93874e9d7015881cb971639`。本阶段测试结果读取为 **0**。
+Freeze **18 groups and 72 new test scenes**, excluding **526** historical geometries; retain old training/validation 72/36. Freeze primary at **2026-11-10 06:19:51 +08:00**. Manifest SHA256: `7cab1ea9650ba28f80eda83bad381350897d41aee93874e9d7015881cb971639`. Read **0** test outcomes during this phase.
 
-6 份 selected／last 检查点核验所有非 I 张量、原 422 核心张量与归一化保持，选中和末步 I 均有 6 个张量更新。历史输入、冻结模型及启动源码哈希保持。7 项契约测试通过，覆盖真实选中动作监督、碰撞风险、正负决策梯度、零后悔／强制拒绝以及既有 v5 容量与检查点。
+Six selected/last checkpoints preserve all non-I tensors, 422 core tensors, and normalization; selected/last I each update 6 tensors. Preserve historical inputs, frozen models, and launch-source hashes. Seven contracts pass, covering selected-action labels, collision risk, positive/negative gradients, zero regret/forced refusal, and existing v5 capacity/checkpoints.
 
-后续在新测试上比较三组与预先声明的冻结 v5 自主／始终／从不观察，使用实时 RGB-D 和完整物理回放。本轮训练不改动地图、执行器和原物理源码，沿用冻结 v3 的隔离工作区，拒绝与根目录另一版本 `simulate.py` 混用。
+Subsequent fresh testing compares three arms with preregistered frozen-v5 learned/always/never controls using live RGB-D and full physical replays. Retain maps, executors, and frozen v3 physics in the isolation workspace without mixing root-level `simulate.py`.
 
-## 运行与等待
+## Runtime and waiting
 
-| 运行 | 运行估计／排队 | 实际耗时 | 权威会话 |
+| Run | Runtime estimate / queue | Actual duration | Authoritative session |
 | --- | --- | --- | --- |
-| 7 契约＋三组各 8 步短流程 | 2 分钟／0 | 控制器 115.65 秒，训练流程 89.05 秒 | 57723，退出码 0 |
-| 正式首启 | 10 分钟／0 | 0.80 秒，训练前目录错误 | 同步工具已确认退出码 1 |
-| 正式三组各 1600 步 | 10 分钟／0 | 训练 205.48 秒，控制器 207.77 秒 | 20635，退出码 0 |
+| Seven contracts + three-arm 8-update smoke test | 2 minutes / 0 | Controller 115.65 seconds; pipeline 89.05 | 57723, exit 0 |
+| First formal launch | 10 minutes / 0 | 0.80 seconds; directory failure before training | Synchronous tool confirms exit 1 |
+| Three full 1600-update arms | 10 minutes / 0 | Training 205.48 seconds; controller 207.77 | 20635, exit 0 |
 
-正式估计来自短流程预热后约 0.034–0.040 秒／更新，以及前轮 800 步 I 阶段约 72 秒；为完整缓存、验证及检查点审计保留余量。正式实际缓存 64.62 秒，三组分别 28.92／37.02／34.15 秒，启动、I/O、审计 40.77 秒。实际更新均值和完整阶段时间分别记录，不用估计冒充实测。
+The estimate uses smoke warmup of about 0.034-0.040 seconds per update and the previous approximately 72-second, 800-step I stages, allowing full caches, validation, and audits. Actual cache time is 64.62 seconds; arms take 28.92/37.02/34.15; startup/I/O/audits 40.77. Record measured update throughput and full-stage durations separately from estimates.
 
-短流程按预计截止连续代理休眠 100.60 秒后检查同一会话。正式重启于 06:16:25，实际 PID 22992、控制器 31256，核实存活后按 06:26:25 截止休眠；7.56 秒后被用户课程安排消息打断。处理排期后检查同一会话已于 **06:19:52** 正常完成，故没有再等待已结束任务或重复启动。
+After a continuous 100.60-second smoke sleep, inspect the same session. Formal restart: 06:16:25, PID 22992, controller 31256. Confirm liveness and sleep toward 06:26:25; a user scheduling message interrupts after 7.56 seconds. After handling scheduling, the same session has completed at **06:19:52**, so no further wait or duplicate launch is needed.
 
-首启错误是便捷入口提前建立空输出目录，而训练器在通过空目录检查后仍调用不允许已存在的 mkdir。失败前没有训练或测试读取，失败源码／回执保留；修正为允许空目录后，在新目录重启，目标函数和训练参数未改变。
+The first launch failed because a convenience entry created an empty output directory before a trainer called mkdir without allowing existing directories. No training or test reads occurred. Preserve failed source/receipt, fix empty-directory handling, and restart in a new directory without objective or parameter changes.
 
-## 原始记录
+## Original records
 
-模型、数组、标签、日志、遥测与源码均在新 ignored `runs/`，不进入 Git。
+Keep models, arrays, labels, logs, telemetry, and source in new ignored `runs/`, outside Git.
 
-- [训练报告与验证曲线](../runs/mobile_inspection_regret_training2_seed42_20261110/report.json)
-- [测试前选择与冻结哈希](../runs/mobile_inspection_regret_training2_seed42_20261110/frozen_for_test.json)
-- [检查点核验](../runs/mobile_inspection_regret_training2_seed42_20261110/tensor_audit.json)
-- [进程、休眠与完成核验](../runs/mobile_inspection_regret_training2_seed42_20261110/verification.json)
-- [完整训练启动源码](../runs/mobile_inspection_regret_training2_seed42_20261110/source/)
+- [Training report and validation curves](../runs/mobile_inspection_regret_training2_seed42_20261110/report.json)
+- [Pre-test selection and frozen hashes](../runs/mobile_inspection_regret_training2_seed42_20261110/frozen_for_test.json)
+- [Checkpoint audit](../runs/mobile_inspection_regret_training2_seed42_20261110/tensor_audit.json)
+- [Process, sleep, and completion verification](../runs/mobile_inspection_regret_training2_seed42_20261110/verification.json)
+- [Full training launch source](../runs/mobile_inspection_regret_training2_seed42_20261110/source/)
 
-正式 v5 独立结果与上述开发结果分开报告：[v5 正式测试](mobile_partial_results.md)。随后完成的 v6 正式测试另见本文首段链接；最终汇报应区分两批测试与验证指标。
+Report formal v5 testing separately from these development results: [v5 formal test](mobile_partial_results.md). Subsequent v6 formal testing is linked above; distinguish both test cohorts from validation in the final report.

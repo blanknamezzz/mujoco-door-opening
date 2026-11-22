@@ -1,30 +1,30 @@
-# v5 冻结独立测试与实时 RGB-D 回放
+# v5 frozen independent test and live RGB-D replay
 
-主策略已于训练／验证阶段选定为 `depth_features_learned`。本阶段只评估冻结权重，不更新模型、奖励、地图参数或策略阈值。训练原始记录保留；[开发集结果与已知限制](mobile_partial_development.md)。
+Training/validation selected `depth_features_learned`. This phase evaluates frozen weights without changing models, rewards, maps, or thresholds. Preserve training records; see [development results and limitations](mobile_partial_development.md).
 
-## 执行与对照
+## Execution and controls
 
-每个测试场景独立执行两条分支（不补看／真实补看）×四个站位×两个抓持，共 16 条完整物理候选；之后另起回合，让各控制器从当时实际相机图像与深度重新决策。缓存候选只用于结果对照，不向实时策略提供地图或动作。每条任务只初始化一次，补看必须通过实际底盘运动，开门由夹爪接触完成。
+For each test scene, execute two branches (direct/physical inspection) x four stations x two grasps: 16 complete physical candidates. In separate episodes, each controller then makes fresh decisions from current camera images and depth. Cached candidates support outcome comparison without supplying live maps or actions. Initialize once per task, physically move the base for inspection, and open through gripper contact.
 
-实时接口沿用 v3 的导航、机械臂准备和开门执行，只增加初始 RGB-D 传递及补看到达后的新深度读取。接口检查已确认同场景新旧执行器最终 q/v、完整轨迹、积分步数和开门结果一致，初始回调中没有补看数据。相机读取前后 q/v 与仿真时间必须不变。
+Retain v3 navigation, arm preparation, and opening interfaces, adding only initial RGB-D forwarding and fresh reached-depth reads. Interface checks confirm matching final q/v, trajectories, integration counts, and opening outcomes for old/new executors on the same scenes, with no inspected data in the initial callback. Camera reads must preserve q/v and simulated time.
 
-六个模型策略：图像组、图像＋深度特征组，各自从不／始终／自主观察。四个参考在正式训练启动前已声明：
+Six learned policies cross image-only/image-plus-depth arms with never/always/learned inspection. Four references were declared before formal training:
 
-| 策略 | 开门地图 | 站位与抓持 | 补看规则 |
+| Policy | Opening map | Station and grasp | Inspection rule |
 | --- | --- | --- | --- |
-| `geometry_full_rear` | 完整已知几何 | 后侧优先、固定 −15° | 从不 |
-| `geometry_depth_never` | 初始实际深度 | 最近未排除站位、固定 −15° | 从不 |
-| `geometry_depth_rule` | 当前实际深度 | 最近未排除站位、固定 −15° | 所选初始站位抽样可见比例 <0.4 时补看一次 |
-| `v4_always_depth` | 当前实际深度 | 冻结 v4 P/G | 初始全部排除则拒绝，否则始终补看 |
+| `geometry_full_rear` | Complete known geometry | Rear first, fixed -15 degrees | Never |
+| `geometry_depth_never` | Actual initial depth | Nearest allowed station, fixed -15 degrees | Never |
+| `geometry_depth_rule` | Actual current depth | Nearest allowed station, fixed -15 degrees | Inspect once if sampled visibility at the initial selected station is <0.4 |
+| `v4_always_depth` | Actual current depth | Frozen v4 P/G | Refuse if all initial actions are excluded; otherwise always inspect |
 
-完整地图参考具有额外障碍信息，单独解释。其他策略的开门约束只能使用门／机器人 CAD、当前本体感知与已见深度。导航及机械臂准备继续使用原已知地图服务，不将本轮解释为未知环境全流程导航。
+The full-map reference has extra obstacle information and is reported separately. Other opening constraints receive only door/robot CAD, current proprioception, and observed depth. Navigation and arm preparation retain known-map services rather than representing complete unknown-environment navigation.
 
-## 数据与核验
+## Data and verification
 
-先用训练短流程早已冻结的另一份 4 测试场景清单检查完整评估链路，实际采用正式训练已选定权重。它与正式 72 场景测试不重叠，结果只用于执行核验。小流程通过后执行正式的 18 组、72 场景测试，不重新选主策略。
+First check the full evaluation pipeline on the training smoke test's previously frozen 4-scene test manifest, using selected full-training weights. These scenes are disjoint from the formal 72-scene test and serve only execution verification. Afterward run the formal 18-group, 72-scene test without primary-policy reselection.
 
-正式测试共 1152 条物理候选、10×72=720 次控制器独立回放。逐条核验缓存与实时的观察／拒绝／站位／抓持／开门／碰撞结果，以及实时深度生成的动作掩码。检查单次初始化、时间单调、开门入口 q/v 连续、底盘速度及轨迹步长。所有原始输入、8 份阶段检查点、训练与评估源码均核验哈希；重新核验原始 422 个张量与归一化统计、I 阶段非 I 张量冻结。
+The formal test includes 1152 physical candidates and 10x72=720 independent controller replays. Compare cached/live inspection, refusal, station, grasp, opening, and collision outcomes, plus masks generated from live depth. Check one initialization, monotonic time, continuous opening-entry q/v, base speeds, and trajectory steps. Verify hashes for original inputs, 8 stage checkpoints, training/evaluation source, 422 original tensors, normalization, and non-I tensors during I training.
 
-新运行固定 seed=42，并记录 Python、NumPy、Torch、CUDA、哈希种子与确定性限制。全部数组、权重、日志与轨迹在新 ignored `runs/` 中。沿用训练隔离工作区，拒绝混用根目录后来更新的物理源码。
+New runs set seed=42 and record Python, NumPy, Torch, CUDA, hash seeds, and deterministic limitations. Keep arrays, weights, logs, and trajectories in new ignored `runs/`. Use the training isolation workspace without mixing later root-level physics code.
 
-启动时分别估计运行与排队时间；核实实际进程／会话与启动吞吐后，代理连续休眠至估计截止，再查看本地 `origin/main` 和同一权威会话。未完成时保留原任务并延长等待；不因观察超时重复启动。
+Estimate runtime and queue time separately at launch. After confirming process/session and startup throughput, sleep continuously until the estimated deadline, then inspect local `origin/main` and the same authoritative session. Extend waiting for unfinished work rather than launching duplicates after an observation timeout.

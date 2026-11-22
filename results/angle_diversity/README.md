@@ -1,20 +1,20 @@
-# 29角度扩展：小规模功能验证
+# 29-angle extension: small integration check
 
-本目录是已实际运行的 1/1/1 站位、87 条候选记录实验。用于验证角度扩展后的采集、SL/RL训练、模型加载和评估流程；不能代表完整72站位泛化表现。
+This directory summarizes a completed 1/1/1-station experiment with 87 candidate records. It verifies collection, SL/RL training, model loading, and evaluation with the extended angle grid, rather than full 72-station generalization.
 
-| case | 用途 | 原21角度成功数 | 新增8角度成功数 | 准备失败 |
+| Case | Split | Successes among original 21 angles | Successes among 8 added angles | Preparation failures |
 |---|---|---:|---:|---:|
 | [train_000](train_000/README.md) | train | 8 | 3 | 1 |
 | [validation_000](validation_000/README.md) | validation | 13 | 4 | 0 |
 | [test_000](test_000/README.md) | test | 0 | 0 | 2 |
 
-[评估指标](metrics.json) · [来源与源码哈希](provenance.json)
+[Evaluation metrics](metrics.json) · [Provenance and source hashes](provenance.json)
 
-本次所有方法在唯一测试站位均未成功；4个去重后的测试动作重新执行，全部与记录匹配。训练与验证站位在原角度网格已有成功方案，因此新增角度成功不能解释为解救了新的站位。
+All methods fail on the single test station. Four distinct test actions were replayed and matched the records. Training and validation stations already have successful original-grid angles, so successes at added angles do not establish newly feasible stations.
 
-数据采样和PRM seed=42，训练seed=42。原始数据和权重留在忽略目录，Git只保存本目录的小型结果摘要。中途判断/力调节尚未实现；完整72站位29角度实验尚未运行。
+Data sampling, PRM, and training use seed=42. Raw data and weights remain ignored; Git stores only the small summaries here. Mid-grasp decisions and force adjustment are not implemented, and the full 72-station, 29-angle experiment has not been run.
 
-复现（使用新的输出目录）：
+Reproduction with new output directories:
 
 ```bash
 python collect_grasp_data.py --output reproduced/angle_diversity_recheck/data --train-scenes 1 --validation-scenes 1 --test-scenes 1 --workers 2 --angle-grid diverse29 --seed 42 --prm-seed 42
@@ -22,4 +22,4 @@ python compare_grasp_learning.py train --data reproduced/angle_diversity_recheck
 python compare_grasp_learning.py evaluate --data reproduced/angle_diversity_recheck/data --output reproduced/angle_diversity_recheck/comparison --workers 2
 ```
 
-[角度实现与限制](../../docs/grasp_angle_diversity.md) · [所有案例](../README.md)
+[Angle implementation and limitations](../../docs/grasp_angle_diversity.md) · [All cases](../README.md)

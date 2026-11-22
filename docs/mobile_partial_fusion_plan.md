@@ -1,26 +1,26 @@
-# 部分深度地图融合与后续训练设计（v7，2026-11-10）
+# Partial-depth fusion and subsequent training design (v7, 2026-11-10)
 
-只在既有 72 训练／36 验证场景校准，不读取历史测试结果调参。开发数据已有 168／88 条把手检测失败候选，验证融合地图额外排除两个完整几何允许的站位记录。此阶段先研究地图融合；把手感知保留原实现，防止将两个改动的收益混合。
+Calibrate only on the existing 72 training and 36 validation scenes without historical-test tuning. Development has 168/88 handle-detection failures and two validation station records additionally excluded by fusion despite passing full geometry. Study map fusion first, keeping handle perception fixed to isolate changes.
 
-旧地图在每帧体素化后直接拼接点云。同一空间体素可能被两帧重复算入“至少两个命中体素”的阻挡阈值。新实现选择每个空间体素中的一个确定性实际端点，不用体素中心替代测量；重复帧和帧顺序不应改变占据体素集合。
+The old map concatenates clouds after per-frame voxelization. Two frames may count the same spatial voxel twice toward the two-hit blocking threshold. The new implementation selects one deterministic measured endpoint per spatial voxel, rather than replacing measurements with voxel centers; duplicate frames and frame order should preserve the occupied voxel set.
 
-四个预先声明的 profile：
+Four preregistered profiles:
 
-| profile | 跨帧去重 | 自由射线一致性 | 端点膨胀 |
+| Profile | Cross-frame deduplication | Free-ray consistency | Endpoint inflation |
 | --- | --- | --- | --- |
-| historical | 否，原 v5 | 无 | 15 mm |
-| voxel_union | 是 | 无 | 15 mm |
-| ray_consistent_union | 是 | 任一已到达视角以 15 mm 余量看到端点后方时移除该端点 | 15 mm |
-| tight_voxel_union | 是 | 无 | 3 mm |
+| historical | No; original v5 | None | 15 mm |
+| voxel_union | Yes | None | 15 mm |
+| ray_consistent_union | Yes | Remove endpoints when any reached view sees behind them with a 15 mm margin | 15 mm |
+| tight_voxel_union | Yes | None | 3 mm |
 
-自由空间一致性参考 [Hornung 等，OctoMap，2013](https://www.arminhornung.de/Research/pub/hornung13auro.pdf) 的传感器射线区分占据、自由和未知空间。当前实现只是确定性端点融合／过滤，不实现 octree 或贝叶斯 log-odds，不称为 OctoMap。视野外、无有效深度与被遮挡区域保持未知；射线过滤及离散扫掠都不是安全证明。
+Free-space consistency follows the sensor-ray distinction between occupied, free, and unknown space in [Hornung et al., OctoMap, 2013](https://www.arminhornung.de/Research/pub/hornung13auro.pdf). This implementation uses deterministic endpoint fusion/filtering rather than an octree or Bayesian log-odds. Out-of-view, invalid-depth, and occluded regions stay unknown. Ray filtering and discrete sweeps are not safety certificates.
 
-运行时仍只用当前实际 RGB-D、门／机器人 CAD、本体状态；完整外部障碍仅在开发校准器中生成标签，不进入建图接口或模型特征。地图四维输入及其后续信息时序保持。导航、准备与接触开门物理版本不变，原 v5 源码及历史记录保留。
+Runtime inputs remain current physical RGB-D, door/robot CAD, and proprioception. Complete obstacle geometry supplies calibration labels only, not map/model inputs. Preserve the four-dimensional map features and information timing, as well as navigation, preparation, and contact-opening physics. Preserve v5 source and historical records.
 
-按验证选择 profile：初始分支允许的碰撞候选不得多于历史 profile；然后依次减少融合后允许的碰撞候选、误排除成功候选、相对完整几何的额外排除、仍允许的完整几何阻挡、初始误排除成功。完全并列按表中顺序保留。初始未知障碍不会被当成已知标签强制填入地图。
+Validation selection first requires no additional allowed collision candidates on the initial branch relative to historical. Then minimize allowed collisions after fusion, excluded successful candidates, extra exclusions relative to full geometry, remaining full-geometry obstructions, and initial excluded successes. Exact ties retain table order. Never fill initially unknown obstacles using ground-truth labels.
 
-附加验证诊断：原 v5 的 PG 选模只看始终观察分支，可能漏掉初始直接分支的变化。只在 36 个验证场景上比较其第 0／320 步检查点的直接与始终观察指标，复用旧物理候选，不更新权重、不读取测试。这项诊断不影响地图 profile 的选择。
+Additional validation diagnostic: v5 PG selection checked only always inspection and may miss direct-branch changes. Compare direct/always outcomes of updates 0/320 on the same 36 validation scenes using existing physical candidates, without weight updates or test reads. This diagnostic does not select map profiles.
 
-108 场景的既有地图两次查询实测总计 71.34 秒，均值 0.661 秒／场景，最大 1.368 秒。三个新 profile 的查询外推约 214 秒，加入读取 RGB-D、建模、标签、哈希与两份冻结 PG 的验证前向，保守估计 **8 分钟、排队 0**（地图部分约 6 分钟，附加模型加载与前向预留约 2 分钟）。无物理候选采集或 LoRA 并发。启动后记录实际进程、首场耗时与截止，代理连续休眠至截止；到时检查同一权威会话。
+Two historical-map queries across 108 scenes take 71.34 seconds total, mean 0.661 per scene, maximum 1.368. Three new profiles extrapolate to about 214 seconds. Including RGB-D reads, mapping, labels, hashes, and validation of two frozen PG checkpoints gives a conservative **8-minute, zero-queue** estimate: about 6 minutes for mapping and 2 for model loading/forward passes. No physical collection or LoRA training runs concurrently. Record process, first-scene duration, and deadline; sleep continuously and inspect the same session afterward.
 
-若 profile 在验证上改善，将使用相同容量和预算比较原图与新图，继续 rank-8 LoRA／P-G，再冻结后续策略训练 I；所有原核心保持。另冻结新几何测试后才采集最终结果，不能复用历史测试选择权重或报告新泛化。若开发校准没有改善，也保留负结果，不按测试选择更激进的地图。
+If validation improves, compare old/new maps with equal capacity and budgets, continuing rank-8 LoRA/P-G before freezing continuation to train I, with the original core preserved. Freeze fresh test geometry before final collection. Do not select weights or claim new generalization from historical tests. Retain negative calibration results without selecting more aggressive maps on test performance.

@@ -1,15 +1,15 @@
-# v8 新冻结独立测试与等价策略记录
+# v8 frozen independent test and equivalent-policy records
 
-训练前已声明比较四组新策略及冻结 v6 的自主／始终／从不观察。主策略仍为验证选定的 paired_ce，权重、阈值、地图与测试清单不按新测试改动。
+Before training, comparisons cover four new arms and frozen v6 under learned/always/never inspection. The primary policy remains validation-selected paired_ce; the new test does not alter weights, thresholds, maps, or manifests.
 
-训练后证实 paired_ce、random_collision4、paired_collision4 的状态张量均与冻结 v6 完全相同。评估前进一步逐字节核验全部模型张量、归一化和推理配置，只有 branch_balance_v8 与 inspection_regret_v6 两个纯训练元数据块不影响标识。观察模式和 risk 必须相同才允许共用实测记录，优先让主策略作为代表。预计七个名称对应四个执行策略：paired_ce、自主 random_ce、v6 始终、v6 从不。最终以实际核验出的分组为准。
+Training confirms that paired_ce, random_collision4, and paired_collision4 have exactly the same state tensors as frozen v6. Before evaluation, compare all tensors, normalization, and inference settings byte for byte; only the training-only branch_balance_v8 and inspection_regret_v6 metadata blocks are excluded from inference identity. Shared records require matching inspection mode and risk, with the primary policy preferred as representative. Seven names are expected to map to four deployed policies: paired_ce, learned random_ce, v6 always, and v6 never. Use the actual verified grouping.
 
-七行结果继续完整列出，相同策略单列别名和记录来源，不能把别名当作独立重复实验。若为四种实际策略，则 72 场景执行 **288 次实时回放**；每场景两分支×四站位×两抓持仍完整采集，共 **1152 条新物理候选**。若配置差异导致不能合并，会执行更多策略并据实记录。测试前冻结分组与哈希，禁止依据结果决定合并。
+Report all seven rows with explicit aliases and record sources; aliases are not independent repetitions. Four deployed policies require **288 live replays** on 72 scenes. Collect both branches x four stations x two grasps per scene, totaling **1152 new physical candidates**. If configuration differences prevent sharing, execute and report the additional policies. Freeze groups and hashes before testing.
 
-不同 LoRA／P/G 的模型各自重新计算完整预测缓存，不能像只改 I 的 v6 一样共享编码。实时回放始终使用当前实际 RGB-D、新深度地图和到达观察，不使用缓存动作。沿用冻结 v5 执行器，每回合仅初始化一次、开门入口 q/v 连续；导航与准备保留已知地图服务。
+Models with different LoRA/P-G weights recompute their own prediction caches, rather than sharing encoded features as in the I-only v6 comparison. Live replays use current RGB-D, fresh depth maps, and reached observations without cached actions. Retain the frozen v5 executor: one initialization per episode and continuous q/v at opening entry; navigation and preparation use known-map services.
 
-测试前核验 16 个阶段检查点的原 422 核心张量和归一化、I 阶段非 I 张量及旧来源哈希，执行后核验所有冻结文件保持。逻辑行数与实际候选、物理回放数分别报告。全部新运行 seed42，原始数据、权重、轨迹与日志仅在新 ignored runs/。
+Before testing, verify the 422 core tensors and normalization in 16 stage checkpoints, non-I tensors during I training, and historical source hashes; afterward verify every frozen file. Report logical rows, physical candidates, and actual replays separately. New runs use seed 42, with raw data, weights, trajectories, and logs only in new ignored runs/ directories.
 
-先用训练短流程中与正式清单不重叠的 4 测试场景核验路由／等价记录，固定使用正式训练已选权重，不按小流程重选。预计 **15 分钟、排队 0**，依据 v6 小流程 4 场景采集 353.02 秒、24 回放 265.85 秒，本轮预计 16 实际回放，并预留检查点审计。正式预计 **3.5 小时、排队 0**，依据完整 v6 正式采集 5200.48 秒及四个相近策略回放约 2778 秒，亦参考较慢的前轮 6561 秒采集；以新完整小流程和实际启动预热修正。
+First verify routing and equivalence on the training smoke test's 4 held-out scenes, disjoint from the formal manifest, using the selected full-training checkpoints without reselection. Estimate **15 minutes with zero queue time** from v6's 353.02-second collection and 265.85-second 24-replay smoke test; this run expects 16 replays plus checkpoint audits. Estimate the formal job at **3.5 hours with zero queue time**, referencing 5200.48 seconds for full v6 collection, about 2778 seconds for four comparable policy replays, and the slower previous 6561-second collection. Refine from the complete smoke test and startup throughput.
 
-确认实际进程／权威会话后记录截止并连续代理休眠。到期检查本地 origin/main 和同一会话；仍存活则按规则延长 30 分钟，不因观察超时重复启动。不以旧测试作为新独立结果，也不按新测试更换主策略。
+After confirming the authoritative process/session, record the deadline and sleep continuously. At the deadline, check local origin/main and the same session; if still live, extend by 30 minutes under repository rules. Observation timeouts do not trigger duplicate launches. Historical tests remain historical evidence, and the new test does not change the primary policy.

@@ -1,24 +1,24 @@
-# 双分支选模与场景对组织（v8，2026-11-10）
+# Selection across both branches and paired scene sampling (v8, 2026-11-10)
 
-开发集已确认：旧 PG 第 0／320 步在始终观察分支均为 35/36、零碰撞，但直接分支从 24/36、零碰撞变为 25/36、两次碰撞。因此只看始终观察不足以核验初始决策，后续选择须同时检查两分支安全。另一个 v7 地图校准中，三个融合变体的 648 个掩码比较均与历史图一致，没有开发收益，继续保留原图。
+Development results show that the previous PG checkpoints at updates 0/320 both score 35/36 with zero collisions on the always-inspect branch, while the direct branch changes from 24/36 with zero collisions to 25/36 with two collisions. Selection must therefore check safety on both branches. In the v7 map calibration, all 648 mask comparisons across three fusion variants match the historical map, with no development benefit; the original map is retained.
 
-本轮采用 2×2 匹配实验，原 72 训练／36 验证不变：
+This run uses a matched 2x2 design with the original 72 training and 36 validation scenes:
 
-| arm | 每次两场景的组织 | 成功／普通失败／碰撞 CE 类权重 |
+| Arm | Organization of the two scenes per update | Success / ordinary failure / collision CE weights |
 | --- | --- | --- |
-| random_ce | 全训练集随机两场景 | 1／1／1 |
-| paired_ce | 随机训练组内两种不同布局 | 1／1／1 |
-| random_collision4 | 全训练集随机两场景 | 1／1／4 |
-| paired_collision4 | 随机训练组内两种不同布局 | 1／1／4 |
+| random_ce | Two scenes sampled from all training scenes | 1/1/1 |
+| paired_ce | Two different layouts from a randomly sampled training group | 1/1/1 |
+| random_collision4 | Two scenes sampled from all training scenes | 1/1/4 |
+| paired_collision4 | Two different layouts from a randomly sampled training group | 1/1/4 |
 
-每组各 320 次 rank-8 LoRA／P-G 更新、1600 次联合决策后悔 I 更新。原 H-JEPA 核心与归一化冻结，P/G 仍共享 LoRA。相同网络容量、初始模型、每次两场景、图像数、优化器预算与 seed42；相同采样方式的两损失组使用同一采样序列。成对方式保持每个场景边缘概率相同，但刻意改变同批共现，不能声称逐步图像完全相同。
+Each arm performs 320 rank-8 LoRA/P-G updates and 1600 joint-regret I updates. The original H-JEPA core and normalization remain frozen, and P/G share LoRA. Arms match capacity, initialization, two-scene batches, image counts, optimizer budgets, and seed 42. Loss arms with the same sampling method share their scene sequence. Pairing preserves marginal scene probabilities while changing batch co-occurrence, so images are not identical at each update across sampling methods.
 
-标签仍取当前 G 在实际分支所选动作的终局结果，训练内每 40 步刷新，不取事后最优动作。仅加重训练碰撞类别，不改变正式评估效用（成功 +1、普通失败 −1、碰撞 −2、拒绝 0 与实际观察成本）；加权 CE 分数不能视为已校准后验。
+Labels remain the terminal outcomes of actions selected by current G on the physical branch, refreshed every 40 training updates rather than choosing the best recorded action afterward. Only the collision class receives extra training weight; formal utility remains success +1, ordinary failure -1, collision -2, refusal 0, minus actual inspection cost. Weighted CE outputs are not calibrated posteriors.
 
-PG 验证顺序：两分支碰撞总数越少越好；安全相同时，优先始终观察正确数、直接执行正确数、两者开门总数、净回报、路程。完全并列保留最早。它不会用直接分支多一次正确掩盖新增碰撞。选定 PG 后冻结编码器／LoRA／P/G，再训练同一 joint-regret I；最终四策略按既有验证正确、碰撞、开门、净回报等顺序选主策略。
+PG validation prioritizes fewer collisions across both branches, then always-inspect correctness, direct correctness, total openings, net utility, and path length. Exact ties retain the earliest checkpoint. An additional direct-branch correct decision cannot offset a new collision. After selecting PG, freeze encoder/LoRA/P/G and train the same joint-regret I. Select the primary arm by the existing validation order of correctness, collisions, openings, net utility, and subsequent criteria.
 
-训练启动前另冻 18 组／72 个新测试，排除历史几何；不读取旧测试调温度、权重、预算或停止规则。新测试预声明比较四组与冻结 v6 的自主／始终／从不观察。若四组选定模型的所有状态张量均与冻结 v6 完全一致，则没有新的执行策略，不重复采集测试，也不宣称改进；保留未读取的测试清单。否则需要新独立物理采集与实时回放。
+Before training, freeze a fresh 18-group, 72-scene test excluding historical geometry. Historical tests do not select temperature, weights, budgets, or stopping rules. Preregister comparisons of four arms and frozen v6 with learned/always/never inspection. If all selected state tensors equal frozen v6, retain the unread test and report no new deployed policy; otherwise collect new independent physical candidates and live replays.
 
-地图与感知、导航／准备／开门执行均保留冻结版本。新数组、权重与日志只写入新 ignored `runs/`。核验全部阶段检查点的原 422 核心张量、归一化、I 阶段非 I 张量、旧模型和数据哈希；Python、NumPy、Torch、CUDA、hash seed 固定 42，记录非确定性限制。
+Keep the frozen map, perception, navigation, preparation, and opening implementations. Write new arrays, weights, and logs only to new ignored `runs/` directories. Verify the 422 original core tensors, normalization, non-I tensors during I training, and historical model/data hashes. Fix Python, NumPy, Torch, CUDA, and hash seeds to 42 and record nondeterministic limitations.
 
-先执行契约与每组 8／8 步小流程，预计 **5 分钟、排队 0**。正式四组的 PG 参考既有两组 320 步实际 1288／1238 秒，I 参考 v6 三组 1600 步约 29／37／34 秒，预留双分支验证及目标刷新，暂估 **2 小时、排队 0**，以完整小流程和实际预热修正。启动后确认实际进程／会话，记录截止并连续代理休眠，届时检查同一会话，不重复启动。
+First run contracts and an 8/8-update smoke test per arm, estimated at **5 minutes with zero queue time**. For the four full arms, reference the previous two 320-step PG runs of 1288/1238 seconds and v6's three 1600-step I runs of about 29/37/34 seconds. Allow for both-branch validation and label refresh: initial estimate **2 hours with zero queue time**, refined after smoke tests and measured warmup. Confirm the actual process/session, record the deadline, sleep continuously until it, and inspect the same session without duplicate launches.

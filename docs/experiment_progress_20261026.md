@@ -1,107 +1,107 @@
-# 整体实验进度：本地与远端合并后评估
+# Overall experiment progress after local/remote integration
 
-截至 2026-10-26。本次将远端 `51df28b`（抓持学习）和 `72b3e60`
-（PRM 预抓取验证）快进合入本地 `main`，保留全部本地 H-JEPA 工作区改动。
+As of 2026-10-26. Fast-forward remote `51df28b` (grasp learning) and `72b3e60`
+(PRM pregrasp checks) into local `main`, preserving all local H-JEPA workspace changes.
 
-## 总体结论
+## Overall findings
 
-选门侧、抓持角度学习和预抓取路径三个模块已有独立实验，但尚无统一测试集上的
-完整链路收益证据。不能把它们的成功率拼接成一个整体开门成功率。
+Door-side selection, grasp-angle learning, and pregrasp planning have independent experiments but no unified-test evidence
+for full-pipeline gains. Their success rates cannot be combined into one end-to-end opening rate.
 
-| 模块 | 已有结果 | 当前结论 |
+| Module | Existing result | Current finding |
 | --- | --- | --- |
-| H-JEPA 选侧与拒绝 | 最新验证集选中方案测试 67/96，起始模型同批也是 67/96 | 还未确认稳定泛化收益 |
-| 独立抓持角度学习 | SL 37.50%，RL 38.89%，训练集选出的固定 +18° 为 41.67% | 学习策略尚未超过强固定基线 |
-| PRM 预抓取 | 能绕障到位并全开；小规模接入测试 SL/RL/固定基线均 3/8 | 证明了路径准备能力，未证明成功率增益 |
+| H-JEPA side/refusal selection | Latest validation-selected model scores 67/96, matching initialization | Stable generalization benefit remains unconfirmed |
+| Independent grasp-angle learning | SL 37.50%, RL 38.89%, training-selected fixed +18 degrees 41.67% | Learned policies do not beat the strong fixed baseline |
+| PRM pregrasp | Detour and complete opening; small integration SL/RL/fixed controls each 3/8 | Path preparation is demonstrated without a measured success-rate gain |
 
-PRM 已接入独立抓持学习流程。H-JEPA 主链路仍沿用预抓取初始化和自己的抓持候选，
-尚未接入 PRM 或远端 SL/RL 角度策略。PRM 使用已知 MuJoCo 几何，也不能被解释为
-世界模型已经学会仅凭视觉判断整条路径碰撞。
+PRM is integrated into independent grasp learning. Main H-JEPA still uses pregrasp initialization and its own candidates,
+without PRM or the remote SL/RL angle policies. PRM uses known MuJoCo geometry rather than showing that
+the world model learns whole-path collision checking from vision alone.
 
-## 本地 H-JEPA：多场景独立测试
+## Local H-JEPA: independent multi-scene tests
 
-| 独立对照 | 同批对照组 | 验证集选中方案 | 结果 |
+| Independent comparison | Matched control | Validation-selected model | Outcome |
 | --- | --- | --- | --- |
-| A：192 vs 576 训练场景 | 49/96 | 51/96 | 碰撞 15→9、误拒绝 19→14；错侧 11→14 |
-| B：CLS vs patch 均值 | 59/96 | 60/96 | 修好 7 例、退步 6 例；仅正确拒绝 4/30 不可开场景 |
-| C：拒绝判定 | 67/96 | 67/96 | 成功开门 61→57，正确拒绝 6→10，总体持平 |
+| A: 192 vs 576 training scenes | 49/96 | 51/96 | Collisions 15 to 9; false refusals 19 to 14; wrong sides 11 to 14 |
+| B: CLS vs mean patches | 59/96 | 60/96 | Seven corrected, six regressed; only 4/30 infeasible scenes correctly refused |
+| C: Refusal calibration | 67/96 | 67/96 | Openings 61 to 57, correct refusals 6 to 10; total unchanged |
 
-三行是不同测试集，不能视为同一测试集上从 51 提升到 67。
-C 的 BCE 候选为 69/96，但没有被验证集选中，未按测试结果改选。
-三轮共 288 个独立测试场景；各模块选择之前均冻结最终测试。
+Rows use different tests rather than one test improving from 51 to 67.
+C's BCE candidate scores 69/96 but loses validation selection and is not promoted after testing.
+The three rounds total 288 independent test scenes, frozen before each module's selection.
 
-这些阶段使用官方完整模型结构、LoRA 与任务头适配，原始主干和历史模型保留。
-近几轮主要研究定位策略的端点监督，不等于重新训练整个时序世界模型。
-H-JEPA 前瞻相对于直接策略的独立收益仍待建立。
+These stages use the official full architecture with LoRA/task-head adaptation, preserving backbone and historical models.
+Recent work mainly studies endpoint supervision for positioning rather than retraining the entire temporal world model.
+Independent benefit of H-JEPA lookahead over direct policies remains unestablished.
 
-来源：[覆盖实验](hjepa_setup.md#seed-42-coverage-expansion-2026-10-26)、
-[池化实验](hjepa_setup.md#native-vit-pooling-study-2026-10-26)、
-[拒绝判定](hjepa_setup.md#refusal-calibration-and-binary-side-supervision-2026-10-26)，
-以及各自 `runs/hjepa/*/independent_test/heldout.json`。
+Sources: [coverage experiment](hjepa_setup.md#seed-42-coverage-expansion-2026-10-26),
+[pooling experiment](hjepa_setup.md#native-vit-pooling-study-2026-10-26),
+[refusal calibration](hjepa_setup.md#refusal-calibration-and-binary-side-supervision-2026-10-26),
+and their `runs/hjepa/*/independent_test/heldout.json` records.
 
-## 远端抓持角度学习：不能只比较 SL 与 RL
+## Remote grasp-angle learning: compare strong fixed baselines too
 
-历史无 PRM 实验为 36/12/24 个训练/验证/测试站位、21 个离散角度。
-三种训练种子共享同一批 24 个测试站位，不能按 72 个独立测试样本统计。
+The historical no-PRM experiment has 36/12/24 training/validation/test stations and 21 discrete angles.
+Three training seeds share 24 test stations rather than 72 independent samples.
 
-| 方法 | 同批测试成功数 | 平均成功率 |
+| Method | Matched test successes | Mean success rate |
 | --- | --- | --- |
-| SL，全角度采样 | 9、9、9 /24 | 37.50% |
-| REINFORCE，在线探索 | 10、9、9 /24 | 38.89% |
-| SL，复用 RL 记录 | 9、8、8 /24 | 34.72% |
-| 固定 0° | 7/24 | 29.17% |
-| 训练集选出的固定 +18° | 10/24 | 41.67% |
+| SL, full-angle sampling | 9, 9, 9 /24 | 37.50% |
+| REINFORCE, online exploration | 10, 9, 9 /24 | 38.89% |
+| SL, reused RL records | 9, 8, 8 /24 | 34.72% |
+| Fixed 0 degrees | 7/24 | 29.17% |
+| Training-selected fixed +18 degrees | 10/24 | 41.67% |
 
-候选网格内仅 10/24 个测试站位存在成功角度，固定 +18° 已覆盖这 10 个站位。
-RL 相对 SL 的均值差约 1.39 个百分点，不能据此宣称稳定算法优势。
-这些结果只涉及同一门族的新站位，不是新门型或真实机器人测试。
+Only 10/24 test stations have successful grid angles; fixed +18 degrees covers all ten.
+The approximately 1.39-point mean RL-SL gap does not establish a stable algorithmic advantage.
+These are new stations for one door family rather than new door types or real robots.
 
-数字来自远端已发布的 [报告](grasp_learning_results/REPORT.md)、
-[分析](grasp_learning_results/ANALYSIS.md) 和
-[聚合指标](grasp_learning_results/aggregate_metrics.json)。
-远端记录了冻结后 179 个去重动作组合的匹配回放；本次没有重新训练这些历史 SL/RL 模型。
+Values come from the published remote [report](grasp_learning_results/REPORT.md),
+[analysis](grasp_learning_results/ANALYSIS.md), and
+[aggregate metrics](grasp_learning_results/aggregate_metrics.json).
+Remote records verify 179 distinct post-freeze action replays; this integration does not retrain the historical models.
 
-## 远端 PRM：到得了预抓取点，不代表开得完门
+## Remote PRM: reaching pregrasp is not complete opening
 
-本次合并后在本机重新执行全部 5 个例子：
+After integration, rerun all 5 examples locally:
 
-| 场景 | 路径判断 | 实际结果 |
+| Scene | Path outcome | Physical result |
 | --- | --- | --- |
-| 无遮挡 | 直连有效 | 全开并保持，约 89.7° |
-| 小障碍挡住直连 | 路线图找到 5 路标路径，500 个有效采样节点 | 绕障后全开并保持，约 89.7° |
-| 相同障碍，零采样预算 | 本次预算未找到路径 | 跳过开门，不能解释为绝对无解 |
-| 能到把手但后续受限 | 预抓取路径可达 | 约 42.5° 后工作空间受限 |
-| 预抓取目标无合法 IK | 排除当前目标/肘分支 | 跳过执行 |
+| Clear | Valid direct connection | Full opening/hold near 89.7 degrees |
+| Small obstacle blocks direct connection | Five-waypoint roadmap path with 500 valid nodes | Detour then full opening/hold near 89.7 degrees |
+| Same obstacle, zero sampling budget | No path found within budget | Opening skipped; not proof of impossibility |
+| Reachable handle, limited continuation | Reachable pregrasp path | Workspace limit near 42.5 degrees |
+| No legal pregrasp IK | Exclude this target/elbow branch | Execution skipped |
 
-远端另有 12/4/8 站位、504 条候选流程的接入验证；SL、RL 及固定基线均成功 3/8，
-且 32 个去重动作回放匹配。这批数据与历史无 PRM 的 24 站位测试不同，
-不能用 3/8 对比 10/24 来判断 PRM 增益。5 个刻意选取的示例也不是泛化成功率样本。
+Remote integration also covers 12/4/8 stations and 504 candidate procedures, with SL/RL/fixed controls each scoring 3/8,
+and 32 matching distinct-action replays. This differs from the historical 24-station no-PRM test,
+so 3/8 versus 10/24 does not measure a PRM gain. Five selected examples are not a generalization-rate sample.
 
-来源：[PRM 实测报告](prm_results/REPORT.md)、
-[接入验证](prm_results/verification.json)。
-本机复现记录：`runs/git_sync20261026/prm_examples/summary.json`。
+Sources: [PRM measured report](prm_results/REPORT.md),
+[integration verification](prm_results/verification.json).
+Local reproduction record: `runs/git_sync20261026/prm_examples/summary.json`.
 
-## Git 整合与兼容性
+## Git integration and compatibility
 
-- 直接冲突仅在 README，已保留两边内容；功能上抓持候选选择存在研究范围重叠，
-  实现尚不是同一策略。
-- 合并前备份了 57 个工作区文件，创建备份分支并保留 stash；56 个非 README 文件
-  内容恢复一致，5 个 checkpoint 的 SHA256 不变。
-- 修正 `prm_examples.py` 对中文模板和场景 XML 的 UTF-8 读写，避免 Windows 默认编码差异。
-- 新数据、训练与 PRM 默认种子统一为 42；已发布的三种子比较与 PRM 五例显式保留历史设置。
-- 首次合并后 109 项测试通过，统一默认种子并补充回归测试后 110 项全部通过。
-  4,004 个默认技能指令、404 个世界模型动作特征与合并前完全一致。
-- 4 个旧/新执行器物理案例逐项匹配，缺失接触值按 NaN 语义比较。
-- 最新 H-JEPA 选中模型在原 96 场景上的合并后回放，动作、结果与 reward 全部匹配。
-- 验证实际运行约 237 秒；估计 10 分钟、排队 0，按约定一次睡到估计截止后确认退出。
+- Direct conflict was limited to README, retaining both sides. Grasp candidate selection overlaps in research scope,
+  but implementations are not yet one policy.
+- Back up 57 workspace files and preserve a branch/stash before integration. Restore 56 non-README files identically,
+  with unchanged SHA256 for 5 checkpoints.
+- Fix UTF-8 template/scene-XML reads and writes in `prm_examples.py` to avoid Windows default-encoding differences.
+- New collection, training, and PRM default to seed 42; published three-seed and five-example settings remain explicit.
+- Initial integration passes 109 tests; seed-default regressions bring the total to 110.
+  All 4,004 default skill commands and 404 world-model action features match pre-merge values.
+- Four old/new executor cases match, comparing missing contact values with NaN semantics.
+- Replaying the selected H-JEPA model on its original 96 scenes matches every action, outcome, and reward.
+- Verification takes about 237 seconds; estimate 10 minutes, queue 0, with one continuous sleep to the deadline.
 
-本地 `HEAD` 与本次抓取的 `origin/main` 同为 `72b3e60`。
-实验代码及本次补充仍是本地未提交改动，本次未向远端推送。
-审计与备份位于 `runs/git_sync20261026/`，包括 `integration_verification.json`。
+Local `HEAD` and fetched `origin/main` both point to `72b3e60`.
+Experiment code and these additions remain local uncommitted changes; this integration makes no remote push.
+Audits/backups, including `integration_verification.json`, are in `runs/git_sync20261026/`.
 
-## 整体下一步
+## Next integration step
 
-需要在新的统一协议下组合选侧、预抓取路径和抓持策略，并保留强固定角度与原初始化基线。
-将路径准备失败、开门失败和正确拒绝分开计分；有限 PRM 没找到不能当作物理不可开标签。
-H-JEPA 的分割观测与拒绝判定研究仍有价值，但只有在明确的统一输入、动作接口和新独立
-测试集上，才能判断世界模型与规划各自贡献了多少收益。
+Combine side selection, pregrasp paths, and grasp policies under a fresh unified protocol, retaining fixed-angle and original-initialization controls.
+Score preparation failures, opening failures, and correct refusals separately; finite PRM failure is not physical infeasibility.
+H-JEPA segmented observations and refusal calibration remain useful research directions, but contributions of world models and planning require
+a common input/action interface and fresh independent testing.

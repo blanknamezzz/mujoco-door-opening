@@ -1,53 +1,53 @@
-# 实现细节：识别拉杆把手、选择抓点、夹持开门与滑移检测
+# Implementation: handle detection, grasp selection, contact opening, and slip monitoring
 
-本文中的文件路径均相对于仓库根目录。
+Paths are relative to the repository root.
 
-第 1–8 节记录原始接触基线；新增的官方 H-JEPA 世界模型与分阶段策略见 [场景接入和训练说明](hjepa_setup.md) 及第 9 节。
+Sections 1-8 document the original contact baseline. See [scene integration and training](hjepa_setup.md) and Section 9 for the added official H-JEPA world model/staged policies.
 
-这是在原有几何可达性原型之后新增的接触动力学版本。用户确认的对象是**两指平行夹爪 + 固定拉杆把手**。旧版本用于检查几何可达性；本版本加入相机输入、实体夹爪、摩擦接触、力驱动开门和接触监测。
+This contact-dynamics implementation extends an earlier geometric reachability prototype for a **parallel two-finger gripper and fixed lever handle**, adding cameras, solid fingers, friction, force-driven opening, and contact monitoring.
 
-**当前实现范围：**一个已知门模型、一个固定底座、简化的平面三转动关节机械臂加竖直升降轴、两指夹爪。初始视觉采用已标定 RGB-D 相机和颜色/形状先验，尚未使用通用目标检测网络、真实机器人模型、在线视觉跟踪或学习型世界模型。
+**Baseline scope:** one known door, fixed base, simplified planar three-rotation arm plus vertical lift, and two fingers. Calibrated RGB-D and color/shape priors provide vision, without generic detection, hardware models, online tracking, or a learned world model in this baseline.
 
-## 1. 把手与机械手怎样定义
+## 1. Handle and robot geometry
 
-### 门与固定拉杆
+### Door and fixed lever
 
-门面板宽 0.9 m、高 1.4 m、厚 0.05 m，面板质量 8 kg。铰链只有一个旋转自由度，轴为世界坐标的负 Z 方向；从闭合到打开 90°，门朝机器人一侧旋转。铰链具有 1.2 N·m 的摩擦阻力和 0.6 N·m·s/rad 的阻尼。
+Panel dimensions: 0.9 m wide, 1.4 m high, 0.05 m thick; mass 8 kg. The hinge has one rotational degree about world -Z, opening toward the robot from closed to 90 degrees, with 1.2 Nm friction and 0.6 Nm s/rad damping.
 
-把手是门的子 body，没有独立关节，因而刚性安装在门上。其闭门时中心位于 `(0.8, -0.11, 0.85)` m。主杆用 capsule 表示：圆柱段端点高度 0.70–1.00 m，半径 0.015 m，连同半球端帽总高 0.33 m。杆中心距门中面 0.11 m，距门前表面 0.085 m；减去杆半径后，杆后缘与门前表面的净间隙约 0.07 m。上下支撑杆连接主杆与门板。
+The handle is a rigid child body without joints. Closed center `(0.8, -0.11, 0.85)` m. Its capsule has cylindrical endpoints at heights 0.70-1.00 m and radius 0.015 m, total height 0.33 m with caps. Axis-to-panel-center distance is 0.11 m, axis-to-front-surface 0.085 m, and rear-handle clearance about 0.07 m. Upper/lower supports connect it to the panel.
 
-把手、门板、支撑杆、指垫均启用碰撞。把手不是一个可被直接“追踪到即算成功”的 site。模型也没有将手与把手焊接起来。
+Handle, panel, supports, and finger pads collide physically. A handle site alone is not a success target, and no weld joins fingers to handle.
 
-对应模型定义在 `scene.xml` 的 `door → handle → handle_bar`。固定把手不含门锁或下压解锁关节；“可下压执手 + 锁舌”需要另外建模。
+See `scene.xml`, `door -> handle -> handle_bar`. This fixed handle has no latch or downward-unlocking joint; lever-and-latch behavior requires extra modeling.
 
-### 两指夹爪
+### Parallel two-finger gripper
 
-夹爪装在机械臂腕部，包含手掌、两个滑动关节、两根手指和两个指垫。手坐标系的 X 轴沿接近方向，Y 轴沿开合方向，Z 轴竖直。初始时夹爪从门前接近，两个指垫夹住竖直杆的左右两侧。
+The wrist supports a palm, two sliders, fingers, and pads. Hand X points along approach, Y along closure, Z upward. Front-side approach places pads on opposite sides of the vertical bar.
 
-- 抓取中心在腕关节前方 0.18 m。
-- 每个指垫为 64 × 20 × 50 mm 的实体盒。
-- 两侧滑动关节分别沿 ±Y 方向移动；每侧行程 0–45 mm。
-- 张开状态每侧关节值 40 mm，此时两垫内侧间距约 84 mm。
-- 闭合指令为 0；实体直径 30 mm 的杆阻止手指继续闭合，接触力由动力学求解器计算。
-- 手指位置伺服刚度 1800 N/m，单指驱动力限制为 ±35 N。正常实验每侧法向接触力约 23 N。
+- Grasp center is 0.18 m ahead of the wrist.
+- Each solid pad measures 64 x 20 x 50 mm.
+- Sliders move along opposite Y directions with 0-45 mm travel each.
+- Open joint targets are 40 mm per side, giving about 84 mm internal spacing.
+- Closure target is 0; the 30 mm diameter solid bar stops further motion, and the dynamics solver determines contact force.
+- Finger position stiffness is 1800 N/m, with +/-35 N actuator limits per finger. Nominal normal contact is about 23 N per side.
 
-接触采用 `condim=4`：法向力、两个切向摩擦方向及绕法向的扭转摩擦。正常滑动摩擦系数 μ=0.8。接触模型是软约束，不应把微小穿入或微小相对运动解释成完全刚性的理想夹持。
+`condim=4` includes normal force, two tangential friction directions, and torsional friction. Nominal sliding coefficient is mu=0.8. Soft constraints allow small penetration/relative motion rather than ideal rigid attachment.
 
-## 2. 如何识别把手位置
+## 2. Detecting the handle
 
-`perception.py capture` 从固定相机渲染 RGB 和以米计的深度，并保存内参 K、相机到世界的外参 T。`estimate()` 只读取这四项输入，不读取把手 body 的真实位置、site 位置或仿真物体 ID 分割图。
+`perception.py capture` renders fixed-camera RGB/depth in meters and saves intrinsics K and camera-to-world T. `estimate()` reads only those four inputs, not handle-body truth, sites, or object-ID segmentation.
 
-实现流程：
+Pipeline:
 
-1. 在 RGB 中提取金色区域。当前阈值针对本场景金色拉杆，不能代表通用把手识别。
-2. 用深度与相机内参将像素反投影为相机坐标，再通过外参转到世界坐标。
-3. 利用“杆竖直”的先验，取点云高度分位数估计上下端。上下端必须可见；中间少量被手臂遮挡可以保留。
-4. 去掉两端球帽附近点，用中央点云的 XY 截面拟合圆，估计杆轴中心。用已知 15 mm 半径检查拟合是否可信。
-5. 输出中心、竖直轴、可见高度范围、拟合误差、分割像素数。
+1. Segment gold pixels using scene-specific thresholds rather than generic handle detection.
+2. Backproject depth through intrinsics into camera coordinates, then transform into world coordinates.
+3. Use vertical-axis priors and height quantiles to estimate endpoints. Both ends must be visible; limited central arm occlusion is allowed.
+4. Exclude spherical caps and fit a circle to central XY cross-sections, checking against known radius 15 mm.
+5. Output center, vertical axis, visible height, fit error, and segmentation count.
 
-本次估计中心约为 `(0.800012, -0.110082, 0.852399)` m；相对于独立评估时读取的真值，中心误差约 **2.4 mm**，截面拟合 RMS 约 **0.14 mm**。这来自无传感器噪声的受控渲染场景，不能作为真实相机精度声明。
+Estimated center is about `(0.800012, -0.110082, 0.852399)` m. Independent truth comparison gives about **2.4 mm** center error and **0.14 mm** cross-section RMS. These are controlled noiseless-rendering measurements rather than real-camera accuracy.
 
-深度反投影使用 MuJoCo 相机朝向 -Z 的坐标约定：
+Backprojection follows MuJoCo's camera-facing -Z convention:
 
 ```text
 Xc = (u + 0.5 - cx) · depth / fx
@@ -56,132 +56,132 @@ Zc = -depth
 Pw = Rwc · Pc + twc
 ```
 
-这些信息的来源要分清：初始把手中心来自 RGB-D；门铰链位置、机器人尺寸、环境碰撞模型来自已知场景先验；接触力、接触点和物体相对运动来自仿真状态。后者是仿真中的理想接触感知，在真实机器人上需要触觉、力矩传感或状态估计来替代。
+Information sources differ: RGB-D supplies the initial handle center; known geometry supplies hinge, robot dimensions, and collision models; simulation state supplies contact forces/points and relative motion. Hardware would require tactile/torque sensing or estimation for the latter.
 
-## 3. 如何决定握住哪里
+## 3. Choosing the grasp
 
-`planning.py` 在识别出的杆上生成 **3 个高度 × 3 个接近朝向 = 9 个候选**：
+`planning.py` generates **3 heights x 3 approach orientations = 9 candidates** on the detected bar:
 
-- 高度：估计中心下方 70 mm、中心、上方 70 mm。
-- 朝向：相对门前法向偏转 -15°、0°、+15°。
+- Heights: estimated center minus 70 mm, center, plus 70 mm.
+- Orientations: -15, 0, +15 degrees relative to the front normal.
 
-每个候选均包含三维位置与手的朝向，不能只用一个把手中心点表示抓取动作。候选还必须给指垫和两端安装支架留空间。
+Each candidate has 3D position and hand orientation, with clearance for pads and end supports; one center point is insufficient to specify a grasp.
 
-筛选分两段：先检查从把手前方 160 mm 接近候选位置的路径，再按 2° 间隔检查开门轨迹。各点求解析逆运动学，检查升降行程、关节角限制、关节跳变和非预期碰撞。两指垫与把手之间的接触属于预期接触，不作为障碍碰撞拒绝。
+First check approach from 160 mm in front, then opening at 2-degree intervals. Analytical IK checks lift, joint ranges, jumps, and unexpected collisions. Intended pad-handle contact is allowed.
 
-排序首先看能完成多少开门角度，然后偏好中部抓点、较小的朝向偏转及较大的关节余量。本次选中识别中心高度与 0° 朝向，几何预测可到 90°。结果和所有候选均保存在 `results/grasp_plan.json`。
+Rank achievable opening angle first, then central height, smaller orientation offset, and greater joint margin. This run selects detected center/zero offset, geometrically reaching 90 degrees. Save every candidate and selection in `results/grasp_plan.json`.
 
-这仍是几何筛选，不是力闭合证明。即便候选通过几何检查，摩擦不足时仍可能滑脱，必须继续进行物理仿真。固定 IK 分支和离散采样也不构成全局可行性证明。
+Geometry screening does not prove force closure. Low friction can still cause release, requiring dynamics. Fixed IK branches/discrete samples do not establish global feasibility.
 
-## 4. 手握住把手后，门如何真正动起来
+## 4. Contact-driven door motion
 
-控制流程为：
+Control sequence:
 
 ```text
-相机观测 → 把手定位 → 9 个候选 → 接近 → 闭合
-          → 双侧稳定接触确认 → 拉门 → 保持 → 评估
+Camera -> handle detection -> 9 candidates -> approach -> closure
+       -> stable bilateral contact -> pull -> hold -> evaluation
 ```
 
-运行时先在预抓取姿态静置 0.5 s，再用 2 s 接近，随后闭合 1 s。只有两个指垫法向力都超过 1 N、切向相对速度低于 5 mm/s 且持续至少 0.2 s，才记录“已建立抓握”。
+Settle at pregrasp for 0.5 s, approach for 2 s, and close for 1 s. Grasp acquisition requires both normal forces >1 N and tangential relative speeds <5 mm/s for at least 0.2 s.
 
-开门阶段从仿真时刻 3.5 s 开始，使用 10 s 的平滑角度参考。根据已知铰链位置，将视觉估计的初始抓点绕铰链旋转，同时旋转手的朝向：
+Opening starts at simulated 3.5 s with a smooth 10 s angular reference. Rotate the vision-derived initial point about the known hinge while rotating hand orientation:
 
 ```text
 p_des(θ) = Rz(-θ) · p_grasp
 yaw_des(θ) = yaw_initial - θ
 ```
 
-每一时刻将目标手位姿转成关节目标，关节位置伺服输出有限大小的驱动力矩。机器人关节使用模型重力/偏置力补偿。**门的铰链不参与任何驱动或补偿。**
+Convert desired hand pose to joint targets at every step; finite joint-servo torques drive motion. Compensate robot gravity/bias only. **The door hinge receives no actuation or compensation.**
 
-实时动力学循环调用 `mj_step()`。门没有 actuator，没有手—门 weld，也不直接修改门角度；门必须由指垫对把手的接触力产生铰链力矩后才会转动。`qpos` 的直接赋值只出现在初始化、独立几何筛选和保存轨迹的可视化回放中。
+`mj_step()` advances dynamics. No door actuator/weld/direct-angle updates exist; pad contact must generate hinge torque. Direct `qpos` assignment is restricted to initialization, separate geometry queries, and visualization replay.
 
-当前控制器采用已知铰链轨迹和关节反馈，不是笛卡尔阻抗控制，也没有在遮挡后继续视觉跟踪。接触监测默认在达到持续滑移/脱手条件时终止该次仿真；没有自动重抓或真实机器人减速停车控制。
+Control uses known hinge trajectories and joint feedback, rather than Cartesian impedance or tracking through occlusion. Persistent slip/contact loss normally terminates simulation, without automatic regrasp or hardware braking control.
 
-## 5. 接触点会不会偏移？怎样判断滑移？
+## 5. Contact motion and slip detection
 
-**接触点在世界坐标中移动是正常的。**门旋转时，手和杆都会运动。即使夹持理想稳定，世界接触位置也会沿弧线移动。
+**World-frame contact points normally move.** Hand and handle rotate along the door arc even under stable grasp.
 
-因此每 10 ms 记录三种坐标下的接触位置：世界坐标、把手局部坐标、对应手指的局部坐标。如果同侧有多个离散接触点，使用法向力加权中心，并记录每侧总法向力。
+Log contacts every 10 ms in world, handle-local, and finger-local frames. For multiple points per side, use a normal-force-weighted center and total normal force.
 
-把世界接触位置 c 转到把手局部坐标：
+Transform world contact c into handle coordinates:
 
 ```text
 c_handle = R_handleᵀ · (c_world - p_handle)
 ```
 
-但局部接触中心变化仍不一定是滑移：接触面滚动、接触压力重分配或求解器切换离散接触点，也会改变这个中心。因此系统进一步计算接触处的相对切向速度：
+Local contact-center changes can reflect rolling, pressure redistribution, or solver point switching rather than slip. Also compute relative tangential contact velocity:
 
 ```text
 v_rel = (J_finger(c) - J_handle(c)) · qvel
 v_tangent = (I - n nᵀ) · v_rel
 ```
 
-同时记录手相对把手的平移漂移、旋转漂移，以及摩擦利用率 `||Ft|| / (μ Fn)`。摩擦利用率高表示余量小，但不能单独证明已经滑动，尤其是在带扭转摩擦和软约束的模型中。
+Log hand-handle translation/rotation drift and friction utilization `||Ft|| / (mu Fn)`. High utilization means little margin rather than proof of sliding, especially with torsional friction and soft constraints.
 
-本原型的明确判据：
+Explicit baseline criteria:
 
-| 状态 | 判据 |
+| State | Criterion |
 |---|---|
-| 已夹住 | 两侧法向力均 >1 N、切向相对速度均 <5 mm/s，持续 ≥0.2 s |
-| 持续滑移告警 | 双侧仍接触时，任一切向相对速度 >10 mm/s，或相对平移漂移 >8 mm，或相对转角漂移 >5°，持续 ≥80 ms |
-| 接触丢失 | 已建立抓握后，任一侧法向力不再 >1 N，持续 ≥100 ms |
-| 完全打开 | 门角度 ≥88°，最后 1 s 维持双侧接触，门速绝对值 <0.05 rad/s，无滑移/脱手告警及非预期碰撞 |
+| Grasp acquired | Both normal forces >1 N and tangential relative speeds <5 mm/s for >=0.2 s |
+| Persistent-slip alarm | During bilateral contact, tangential speed >10 mm/s, translation drift >8 mm, or rotation drift >5 degrees for >=80 ms |
+| Contact lost | After acquisition, either normal force no longer >1 N for >=100 ms |
+| Complete opening | Angle >=88 degrees, final 1 s bilateral contact, absolute angular speed <0.05 rad/s, no slip/loss/unexpected collision |
 
-这些阈值是本原型的工程判据，需要随指垫尺寸、控制速度与噪声重新标定。88° 是对 90° 目标采用 2° 容差，不应把约 89.68° 写成精确到达 90°。
+These engineering thresholds need recalibration for pad size, speed, and noise. The 88-degree threshold gives 2-degree tolerance around 90; approximately 89.68 is not exactly 90.
 
-正常实验中，最大手—把手相对平移漂移约 **4.66 mm**，切向相对速度峰值约 **0.85 mm/s**，未触发持续滑移告警。与此同时，法向力加权接触中心可以变化约 **25 mm**：这里受有限接触面的离散接触点和力权重变化影响，不能把这 25 mm 直接解释成手指滑了 25 mm。系统也没有声称接触完全零滑动。
+Nominal maximum translation drift is about **4.66 mm**, peak tangential speed **0.85 mm/s**, without persistent-slip alarm. The force-weighted center can nevertheless move about **25 mm** as discrete contacts/weights change; this is not 25 mm finger sliding or a claim of zero microscopic slip.
 
-## 6. 位置够不到、够到、之后打不开、完全打开
+## 6. Unreachable, grasp-only, incomplete, and complete opening
 
-“够到”是一个中间状态；为了单独观察它，`reach_only` 实验在夹持建立后停止，不继续开门。它不等于已经证明后续能打开。
+Reach is intermediate. `reach_only` stops after grasp acquisition without establishing subsequent opening feasibility.
 
-六个命名案例保持正常场景选出的抓点与朝向不变，分别改变底座位置、摩擦或手指闭合，以隔离失败原因。改变站位后重新规划是另一项实验，可通过 `choose_grasp(新的 Experiment, 观测)` 接口进行。
+Six cases retain nominally selected point/orientation while changing base, friction, or closure to isolate failures. Replanning after moving base is separate, through `choose_grasp(new Experiment, observation)`.
 
-| 实验 | 设置或结果 | 分类与含义 |
+| Case | Setting / outcome | Classification |
 |---|---|---|
-| `unreachable` | 底座 `(2.0,-1.2)` m，初始抓点/预抓取位姿不可达 | A：位置够不到 |
-| `reach_only` | 到达识别抓点并建立稳定双侧夹持，门仍约 0° | B：够到且夹住，后续尚未测试 |
-| `workspace_limit` | 底座 `(0.3,-0.9)` m，初始抓握成功，开到约 **42.505°** 后关节/工作空间限制 | C：够到，之后打不开到目标角度 |
-| `low_friction` | μ 从 0.8 降为 **0.005**；约 **3.771 s** 滑移告警，约 **4.731 s** 接触丢失，门最大仅约 **0.006°** | C：抓住后因摩擦不足滑脱 |
-| `nominal` | 底座 `(0.6,-1.0)` m，最终约 **89.679°**，保持夹持且通过稳定保持检查 | D：在规定容差内完全打开 |
-| `no_grip` | 两指始终张开，其余开门目标轨迹相同，门仍约 **0°** | 对照：只有手运动不足以开门，必须建立有效接触 |
+| `unreachable` | Base `(2.0,-1.2)` m; initial grasp/pregrasp unreachable | A: unreachable |
+| `reach_only` | Reach and stable bilateral grasp; door near zero degrees | B: acquired, opening untested |
+| `workspace_limit` | Base `(0.3,-0.9)` m; grasp succeeds, then joint/workspace limit near **42.505 degrees** | C: reached but target opening incomplete |
+| `low_friction` | Mu 0.8 to **0.005**; alarm **3.771 s**, loss **4.731 s**, maximum opening **0.006 degrees** | C: grasp lost through inadequate friction |
+| `nominal` | Base `(0.6,-1.0)` m; final **89.679 degrees**, contact and hold checks pass | D: complete within tolerance |
+| `no_grip` | Fingers remain open with identical targets; door near **0 degrees** | Control: hand motion alone cannot open without contact |
 
-低摩擦案例故意采用极小 μ 来分离故障原因，不代表某种实际材料。正常时两侧约 23 N 法向力可提供约 `2 × 0.8 × 23 = 36.8 N` 的理想切向摩擦容量；低摩擦时仅约 0.23 N。仅克服 1.2 N·m 铰链摩擦就约需 1.5 N 切向力，尚未计入惯性与阻尼，因此低摩擦案例不能维持拉门。
+Low friction deliberately isolates failure rather than representing a measured material. With about 23 N per side, ideal tangential capacity is `2 * 0.8 * 23 = 36.8 N`, versus about 0.23 N at low friction. Overcoming 1.2 Nm hinge friction alone needs about 1.5 N tangentially, before inertia/damping, so low friction cannot sustain pulling.
 
-### 半开失败案例的精确原因
+### Exact partial-opening failure
 
-`results/workspace_limit/workspace_limit.gif` 展示固定底座 `(0.3,-0.9)` m 的失败案例。门实际打开到 42.505° 时，保存轨迹中的肘角为 -163.589°；两侧夹持力约 23.04、23.06 N，没有滑移或接触丢失告警。
+`results/workspace_limit/workspace_limit.gif` records base `(0.3,-0.9)` m. At actual angle 42.505 degrees, elbow is -163.589 degrees; contacts are about 23.04/23.06 N with no slip/loss alarm.
 
-第一个被拒绝的参考目标出现在 8.404 s，其参考门角为 43.704°，需要肘角 -165.0005°，超出模型约 -165° 的下限。门转动时，保持当前抓握朝向所需的腕关节位置越来越靠近肩部，两段手臂需要继续折叠。它们长度为 0.60、0.55 m；在肘角限制下，肩—腕距离最小约为 0.158079 m，而被拒绝目标要求约 0.158074 m，刚好越过边界。
+The first rejected reference occurs at 8.404 s: reference door 43.704 degrees requires elbow -165.0005, beyond the roughly -165-degree lower bound. Maintaining grasp orientation moves the wrist toward the shoulder, requiring more folding of 0.60/0.55 m links. Minimum shoulder-wrist range at the elbow bound is about 0.158079 m, while this target requests 0.158074 m.
 
-**这里是控制器检测到下一参考目标不可行后终止仿真，并非实际肘关节已碰到硬限位。**由于存在跟踪误差，实际门角 42.505° 小于当时参考门角 43.704°。不能将 42.505° 写成门的精确物理最大开度。动画最后暂停 1.8 s 只是展示终止状态，没有继续积分动力学。
+**The controller terminates on an infeasible next reference rather than actual elbow contact with the hard limit.** Tracking error leaves actual 42.505 below reference 43.704 degrees. The stopping angle is not the exact physical maximum. A final 1.8 s animation pause displays the terminal state without further integration.
 
-限制针对该底座、抓点、手的朝向和既定连续轨迹。将底座改为 `(0.6,-1.0)` m，保持相同抓点和朝向，正常案例可打开至约 89.68°。这说明初始抓握成功不能保证整段开门轨迹可行。
+The limit depends on base, point, orientation, and trajectory. Moving base to `(0.6,-1.0)` m with matching grasp/orientation opens to about 89.68 degrees. Initial grasp success does not guarantee a feasible full opening trajectory.
 
-运行 `python diagnose_workspace.py` 可生成 `results/workspace_limit/workspace_limit_diagnosis.json`，同时保留实际状态与首个越界参考目标。运行 `python render_results.py --case workspace_limit` 可单独导出该案例动画。
+`python diagnose_workspace.py` writes `results/workspace_limit/workspace_limit_diagnosis.json`, preserving actual and first rejected targets. `python render_results.py --case workspace_limit` renders the case separately.
 
-为了研究“先滑动、后脱手”的完整过程，批量测试对低摩擦案例显式启用诊断继续模式。普通 `simulate.py --case low_friction` 默认在持续滑移告警时结束试验，不继续执行后续拉门轨迹。
+Batch low-friction diagnostics explicitly continue beyond slip to observe subsequent release. Normal `simulate.py --case low_friction` stops at persistent-slip alarm.
 
-### 脱手案例与参数
+### Release case and parameters
 
-`results/low_friction/low_friction_closeup.gif` 以正常速度展示 2.7–5.5 s 的近景，覆盖闭合、双侧接触、滑移与最终分离。`results/low_friction/low_friction_parameters.json` 保存摩擦、驱动器、把手、门铰链、时序、检测阈值和实际事件时间。低摩擦系数由 `Experiment(friction=0.005)` 设置，会统一覆盖全部 geom 的滑动摩擦系数；扭转与滚动系数保持 XML 中的值。当前 `condim=4` 不使用滚动摩擦约束。
+`results/low_friction/low_friction_closeup.gif` shows 2.7-5.5 s at normal speed: closure, bilateral contact, slip, release. `results/low_friction/low_friction_parameters.json` preserves friction, actuators, handle/hinge, timing, thresholds, and events. `Experiment(friction=0.005)` overrides sliding friction for all geoms, retaining XML torsional/rolling coefficients. `condim=4` does not constrain rolling friction.
 
-在 3.401 s，左右指垫法向力约 23.08、23.03 N；3.771 s 滑移告警时，切向相对速度约 15.0、15.6 mm/s，仍维持双侧接触；4.731 s 接触丢失确认时，两侧接触力均为 0 N，手—把手相对平移约 49 mm。门的正向开度最大约 0.006°，即几乎未被拉开。
+At 3.401 s normal forces are about 23.08/23.03 N. At slip alarm 3.771 s, tangential speeds are 15.0/15.6 mm/s with bilateral contact. At confirmed loss 4.731 s, both forces are 0 N and translation drift about 49 mm. Maximum positive door opening is about 0.006 degrees.
 
-单独复现完整脱手过程：
+Reproduce the full release sequence:
 
 ```bash
 python simulate.py --case low_friction --continue-after-slip
 python render_slip_detail.py
 ```
 
-近景中的“BILATERAL CONTACT”表示当前存在双侧接触；是否达到持续稳定抓握由动力学试验中的 0.2 s 判据另行确认。接触丢失后切向速度显示 n/a，因为无接触时不应把记录中的零值解读为重新停止滑动。
+Close-up BILATERAL CONTACT indicates current contact, while stable acquisition uses the separate 0.2 s dynamics criterion. After loss, tangential speed is n/a; recorded zeros without contact do not imply sliding has stopped.
 
-## 7. 复现方法
+## 7. Reproduction
 
-已在 macOS、Python 3.12.5、MuJoCo 3.16.0、NumPy 2.5.4、Pillow 12.3.0 上运行。依赖文件固定为本次验证版本。请准备 Python 3.12；以下 `python3` 应指向该版本，也可替换为 `python3.12`。推荐创建独立环境，在本目录执行：
+Verified on macOS, Python 3.12.5, MuJoCo 3.16.0, NumPy 2.5.4, Pillow 12.3.0, with pinned dependencies. Use Python 3.12: python3 below must select that version, or use python3.12. Create an isolated environment in this directory:
 
-最短完整复现流程如下。进入解压后的项目目录，安装依赖后运行统一入口；它会重新拍摄初始 RGB-D、运行六组物理实验，并导出正常开门和滑脱动画。新结果默认写到 `reproduced/`，保留包内原始 `results/`。
+The shortest full workflow installs dependencies then runs the unified entry, capturing fresh RGB-D, executing six cases, and exporting opening/slip animations. Defaults write `reproduced/` while preserving bundled `results/`.
 
 ```bash
 python3 -m venv .venv
@@ -190,70 +190,70 @@ python -m pip install -r requirements.txt
 python run_demo.py
 ```
 
-完成后打开 `reproduced/nominal.gif`。`reproduced/low_friction.gif` 是故意降低摩擦后的滑脱过程，`reproduced/workspace_limit.gif` 是开到一半后因肘关节参考目标越界而停止的过程。`reproduced/summary.json` 给出角度与验证结果，`workspace_limit_diagnosis.json` 给出半开失败的详细诊断。
+Open `reproduced/nominal.gif` afterward. `reproduced/low_friction.gif` shows deliberately reduced-friction release; `reproduced/workspace_limit.gif` shows termination at an out-of-range elbow target. `reproduced/summary.json` records angles/checks, and `workspace_limit_diagnosis.json` provides detailed diagnosis.
 
-若想固定初始观测，使用 `python run_demo.py --reuse-observation`；这会复用包内 RGB-D，但仍重新计算物理轨迹并渲染。两种运行方式导出动画均需要图形环境。可通过 `--output 新目录` 改变输出位置。
+`python run_demo.py --reuse-observation` reuses bundled RGB-D while recomputing physics/rendering. Both animation workflows need graphics. Change output with `--output new_directory`.
 
-如果希望逐步理解或调试，可以分开执行：
+For stepwise inspection/debugging:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# 用本机图形环境重新渲染初始 RGB-D，然后识别把手。
+# Capture fresh RGB-D using local graphics, then detect the handle.
 python perception.py capture
 
-# 无窗口批量动力学测试，使用上一步保存的 RGB-D。
+# Headless batch dynamics using the saved RGB-D.
 python benchmark.py
 
-# 单个实验：默认也使用 RGB-D，不使用直接读取把手坐标的感知方式。
+# A single case also defaults to RGB-D rather than handle-coordinate truth.
 python simulate.py --case nominal
 python simulate.py --case low_friction
 
-# macOS 的交互查看使用 mjpython。
+# macOS live viewing uses mjpython.
 mjpython simulate.py --case nominal --view
 
-# 从已经保存的物理轨迹生成动画与特写。
+# Render animations/close-ups from saved physical trajectories.
 python render_results.py
 ```
 
-其他平台通常使用 `python simulate.py --case nominal --view`。实时交互与渲染需要可用图形环境。包内已经附有 `results/observation.npz`，所以无图形环境时可直接运行 `python benchmark.py`，但这使用的是已保存观测，不是新拍摄画面。
+Other platforms normally use `python simulate.py --case nominal --view`. Live viewing/rendering needs graphics. Bundled `results/observation.npz` allows headless `python benchmark.py`, using saved rather than fresh observation.
 
-仅作理想感知对照时可显式使用 `python simulate.py --oracle`，该模式使用已知名义把手中心并在输出中标明绕过视觉。不要将这一模式的结果写成视觉识别结果。
+Explicit `python simulate.py --oracle` is an ideal-perception control using known nominal center, labeled as bypassing vision. Its results are not visual-detection results.
 
-## 8. 文件与验证证据
+## 8. Files and verification evidence
 
-- `scene.xml`：门、实体拉杆、三关节机械臂、升降轴、两指夹爪及驱动器。
-- `perception.py`：RGB-D 获取、分割、反投影与杆截面拟合。
-- `planning.py`：9 个抓取候选与几何筛选。
-- `simulate.py`：物理控制、接触力、相对速度、局部接触坐标与状态判别。
-- `benchmark.py`：六组实验、无夹持对照、无门驱动检查、步长敏感性检查。
-- `render_results.py`：保存轨迹的可视化回放；回放不参与动力学结果生成。
-- `run_demo.py`：统一复现入口，串联新观测、动力学实验与动画导出。
-- `diagnose_workspace.py`：核对半开案例的实际状态、首个越界参考目标及具体受限关节。
-- `render_slip_detail.py`：导出正常速度的滑脱近景，并保存完整参数 JSON。
-- `results/summary.json`：分类、阈值、感知误差与验证结果。
-- `results/<case>/*.csv`：100 Hz 的时间序列，包含双侧力、切向速度、接触位置、相对位姿漂移与告警。无有效接触时的接触位置为 NaN，不要当作零点。
-- `results/<case>/*.npz`：动力学轨迹；`results/observation.npz`：共享初始 RGB-D 观测。
-- `results/nominal/nominal.gif`、`results/low_friction/low_friction.gif`：正常开门与滑脱动画，约 2 倍速。
-- `results/nominal/nominal_grasp_closeup.png`：实体指垫夹持把手的特写。
+- `scene.xml`: door, solid handle, three-joint arm, lift, fingers, actuators.
+- `perception.py`: RGB-D, segmentation, backprojection, cross-section fitting.
+- `planning.py`: nine grasp candidates and geometry screening.
+- `simulate.py`: physical control, forces, relative velocity, local contacts, states.
+- `benchmark.py`: six cases, no-grip/no-door-actuator controls, timestep sensitivity.
+- `render_results.py`: visualization replay of saved trajectories, outside result generation.
+- `run_demo.py`: fresh observation, dynamics, and animation pipeline.
+- `diagnose_workspace.py`: partial-opening actual state, first rejected target, limiting joint.
+- `render_slip_detail.py`: normal-speed release close-up and complete parameter JSON.
+- `results/summary.json`: classifications, thresholds, perception error, verification.
+- `results/<case>/*.csv`: 100 Hz forces, tangential speeds, contacts, drift, alarms. Missing contacts use NaN rather than zero coordinates.
+- `results/<case>/*.npz`: dynamic trajectories; `results/observation.npz`: shared initial RGB-D.
+- `results/nominal/nominal.gif`, `results/low_friction/low_friction.gif`: opening/release near 2x speed.
+- `results/nominal/nominal_grasp_closeup.png`: physical pad-handle close-up.
 
-本次 8 项验证全部通过。仿真步长从 1 ms 改为 0.5 ms 与 2 ms 时，正常实验最终角度分别约 89.681° 与 89.676°，差异小于 0.01°。这是该单一确定性场景的数值一致性检查，不是通用成功率或真实机器人验证。
+All 8 checks pass. Changing timestep from 1 ms to 0.5/2 ms gives nominal final 89.681/89.676 degrees, differing by <0.01. This is numerical consistency in one deterministic scene rather than a general success rate or hardware validation.
 
-## 9. 接回课程项目
+## 9. Course-project integration
 
-新增的 [官方 H-JEPA 场景接入](hjepa_setup.md) 实现了按门场景划分的数据采集、初始与到达后的 RGB-D、两层潜空间预测、下游回报、站位/抓取策略及固定控制器执行。本文前八节描述原始接触基线；新的入口为 `collect_hjepa.py`、`train_hjepa.py`、`run_hjepa.py` 和 `evaluate_hjepa.py`。
+[Official H-JEPA scene integration](hjepa_setup.md) adds scene-split collection, initial/reached RGB-D, two-level latent prediction, downstream returns, station/grasp policies, and fixed-controller execution. Sections 1-8 describe the contact baseline; new entries are `collect_hjepa.py`, `train_hjepa.py`, `run_hjepa.py`, and `evaluate_hjepa.py`.
 
-数据管线已支持把手位置、摩擦与铰链阻力的变化，以及按场景隔离的训练/验证/测试。移动底座导航、真实机器人模型、视觉噪声/遮挡实验、在线 GRPO 与真实机器人泛化仍未实现。站位采用仿真重置，开门期间底座固定；接触动力学保留，没有引入理想无滑动焊接约束。
+The baseline data pipeline varies handle position, friction, and hinge resistance with scene-disjoint train/validation/test splits. Mobile navigation, hardware models, visual-noise/occlusion studies, online GRPO, and hardware generalization are not implemented in this stage. Stations use simulator resets, base stays fixed while opening, and contact dynamics retain no ideal no-slip weld.
 
-2026-10-17 新增 [分阶段与角度实测](hjepa_stage_results.md)：冻结官方完整模型，交叉替换定位/抓取 policy 的更新前后版本，固定到达状态比较抓取策略，并扫描底座 yaw、抓取 yaw、目标开度及标定相机视角。自然遮挡导致的视觉失败计入结果；尚未加入人工视觉噪声或通用遮挡跟踪。
+Added 2026-10-17 [stage/angle measurements](hjepa_stage_results.md) freeze the official model, cross pre/post P/G, fix reached states for grasp comparisons, and scan base/grasp yaw, targets, and calibrated views. Natural-occlusion vision failures count; artificial noise/general occlusion tracking are not added.
 
-同日新增 [结构性约束场景](hjepa_structural_results.md)：实体柱子会与门板碰撞，双向门允许分别测试正反向转动，单向铰链与单侧把手分别约束转动和抓取访问。两侧各两个底座进入相同候选池，反面观测、IK 分支、动作方向和角度判据一致镜像。正向轨迹被柱子挡住时，换同侧站位无法消除阻挡；仅当反向转动及反面访问均可行时才可能换侧完成。单帧看不出的铰链方向限制需要可见线索或交互历史，不能将已知几何筛选冒充视觉预测。
+Same-day [structural constraints](hjepa_structural_results.md) add colliding pillars, two-way doors, one-way limits, and one-sided handles. Two bases per face share a mirrored candidate library, observations, IK, directions, and criteria. Same-side repositioning cannot remove a blocked door arc; opposite-side success requires allowed reverse motion and handle access. Invisible hinge limits need cues or interaction rather than privileged geometry presented as visual prediction.
 
-官方参考：
+Official references:
 
-- [MuJoCo 接触建模](https://mujoco.readthedocs.io/en/stable/modeling.html#contact)
-- [MuJoCo 接触与摩擦计算](https://mujoco.readthedocs.io/en/stable/computation.html#contact)
-- [mj_contactForce 等 API](https://mujoco.readthedocs.io/en/stable/APIreference/APIfunctions.html#mj-contactforce)
-- [Python 接口](https://mujoco.readthedocs.io/en/stable/python.html)
+- [MuJoCo contact modeling](https://mujoco.readthedocs.io/en/stable/modeling.html#contact)
+- [MuJoCo contact/friction computation](https://mujoco.readthedocs.io/en/stable/computation.html#contact)
+- [mj_contactForce and related APIs](https://mujoco.readthedocs.io/en/stable/APIreference/APIfunctions.html#mj-contactforce)
+- [Python bindings](https://mujoco.readthedocs.io/en/stable/python.html)

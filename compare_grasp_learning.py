@@ -25,9 +25,9 @@ from train_grasp_rl import Adam, Policy, rollout, write_json
 
 DEFAULT_OUTPUT = ROOT / "reproduced" / "grasp_learning_comparison_prm_diverse29"
 METHODS = ("supervised", "reinforce", "supervised_on_rl")
-LABELS = {"supervised": "监督学习（完整角度采样）", "reinforce": "REINFORCE（在线探索）",
-          "supervised_on_rl": "监督学习（复用 RL 记录）", "fixed_zero": "固定 0°",
-          "best_fixed_train": "训练集选出的最佳固定角度"}
+LABELS = {"supervised": "Supervised (full grid)", "reinforce": "REINFORCE (online exploration)",
+          "supervised_on_rl": "Supervised on RL records", "fixed_zero": "Fixed 0 degrees",
+          "best_fixed_train": "Training-selected best fixed angle"}
 
 
 class RewardModel:
@@ -301,20 +301,20 @@ def write_report(output, manifest, summary, selections, examples):
     seeds = summary["protocol"]["seeds"]
     ref = summary["reference"]["test"]
     n = ref["scenes"]
-    lines = ["# 监督学习与强化学习：新站位实测对照", "",
-        "结论仅适用于这批场景与实现。新场景指同一扇门周围未参与训练的底座位置和朝向，不代表新门型、未知摩擦或真实机器人。", "",
-        "## 数据与公平性", "",
-        f"- 训练 / 验证 / 测试场景数：{sum(s['split']=='train' for s in manifest['scenes'])} / {sum(s['split']=='validation' for s in manifest['scenes'])} / {n}。所有角度按场景分组，划分先于仿真。",
-        f"- 每场景 {len(manifest['angles_deg'])} 个角度：{manifest['angles_deg']}。物理仿真产生标签，无人工指定最佳角度。",
-        f"- 每种主方法每个种子安排 {summary['protocol']['train_interactions_per_method_per_seed']} 次候选决策。训练种子：{seeds}。预算单位：{summary['protocol'].get('budget_unit', 'physical opening attempts')}。",
-        "- 同一网络规模、输入、归一化、控制器、奖励、场景访问次数。SL 全角度采样；RL 在线按当前策略采样，允许重复。",
-        "- 监督学习使用更多离线梯度更新，因此比较的是相同物理交互预算，不是相同优化步数或总计算量。",
-        "- 第三组用同一份 RL 记录训练监督模型，不增加物理试验，用于部分区分数据覆盖与学习目标的影响。",
-        "- 三组均使用最终权重，验证和测试数据不参与训练、调参、早停或权重选择。验证集仅作冻结后的独立诊断。", "",
-        "## 测试结果", "",
-        f"24 个测试位置中有 {ref['grid_feasible_scenes']} 个在候选网格内存在成功方案。".replace("24 个", f"{n} 个"),
-        "不能把网格内全部失败解释成连续角度空间或所有抓持方案都不可能成功。", "",
-        "| 方法 / 种子 | 全开成功 | 平均奖励 | 与网格最优的平均奖励差 | 碰撞次数 | 滑移次数 |",
+    lines = ["# Supervised versus reinforcement learning on new stations", "",
+        "Findings apply to this cohort/implementation: unseen base poses around one door, rather than new door families, unknown friction, or hardware.", "",
+        "## Data and fairness", "",
+        f"- Train / validation / test scenes: {sum(s['split']=='train' for s in manifest['scenes'])} / {sum(s['split']=='validation' for s in manifest['scenes'])} / {n}. Group angles by scene and split before simulation.",
+        f"- {len(manifest['angles_deg'])} angles per scene: {manifest['angles_deg']}. Physics supplies labels without prescribed best angles.",
+        f"- Each main method/seed receives {summary['protocol']['train_interactions_per_method_per_seed']} training decisions. Seeds: {seeds}. Budget unit: {summary['protocol'].get('budget_unit', 'physical opening attempts')}.",
+        "- Match capacity, inputs, normalization, controller, reward, and visits. SL covers every angle; RL samples online with repetition.",
+        "- SL uses more offline gradient updates; match physical interactions rather than optimization steps or total compute.",
+        "- A third arm fits SL on the same RL records without new trials, partially separating coverage/objective effects.",
+        "- Use final weights. Validation/test do not train, tune, stop, or select; validation is a post-freeze diagnostic.", "",
+        "## Test results", "",
+        f"24 test stations include {ref['grid_feasible_scenes']} with successful grid candidates.".replace("24 test", f"{n} test"),
+        "All-grid failure does not establish impossibility across continuous angles or every grasp plan.", "",
+        "| Method / seed | Full openings | Mean reward | Mean grid-oracle regret | Collisions | Slips |",
         "| --- | --- | --- | --- | --- | --- |"]
     for method in METHODS:
         for seed in seeds:
@@ -323,32 +323,32 @@ def write_report(output, manifest, summary, selections, examples):
     for method in ("fixed_zero", "best_fixed_train"):
         m = summary["metrics"]["test"][method]
         lines.append(f"| {LABELS[method]} | {m['successes']}/{n} ({m['success_rate']:.1%}) | {m['mean_reward']:.3f} | {m['mean_regret']:.3f} | {m['collisions']} | {m['slips']} |")
-    lines += ["", f"均匀随机角度的网格期望成功率：{ref['uniform_random_expected_success_rate']:.1%}；穷举参考上限：{ref['grid_oracle_success_rate']:.1%}。参考表不用于测试时选动作。", "",
-              "## SL 与 RL 的配对比较", ""]
+    lines += ["", f"Uniform-random grid expectation: {ref['uniform_random_expected_success_rate']:.1%}; exhaustive ceiling: {ref['grid_oracle_success_rate']:.1%}. The reference is not used for test-time selection.", "",
+              "## Paired SL/RL comparison", ""]
     for seed in seeds:
         a = selections["test"][f"supervised_{seed}"]
         b = selections["test"][f"reinforce_{seed}"]
         awin = sum(x["result"]["outcome"] == "D_full_open" and y["result"]["outcome"] != "D_full_open" for x, y in zip(a, b))
         bwin = sum(y["result"]["outcome"] == "D_full_open" and x["result"]["outcome"] != "D_full_open" for x, y in zip(a, b))
         coverage = json.loads((output/f"seed_{seed}"/"coverage.json").read_text())
-        lines.append(f"- 种子 {seed}：仅 SL 成功 {awin} 个，仅 RL 成功 {bwin} 个；SL 覆盖 {coverage['supervised_unique_pairs']} 个训练位置–角度组合，RL 覆盖 {coverage['rl_unique_pairs']} 个。")
-    lines += ["", "重复使用相同测试位置的多个种子不是更多独立场景样本。这里报告全部种子与配对计数，不宣称统计显著或某学习范式普遍优越。", "",
-              "## 可重放的例子", ""]
+        lines.append(f"- Seed {seed}: SL-only successes {awin}, RL-only {bwin}; SL covers {coverage['supervised_unique_pairs']} training station-angle pairs, RL {coverage['rl_unique_pairs']}.")
+    lines += ["", "Seeds sharing test stations add no independent scenes. Report all seeds/pairs without significance or universal-paradigm claims.", "",
+              "## Replayable examples", ""]
     for item in examples:
         a, b = item["supervised"], item["reinforce"]
-        lines.append(f"- {item['kind']}：{item['scene']['scene_id']}，SL {a['angle_deg']:+g}° / {a['result']['stop_reason']}；RL {b['angle_deg']:+g}° / {b['result']['stop_reason']}。")
-    lines += ["", "## 复现", "", "```bash", f"python collect_grasp_data.py --output reproduced/grasp_learning_data_new --seed {manifest['seed']} --prm-seed {(manifest['physics'].get('prm') or {}).get('seed', 42)} --angles-deg " + " ".join(map(str, manifest["angles_deg"])) + ("" if manifest["physics"].get("prm") else " --no-prm"),
+        lines.append(f"- {item['kind']}: {item['scene']['scene_id']}, SL {a['angle_deg']:+g}° / {a['result']['stop_reason']}; RL {b['angle_deg']:+g}° / {b['result']['stop_reason']}.")
+    lines += ["", "## Reproduction", "", "```bash", f"python collect_grasp_data.py --output reproduced/grasp_learning_data_new --seed {manifest['seed']} --prm-seed {(manifest['physics'].get('prm') or {}).get('seed', 42)} --angles-deg " + " ".join(map(str, manifest["angles_deg"])) + ("" if manifest["physics"].get("prm") else " --no-prm"),
         "python compare_grasp_learning.py train --data reproduced/grasp_learning_data_new --output reproduced/grasp_learning_comparison_new",
         "python compare_grasp_learning.py evaluate --data reproduced/grasp_learning_data_new --output reproduced/grasp_learning_comparison_new", "```", "",
-        "用默认已生成模型观看某个场景：", "", "```bash", "mjpython compare_grasp_learning.py demo --scene test_000 --method supervised --seed 42",
+        "View a scene with generated default models:", "", "```bash", "mjpython compare_grasp_learning.py demo --scene test_000 --method supervised --seed 42",
         "mjpython compare_grasp_learning.py demo --scene test_000 --method reinforce --seed 42", "```", "",
-        f"冻结后重新执行了 {summary['fresh_test_verification']['unique_attempts']} 个去重后的测试位置–角度组合，全部与原始物理记录一致。", "",
-        "原始数据位于数据目录的 train/validation/test.csv 和 .jsonl；完整方法选择见 selections.json；指标见 evaluation.json；模型、训练历史与探索记录位于 seed_*。",
+        f"After freezing, {summary['fresh_test_verification']['unique_attempts']} distinct test station-angle replays all match the original records.", "",
+        "Raw data: train/validation/test.csv and .jsonl. Chosen actions: selections.json. Metrics: evaluation.json. Models, training, and exploration histories: seed_*.",
         "",
-        "局限：固定门族、固定抓点高度/力/速度、已知感知结果、离散角度，没有在线重抓或拒绝动作。" +
-        ("使用固定初始关节姿态的 PRM 准备，抓住后仍为固定铰链弧线。" if summary['protocol'].get('preparation') else "使用预抓取初始化。") +
-        "SL 的输出是奖励预测值，不是校准成功概率。",
-        "实验设计参考：https://www.jmlr.org/papers/volume25/23-0183/23-0183.pdf", ""]
+        "Scope: one door family, fixed height/force/speed, known perception, discrete angles, no online regrasp/refusal. " +
+        ("PRM uses fixed initial joints; post-grasp motion follows a fixed hinge arc. " if summary['protocol'].get('preparation') else "Uses pregrasp initialization. ") +
+        "SL outputs predicted reward rather than calibrated success probability.",
+        "Design reference: https://www.jmlr.org/papers/volume25/23-0183/23-0183.pdf", ""]
     (output/"REPORT.md").write_text("\n".join(lines), encoding="utf-8")
 
 

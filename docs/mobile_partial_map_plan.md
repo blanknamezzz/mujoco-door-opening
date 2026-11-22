@@ -1,36 +1,36 @@
-# 部分地图下的观察与开门实验（v5）
+# Inspection and door opening with partial maps (v5)
 
-当前阶段：108 场景前缀采集与两组 320 步 P/G、800 步 I 训练已完成；验证选择 `depth_features_learned`，35/36、零碰撞、补看 23 次。两组 P/G 均选第 0 步；独立测试仍待执行。[开发集结果与运行核验](mobile_partial_development.md)。
+Status: RGB-D prefixes for 108 scenes, two 320-update PG arms, and 800-update I training are complete. Validation selects `depth_features_learned`: 35/36 correct, zero collisions, 23 inspections. Both P/G arms select update 0; independent testing remains pending. [Development results and run verification](mobile_partial_development.md).
 
-## 设计依据
+## Motivation
 
-此前不观察诊断只固定了神经 P 的拒绝阈值，不能排除地图直接提供答案的可能。新增的几何选站位对照只读取已知地图扫掠掩码与当前底盘位置，到达后使用固定抓持角或冻结 G。验证集结果如下；分母为 36 场景、其中 26 场景在既有候选集合可开。
+The previous no-inspection diagnostic fixed neural P's refusal threshold but did not isolate answers supplied by the map. New geometric station-selection controls use only the known-map sweep mask and current base pose, followed by a fixed grasp angle or frozen G at arrival. Validation contains 36 scenes, of which 26 are feasible under the candidate library:
 
-| 站位／抓持 | 开门 /26 | 正确决策 /36 | 碰撞 | 补看 | 平均净回报 |
+| Station / grasp rule | Open /26 | Correct /36 | Collisions | Inspections | Mean net utility |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 几何最近站位、固定 −15° | 25 | 34 | 0 | 0 | 0.6389 |
-| 几何后侧优先、固定 −15° | 26 | 35 | 0 | 0 | 0.6944 |
-| 几何最近站位、冻结 scalar G | 25 | 34 | 0 | 0 | 0.6389 |
-| 几何后侧优先、冻结 scalar G | 26 | 35 | 0 | 0 | 0.6944 |
-| 几何后侧优先、固定 +22° | 6 | 15 | 0 | 0 | −0.4167 |
+| Nearest geometric station, fixed -15 degrees | 25 | 34 | 0 | 0 | 0.6389 |
+| Rear-first geometric station, fixed -15 degrees | 26 | 35 | 0 | 0 | 0.6944 |
+| Nearest geometric station, frozen scalar G | 25 | 34 | 0 | 0 | 0.6389 |
+| Rear-first geometric station, frozen scalar G | 26 | 35 | 0 | 0 | 0.6944 |
+| Rear-first geometric station, fixed +22 degrees | 6 | 15 | 0 | 0 | -0.4167 |
 
-冻结 factorized G 的对应结果与 scalar G 相同。模型未更新；这里只复用已有物理候选表，没有新增这些控制器的物理回放，也没有读取测试结果。固定 −15° 已接近开发集上限，说明本批抓持候选存在明显优势角，不能据此声称 G 的学习不可替代。
+Frozen factorized G gives the same corresponding results as scalar G. These controls reuse physical candidate tables without updating models, adding live replays, or reading test outcomes. Fixed -15 degrees nearly reaches the development ceiling, showing a strong preferred library angle rather than establishing that learned G is essential.
 
-[完整对照指标](../runs/mobile_geometry_control_seed42_20261109/report.json)与[进程核验](../runs/mobile_geometry_control_seed42_20261109/verification.json)。seed=42，排队 0，预计 300 秒，实际 159.42 秒；权威会话 47352 退出码 0，两个检查点文件哈希前后一致。
+[Full control metrics](../runs/mobile_geometry_control_seed42_20261109/report.json) and [process verification](../runs/mobile_geometry_control_seed42_20261109/verification.json). Seed=42; queue 0; estimated 300 seconds; actual 159.42 seconds. Authoritative session 47352 exited 0, and both checkpoint hashes remain unchanged.
 
-## 信息与物理边界
+## Information and physical scope
 
-- 开门扫掠规划只接收无外部障碍的门／把手 CAD、机器人本体感知，以及机器人实际到达状态下的校准深度。障碍几何、布局标签、分割真值和未来图像不进入建图接口。
-- 单帧地图使用初始 RGB-D；融合地图只能在真实移动并成功取得补看图像后更新。外部障碍由深度端点形成体素点云；已知门和机器人表面被剔除，深度不连续边缘先做一致性过滤。
-- 障碍体素与门组件的离散扫掠检测产生阻挡证据。视野外及被遮挡位置保留为未知；抽样可见比例只是决策特征，不是完整的安全证明。
-- 当前固定 1° 扫掠、2.5 cm 体素、1.5 cm 端点膨胀、3×3 深度边缘过滤（3 cm + 1% 深度）、至少 2 个命中体素。地面以下 4 cm 被排除。门与机器人 CAD 属于已知先验。
-- 本轮只改变开门规划的障碍信息；导航与机械臂准备仍使用原来的已知地图服务。不能把结果描述为全流程未知环境导航。
-- 继续使用同一连续物理执行：每条任务只初始化一次，观察通过实际底盘积分完成，开门由夹爪接触产生。
+- Opening-sweep planning receives obstacle-free door/handle CAD, robot proprioception, and calibrated depth at physically reached states. Obstacle geometry, layout labels, segmentation ground truth, and future images do not enter map construction.
+- The single-view map uses initial RGB-D; fusion updates only after real base motion and successful inspection capture. Depth endpoints form obstacle voxels after removing known door/robot surfaces and filtering depth discontinuities.
+- Discrete sweep tests between obstacle voxels and door components provide blocking evidence. Occluded and out-of-view space remains unknown; sampled visibility is a feature rather than a complete safety certificate.
+- Fixed settings: 1-degree sweeps, 2.5 cm voxels, 1.5 cm endpoint inflation, a 3x3 depth-edge filter (3 cm + 1% depth), and at least 2 hit voxels. Exclude the lowest 4 cm above the floor. Door and robot CAD are known priors.
+- Only obstacle information for opening planning changes. Navigation and arm preparation still use known-map services; this is not complete navigation in an unknown environment.
+- Retain continuous physics: one initialization per episode, integrated base motion for inspection, and contact-driven opening.
 
-## 试采与后续训练
+## Pilot collection and subsequent training
 
-训练集首组 4 种布局试采实际 42.19 秒（会话 36086，退出码 0）。初始与补看状态均与冻结历史候选前缀一致；RGB 最大差异为 1 灰度级、每帧至多 3 个颜色通道。原始深度轮廓中的两个混合像素会产生虚假障碍，已在独立校准输出中验证深度边缘过滤：自由场景保持两侧可选；后侧遮挡在初始视角为未知，真实补看后才被识别。旧试采源码、数组和结果保留。
+The first training group's 4-layout pilot takes 42.19 seconds (session 36086, exit 0). Initial/inspected states match frozen candidate prefixes. Maximum RGB difference is 1 gray level in at most 3 color channels per frame. Two mixed depth pixels create false obstacles; independent calibration confirms that edge filtering leaves both sides available in free scenes and recognizes a previously unknown rear obstacle only after inspection. Preserve the earlier pilot's source, arrays, and results.
 
-已对既有 72 训练／36 验证场景采集实际 RGB-D 前缀，核验输入状态、观察成本与原候选一致，历史物理结果保持。已训练同容量的图像／图像＋地图特征 P/I；原始 H-JEPA 核心冻结，先继续既有 LoRA 与 P/G，再冻结编码器和 P/G 训练 I。参数与策略仅按训练／验证选择；18 组新测试已冻结，后续单列部分地图几何规则与冻结旧模型参考。
+Collect physical RGB-D prefixes for the existing 72 training and 36 validation scenes, verify states and inspection costs against the original candidates, and retain historical outcomes. Train equal-capacity image-only/image-plus-map P/I models: freeze the original H-JEPA core, continue existing LoRA/P/G, then freeze encoder/P/G to train I. Select parameters and policies on training/validation only. Freeze 18 new test groups and separately report partial-map geometric rules and frozen previous-model controls.
 
-下一阶段主问题是：补看在消除未知阻挡后，能否提高开门决策，同时抵偿真实移动成本。完整地图几何规则作为信息充分的参考单列，不参与部分地图主策略的选择。
+The next question is whether inspection resolves unknown obstruction enough to improve decisions and repay actual motion cost. Report full-map geometric rules as an information-rich reference, outside partial-map primary-policy selection.

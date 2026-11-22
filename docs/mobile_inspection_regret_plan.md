@@ -1,29 +1,29 @@
-# 固定后续策略的观察决策后悔实验（v6，2026-11-10）
+# Inspection-decision regret with a frozen continuation policy (v6, 2026-11-10)
 
-v5 主策略在历史独立测试保留全部正确决策，并把补看降至 47/72，但新 P/G 未超过初始化，完整地图几何参考净回报更高。下一步只改变 I 的训练目标，检验直接监督“补看是否值得”能否降低额外动作成本。历史测试不进入训练、验证、阈值选择或选模。
+The v5 primary policy retains full correctness on its historical independent test and reduces inspections to 47/72, but its new P/G does not beat initialization and a full-map geometric reference has higher net utility. Change only I's objective to test whether direct supervision of inspection value reduces extra action cost. Historical tests do not enter training, validation, threshold selection, or model selection.
 
-## 三组匹配目标
+## Three matched objectives
 
-从同一 v5 深度特征 `selected_pg.pt` 出发。原核心、现有 LoRA、P/G 和归一化保持冻结，只更新同一结构 I；它仍输出四类结果 logits 和一个观察成本。三组均固定 seed=42，相同初始化、输入、32 例采样顺序、学习率 3e-4、权重衰减 0.01，各训练 1600 步，每 40 步验证，含第 0／1 步。没有全模型训练。
+Initialize from the same v5 depth-feature `selected_pg.pt`. Freeze the original core, existing LoRA, P/G, and normalization; update only the same I architecture, which outputs four outcome logits and an inspection cost. All arms use seed=42, matching initialization, inputs, 32-row sampling sequences, learning rate 3e-4, weight decay 0.01, 1600 updates, and validation every 40 updates including steps 0/1. No full-model training is used.
 
-- `outcome`：延续 v5 的实际补看后结果交叉熵＋0.5×成本 MSE。
-- `joint_regret`：上述损失＋观察决策后悔损失。
-- `decision_regret`：观察决策后悔损失＋0.5×成本 MSE。
+- `outcome`: retain v5's actual post-inspection outcome cross-entropy plus 0.5 times cost MSE.
+- `joint_regret`: the preceding objective plus inspection-decision regret.
+- `decision_regret`: inspection-decision regret plus 0.5 times cost MSE.
 
-设冻结 P/G 在不补看／实际补看分支选中的动作回报分别为 U0、U1，实际观察成本为 C。新标签为 `Δ = U1−C−U0`。不选训练候选中事后最好的动作。成功 +1，普通失败 −1，碰撞 −1−risk，拒绝 0；risk=1／3 是决策时已知输入。
+Let U0 and U1 be returns of actions selected by frozen P/G on direct and physically inspected branches, with actual inspection cost C. The new label is `Delta = U1-C-U0`, without selecting the best recorded training action afterward. Utility is success +1, ordinary failure -1, collision -1-risk, and refusal 0; risk=1/3 is a known decision-time input.
 
-部署决策仍比较 `I预测补看回报−预测成本` 与冻结 P0 的最大预测值（含拒绝 0）。决策损失是两值之差除以 0.2 后的 BCE，标签为 `Δ>0`，按 `|Δ|` 加权并归一化。初始动作全被排除的场景屏蔽决策损失，部署强制拒绝；Δ=0 不产生决策梯度。温度、权重和候选组在运行前固定，不读取测试后调参。
+Deployment still compares I's predicted inspection return minus predicted cost against frozen P0's maximum predicted value, including refusal at 0. Decision loss is BCE on the difference divided by 0.2, with label `Delta>0` and normalized `|Delta|` weights. Mask the decision loss when every initial action is excluded, and force refusal at deployment; Delta=0 gives no decision gradient. Fix temperature, weights, and candidate groups before the run without test-based tuning.
 
-`decision_regret` 的结果 logits 服务于决策，不能把它们当作经过校准的真实结果概率。该方法也可能通过补偿 P0 的价值误差改变 I；后续 P/G 动作保持完全一致，用同批对照检验实际结果。
+The `decision_regret` outcome logits support decisions and are not calibrated outcome probabilities. The method can also change I by compensating for P0 value errors. Hold downstream P/G actions identical and use matched evaluation to assess actual outcomes.
 
-## 信息与验证
+## Information and validation
 
-三组只用原 72 个训练、36 个验证场景，标签来自这些场景的真实物理候选与当前固定 P/G。I 输入只有初始图像特征、当前相对目标、risk 和初始深度特征。未来图像、融合地图与实际执行结果只参与训练标签，不进入策略特征。
+All arms use only the original 72 training and 36 validation scenes; labels come from their physical candidates and current fixed P/G. I receives only initial-image features, the current relative target, risk, and initial-depth features. Future images, fused maps, and execution outcomes supply training labels without entering policy features.
 
-按验证正确决策、较少碰撞、开门、净回报、较短路程、较少观察的既有顺序选检查点；完全并列保留最早，跨组按上列顺序。不以小量重复使用的验证集证明泛化。训练启动冻结另一个 18 组／72 场景测试，排除所有已记录历史几何。最终评估须另行采集并实时回放，比较三组及冻结 v5 自主／始终／从不观察，不借用 v5 测试结果作为新结论。
+Select checkpoints by validation correctness, fewer collisions, openings, net utility, shorter paths, and fewer inspections; exact ties retain the earliest checkpoint and the arm order above. Repeated use of a small validation set does not establish generalization. At training launch, freeze another 18-group, 72-scene test excluding every historical geometry. Final evaluation separately collects candidates and live replays for the three arms and frozen v5 learned/always/never policies.
 
-核验所有非 I 张量、原 422 核心张量、归一化、历史数据和源码哈希保持；正式回放继续核验当前 RGB-D、单次初始化、阶段状态连续及实际观察成本。沿用冻结 v3 物理隔离工作区，不与根目录另一路 `simulate.py` 混用。所有模型、数组与日志写入新 ignored `runs/`。
+Verify preservation of all non-I tensors, 422 original core tensors, normalization, historical data, and source hashes. Formal replay checks current RGB-D, one initialization, stage continuity, and actual inspection cost. Use the frozen v3 isolated physics workspace without mixing the repository root's alternative `simulate.py`. Store new models, arrays, and logs only in new ignored `runs/` directories.
 
-## 运行估计
+## Runtime estimate
 
-先执行 4 项新标签／梯度契约及每组 8 步的小流程，估计运行 2 分钟、排队 0。依据 v5 两组各 800 步 I 阶段实际 72.44／72.07 秒，以及既有约 2 分钟完整短流程，正式三组各 1600 步保守估计 10 分钟、排队 0。共享冻结特征缓存减少重复编码，但此节估计不冒充测量。启动后确认实际进程与 warmup，再按截止时间连续代理休眠；到时检查同一会话。实际耗时和阶段统计另记入运行。
+First run 4 new label/gradient contracts and an 8-update smoke test per arm: estimated runtime 2 minutes and queue time 0. Reference v5's two 800-step I stages of 72.44/72.07 seconds and the earlier roughly 2-minute smoke pipeline; reserve 10 minutes with zero queue time for three full 1600-step arms. Shared frozen feature caches reduce encoding, but these are estimates rather than measurements. Confirm the live process and warmup, sleep continuously until the deadline, and inspect the same session. Record actual durations and phase statistics afterward.

@@ -1,9 +1,9 @@
-# unreachable：初始位置够不到把手
+# unreachable: initial station cannot reach the handle
 
-该案例在初始可达性检查时结束，因此只有结果 JSON，没有伪造的运动轨迹或动画。
+This case ends at the initial reachability check, so it has a result JSON without an invented motion trajectory or animation.
 
-文件：
+Files:
 
 - [unreachable.json](unreachable.json)
 
-共享输入与总汇总见 [上级索引](../README.md)。
+See the [parent index](../README.md) for shared inputs and aggregate results.

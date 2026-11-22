@@ -1,11 +1,11 @@
 # train_000
 
-用途：train；站位 [0.8143736291335779, -0.974448624099179] m，朝向 111.516°。
+Split: train; station [0.8143736291335779, -0.974448624099179] m; orientation 111.516 degrees.
 
-- 原21角度中成功：[6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]。
-- 新增8角度中成功：[30.0, 45.0, 60.0]。
-- 准备失败：1/29；失败样本仍保留。
+- Successful original-grid angles: [6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0].
+- Successful added angles: [30.0, 45.0, 60.0].
+- Preparation failures: 1/29; failed candidates are retained.
 
-[逐角度结果摘要](summary.json) · [实验说明](../README.md)
+[Per-angle summary](summary.json) · [Experiment description](../README.md)
 
-这里未增加抓握后的中途判断或闭环调整。角度网格全失败不等于证明该站位物理无解。
+No mid-grasp decisions or closed-loop adjustments are added here. Failure at every grid angle does not establish physical station infeasibility.

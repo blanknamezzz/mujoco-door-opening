@@ -79,80 +79,80 @@ def report(stages, views, destination):
     fig.savefig(destination.with_name(destination.stem+'_views.png'), dpi=150)
     plt.close(fig)
 
-    lines = ['# H-JEPA 分阶段与角度实验（2026-10-17）', '',
-             f'官方完整模型保持冻结，共 **{count} 条评估记录**：{len(candidates)} 条场景候选、'
-             f'{len(angles)} 条执行角度/目标角度、{len(view_trials)} 条相机视角记录。'
-             f'其中 {execution_calls} 次调用执行器，{integrated} 次实际积分动力学；'
-             '其余在视觉或初始 IK 阶段被拒绝，仍计为失败，不伪装成完成过的动力学执行。', '',
-             f'新随机场景 8 个，seed={suite["seed"]}；另有 9 个物理参数压力场景及 1 个无夹持对照。'
-             '相机实验复用其中两个新场景，角度扫描复用四个场景。记录之间共享场景，不能作为独立场景数。', '',
-             '定位 P 与抓取 G 各有更新前/后两个版本：`best.pt` 的监督预热策略，以及 `selected.pt` 的 '
-             '100 次交替离线更新策略。逐张量检查确认世界模型、价值头及归一化参数完全一致。'
-             '候选执行结果仅用于事后评估，未用于测试时排序、训练或调参。', '',
-             '![分阶段与角度实验](hjepa_stage_results.png)', '',
-             '## 两个 policy 的独立作用', '',
-             '| 组合 | Position | Align | Grasp | Open + hold | 成功率 | 安全开度比例 |',
+    lines = ['# H-JEPA stage and angle experiments (2026-10-17)', '',
+             f'The official full model is frozen. **{count} evaluation records** include {len(candidates)} scene candidates, '
+             f'{len(angles)} execution/target-angle records, and {len(view_trials)} camera-view records. '
+             f'There are {execution_calls} executor calls and {integrated} dynamic integrations; '
+             'vision/initial-IK rejections still count as failures rather than completed dynamics.', '',
+             f'Eight fresh random scenes use seed={suite["seed"]}, plus 9 stress scenes and 1 no-grip control. '
+             'Cameras reuse two fresh scenes and angle scans four; shared records are not independent scenes.', '',
+             'P/G pre/post versions are supervised-warmup `best.pt` and `selected.pt` after '
+             '100 alternating offline updates. World/value/normalization tensors match exactly. '
+             'Candidate outcomes support post hoc evaluation rather than test ranking, training, or tuning.', '',
+             '![Stage and angle experiments](hjepa_stage_results.png)', '',
+             '## Separate policy effects', '',
+             '| Combination | Position | Align | Grasp | Open + hold | Success rate | Safe opening fraction |',
              '|---|---:|---:|---:|---:|---:|---:|']
     for name in names+['fixed/G_post', 'P_post/world/h0.25', 'P_post/world/h0.5', 'P_post/world/h1.0', 'P_post/geometry']:
         m = metrics['conditions'][name]
         counts = m['stage_counts']
         lines.append(f'| {name} | '+ ' | '.join(str(v) for v in counts.values())+
                      f' | {100*m["success_rate"]:.1f}% | {m["mean_safe_opening_fraction"]:.3f} |')
-    lines += ['', '上表分母均为 18 个场景；Position 指当前抓点和预抓点 IK 可达，'
-              'Align 指 2.5 s 接近完成且此前没有碰撞，Grasp 指稳定双侧夹持，Open + hold 指达标并稳定保持一秒。'
-              '成功率不能用“成功夹住的次数”替代。', '',
-              '| 场景组 | P_pre/G_pre | P_post/G_pre | P_pre/G_post | P_post/G_post |',
+    lines += ['', 'Every denominator is 18 scenes. Position means reachable grasp/pregrasp IK; '
+              'Align completes the 2.5 s approach without collision; Grasp is stable bilateral contact; Open + hold meets target and holds one second. '
+              'Grasp acquisition is not full-task success.', '',
+              '| Scene group | P_pre/G_pre | P_post/G_pre | P_pre/G_post | P_post/G_post |',
               '|---|---:|---:|---:|---:|']
     for family, group in metrics['by_family'].items():
         lines.append('| '+family+' | '+' | '.join(f'{group[n]["stage_counts"]["open_hold"]}/{group[n]["episodes"]}' for n in names)+' |')
-    lines += ['', '固定每个到达状态、画面和底座后，抓取 policy 的对照如下（18×5=90 个到达状态，包含上游失败）：', '',
-              '| 抓取版本 | Position | Align | Grasp | Open + hold |', '|---|---:|---:|---:|---:|']
+    lines += ['', 'Fix reached states, images, and bases to compare grasp policies across 18x5=90 reached states, including upstream failures:', '',
+              '| Grasp version | Position | Align | Grasp | Open + hold |', '|---|---:|---:|---:|---:|']
     for g, m in metrics['matched_arrivals'].items():
         lines.append(f'| {g} | '+' | '.join(str(v) for v in m['stage_counts'].values())+' |')
-    lines += ['', '配对效应（一次只替换一个 policy）：', '',
-              '| 替换 | 成功率变化（百分点） | 改善/退化场景 | 决策改变场景 |', '|---|---:|---:|---:|']
+    lines += ['', 'Paired effects replacing one policy at a time:', '',
+              '| Replacement | Success-rate change, percentage points | Improved/degraded scenes | Changed decisions |', '|---|---:|---:|---:|']
     for name, e in metrics['paired_effects'].items():
         lines.append(f'| {name} | {100*e["success_delta"]:+.1f} | {e["improved"]}/{e["regressed"]} | {e["choice_changed"]} |')
     post_bases = sorted({t['base_id'] for t in metrics['decisions']['P_post/G_post']})
-    lines += ['', f'更新后的定位 policy 在这 18 个场景中均选择底座 {post_bases}。'
-              '固定名义底座 0 同样成功 14/18；因此本次改善说明修正了坏站位偏好，'
-              '尚未证明优于固定好站位，或具备广泛的自适应定位能力。', '',
-              f'仅用物理结果事后检查候选覆盖率：{oracle_successes}/18 个场景至少有一个候选能成功。'
-              '这不是可部署的 oracle policy，也不参与选动作。', '',
-              '## 更新后仍然失败的场景', '', '| 场景 | 停止原因 | 最终角度 | 失败阶段 |', '|---|---|---:|---|']
+    lines += ['', f'Updated P selects bases {post_bases} across these 18 scenes. '
+              'Fixed nominal base 0 also succeeds 14/18, showing a corrected poor preference '
+              'rather than improvement over a good fixed base or broad adaptation.', '',
+              f'Post hoc candidate coverage: {oracle_successes}/18 scenes have a successful candidate. '
+              'This oracle summary is not deployed or used for selection.', '',
+              '## Remaining failures', '', '| Scene | Stop reason | Final angle | Failure stage |', '|---|---|---:|---|']
     for t in metrics['decisions']['P_post/G_post']:
         if not t['metrics']['success']:
             lines.append(f'| {t["scene_id"]} | {t["result"].get("stop_reason")} | '
                          f'{t["result"].get("final_angle_deg", 0.):.3f}° | {t["metrics"]["failure_stage"]} |')
-    lines += ['', '## 角度与视觉', '',
-              '底座 yaw 偏移 -45°～45°，抓取 yaw 偏移 -30°～30°；目标开度 30°、60°、90°。'
-              '部分开度测试修改实体控制轨迹，要求最后一秒角度误差不超过 2°、持续双侧接触及低角速度。'
-              '它们只评估控制器；当前 H-JEPA 没有训练为目标角度条件模型。', '',
-              '| 扫描 | 角度 | 成功/记录 | 平均最终角度 |', '|---|---:|---:|---:|']
+    lines += ['', '## Angles and vision', '',
+              'Base yaw spans -45 to 45 degrees, grasp yaw -30 to 30; targets are 30/60/90 degrees. '
+              'Partial-opening trials change physical references and require final-second error <=2 degrees, bilateral contact, and low speed. '
+              'These assess the controller; H-JEPA is not target-angle conditioned.', '',
+              '| Scan | Angle | Success / records | Mean final angle |', '|---|---:|---:|---:|']
     for kind, group in metrics['angles'].items():
         for value in sorted(group, key=float):
             m = group[value]
             lines.append(f'| {kind} | {float(value):g}° | {m["stage_counts"]["open_hold"]}/{m["episodes"]} | '
                          f'{m["mean_final_angle_deg"]:.2f}° |')
-    lines += ['', '![相机角度成功率](hjepa_stage_results_views.png)', '',
-              '| 相机测试方法 | 成功/记录 | 失败阶段 |', '|---|---:|---|']
+    lines += ['', '![Camera-angle success rates](hjepa_stage_results_views.png)', '',
+              '| Camera test method | Success / records | Failure stage |', '|---|---:|---|']
     for method, m in view_metrics['by_method'].items():
         lines.append(f'| {method} | {m["stage_counts"]["open_hold"]}/{m["episodes"]} | {m["failure_stages"]} |')
-    lines += ['', '## 结论范围与复现', '',
-              '这些结果支持定位更新改善下游可行性；本次新随机场景中，单独更新抓取 policy 没有提高完整开门率。'
-              '固定底座、direct 与 geometry 也是必要参照；当前结果不能据此宣称世界模型优于这些方法。'
-              '摩擦与铰链阻力在初始 RGB 中不可见，当前单帧观察没有接触后的材料辨识信息；'
-              '相机测试失败也应按视觉边界失败计入，不能记为抓取或开门能力。', '',
-              '没有用这批结果调整权重或重新训练。只有一个训练种子、八个新随机场景，压力场景有意构造，'
-              '尚不足以给出通用泛化或统计显著性结论。下一轮改模型后应使用新的测试种子。', '',
+    lines += ['', '## Scope and reproduction', '',
+              'P updates improve downstream feasibility; G-only updates do not improve full opening on these fresh scenes. '
+              'Fixed-base/direct/geometry controls remain necessary without an established world-model advantage. '
+              'Initial RGB does not reveal friction/hinge resistance or post-contact material properties. '
+              'Camera failures are vision failures rather than grasp/opening capability.', '',
+              'No weights are tuned or retrained on these outcomes. One seed, eight fresh scenes, and constructed stresses '
+              'do not establish broad generalization/significance. Use a fresh test seed after model changes.', '',
               '```powershell', '.\.venv\Scripts\python.exe evaluate_hjepa_stages.py --device cuda',
               '.\.venv\Scripts\python.exe evaluate_hjepa_views.py --device cuda',
               '.\.venv\Scripts\python.exe report_hjepa_stages.py',
               '.\.venv\Scripts\python.exe check_git_size.py', '```', '',
-              '详细 JSON、逐候选物理结果、checkpoint/source SHA256 均位于忽略目录 '
-              '`runs/hjepa/{stage_evaluation,view_evaluation}/`。'
-              '已完成 14 项代码测试和原始基线 8 项回归检查。'
-              'Git 检查默认拒绝超过 10 MiB 的可见文件及暂存 blob，模型/数据/视频输出不进入版本库。', '']
+              'Detailed JSON, candidate outcomes, and checkpoint/source SHA256 records are in ignored '
+              '`runs/hjepa/{stage_evaluation,view_evaluation}/`. '
+              'Fourteen code tests and 8 original-baseline regressions pass. '
+              'Git rejects visible files/staged blobs over 10 MiB; models/data/videos stay outside version control.', '']
     destination.write_text('\n'.join(lines), encoding='utf-8')
     with (stages/'conditions.csv').open('w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)

@@ -1,24 +1,24 @@
-# 两条执行分支的梯度投影对照（v9，2026-11-10）
+# Gradient-projection control across two execution branches (v9, 2026-11-10)
 
-上一轮训练／验证中，同一检查点的直接分支改善伴随补看分支退化。它只是任务权衡的证据，不能证明梯度冲突的机制。本轮在原 72 训练、36 验证场景上记录分支梯度，并进行两个等容量、等场景序列、等更新预算的 LoRA 续训：
+Earlier training/validation shows a checkpoint improving the direct branch while degrading the inspected branch. This establishes a task tradeoff, without identifying gradient conflict as its cause. Record branch gradients on the original 72 training and 36 validation scenes and compare two LoRA continuation arms with matching capacity, scene sequences, and update budgets:
 
-| arm | 场景组织 | 两分支梯度合成 |
+| Arm | Scene organization | Combining branch gradients |
 | --- | --- | --- |
-| paired_sum | 同组两种不同布局 | 原始梯度相加 |
-| paired_pcgrad | 完全相同的场景序列 | 内积为负时分别投影，再相加 |
+| paired_sum | Two different layouts from one group | Sum the original gradients |
+| paired_pcgrad | Exactly the same scene sequence | Project each gradient when their inner product is negative, then sum |
 
-两任务为「直接执行」与「实际补看后执行」，每任务仍为原 v8 的 P 交叉熵加 0.5 倍可见 G 交叉熵。后续不安全时不监督该分支 P；不可见抓持不监督 G。原实际 G 所选动作标签每 40 步仅用训练数据刷新。不是事后最优抓持标签，不改变正式终局效用或地图。
+The tasks are direct execution and execution after physical inspection. Each retains v8's P cross-entropy plus 0.5 times visible-G cross-entropy. Mask P supervision on unsafe branches and G supervision for unobserved grasps. Refresh labels for current G's selected actions every 40 updates using training data only; retain terminal utility and maps without choosing the best recorded grasp afterward.
 
-投影采用 [Yu 等，Gradient Surgery for Multi-Task Learning，NeurIPS 2020，Algorithm 1](https://proceedings.neurips.cc/paper/2020/hash/3fe78a8acf5fda99de95303940a2420c-Abstract.html) 的两任务形式。每次投影使用另一任务的**原始**梯度；两任务时没有排列随机性。合成梯度为和，保持原目标尺度。投影作用于所有可训练 LoRA 与 P/G 头，原核心与归一化始终冻结；每步记录全部参数及 LoRA／P／G 分块的原始夹角和范数。不测曲率，不由负夹角直接推断性能损害；后续 AdamW 与权重衰减也不保证实际更新方向仍是欧氏下降方向。此实验不等于已经隔离 P 与 G 的梯度。
+Use the two-task form of [Yu et al., Gradient Surgery for Multi-Task Learning, NeurIPS 2020, Algorithm 1](https://proceedings.neurips.cc/paper/2020/hash/3fe78a8acf5fda99de95303940a2420c-Abstract.html). Each projection uses the other task's **original** gradient; with two tasks there is no permutation randomness. Sum projected gradients to retain objective scale. Apply projection to all trainable LoRA and P/G heads, keeping core and normalization frozen. Log original angles and norms for all parameters and LoRA/P/G blocks. Do not measure curvature or infer performance damage directly from negative angles; AdamW and weight decay need not preserve Euclidean descent directions. This does not isolate P and G gradients from one another.
 
-两组都使用两次反传，以免将数值与计算实现差异混入梯度规则对照。相同初始化、rank8、alpha16、dropout0.05、320 PG 步、1600 joint-regret I 步、两场景批次，原 AdamW 学习率和 clip1 保留。验证仍先控制两分支碰撞，再比较始终／直接正确数等指标；完全并列保留最早。选定 PG 后，冻结所有非 I 参数再训练 I。最终组选择仅使用验证，不能从训练损失或某一步单分支最好数字决定主策略。
+Both arms use two backward passes to match numerical and computational implementation. Match initialization, rank 8, alpha 16, dropout 0.05, 320 PG updates, 1600 joint-regret I updates, two-scene batches, AdamW rates, and clipping at 1. Validation first controls collisions on both branches, then compares always/direct correctness and other criteria; ties retain the earliest checkpoint. Freeze all non-I parameters after PG selection and train I. Select the final arm using validation only, rather than training loss or a single branch's best intermediate score.
 
-仅允许读取既有训练／验证结果。新 18 组、72 测试在训练前冻结，排除全部历史几何；本轮训练不采集或读取其结果。若两组选定模型张量均与旧主策略相同，保留未读取测试，不把同一策略重复测试包装成新改进；如有新权重，后续按另行冻结的物理评估协议验证。旧测试仅作为历史结论，不调阈值或选步。
+Read only existing training/validation outcomes. Freeze a fresh 18-group, 72-scene test before training, excluding all historical geometry; do not collect or read its outcomes during this run. If both selected models equal the previous primary policy, preserve the unread test. New weights require subsequent physical evaluation under a separately frozen protocol. Historical tests do not tune thresholds or checkpoint steps.
 
-新运行 seed42，Python／NumPy／Torch／CUDA／hash 种子及确定性限制记录。旧模型、原核心、旧冻结数据和源码保留；每组四份阶段检查点核验核心和归一化，I 阶段核验非 I 张量。原始数组、权重、梯度日志和遥测仅写新 ignored `runs/`，在冻结 v3 物理工作区运行。
+New runs use seed 42 with Python/NumPy/Torch/CUDA/hash seeds and deterministic limitations recorded. Preserve prior models, original core, frozen data, and source. Audit core and normalization in four stage checkpoints per arm, plus non-I tensors during I training. Write raw arrays, weights, gradients, and telemetry only to new ignored `runs/`, using the frozen v3 physics workspace.
 
-先做 4 项梯度／掩码契约和两组各 8 PG／8 I 小流程。参考 v8 四组 8／8 步约 197 秒，本轮组数减半但每步两次反传，暂估 **8 分钟、排队 0**，保留模型加载与审计余量。正式预算以完整小流程与实测反传吞吐修正；参考 v8 每组完整 PG 约 21 分钟，当前两组双反传暂保守预留 90–120 分钟，无物理采集并发。启动后核实实际进程／会话并记录截止，按仓库要求连续代理休眠，到时查看同一权威会话，不重复启动。
+First run 4 gradient/masking contracts and an 8 PG / 8 I smoke test for each arm. Reference v8's four-arm 8/8 run of about 197 seconds: two arms with two backward passes give an initial estimate of **8 minutes with zero queue time**, allowing for model loading and audits. Refine the full estimate after the smoke test and measured backward throughput. The previous PG run took about 21 minutes per arm; conservatively reserve 90-120 minutes for two arms with no concurrent physical collection. Confirm the live process/session and deadline, sleep continuously, and inspect the same authoritative session without duplicate launches.
 
-小流程第二次运行已正常完成：8 项新旧契约通过，两组各 8 PG／8 I，流程 114.26 秒、控制器 121.51 秒，权威会话 44693 退出码 0。两组采样序列哈希完全一致，8 份检查点的原 422 核心张量、归一化及 I 阶段非 I 张量核验通过。预热更新约 2.59–3.20 秒；小样本 8 步未出现负梯度内积，不据此推断完整训练不会冲突。首次因配置字段重复在更新前失败（会话 46290，退出码 1，控制器 66.37 秒），保留当时源码与日志。
+The second smoke run completed: 8 new/existing contracts passed, each arm ran 8 PG / 8 I updates, pipeline time was 114.26 seconds, controller time 121.51 seconds, and authoritative session 44693 exited 0. Scene-sequence hashes match exactly, and all 8 checkpoints preserve the 422 core tensors, normalization, and non-I tensors during I training. Warmup updates took about 2.59-3.20 seconds; no negative gradient inner products in 8 steps do not establish their absence in full training. The first run failed before updates because of duplicate configuration fields (session 46290, exit 1, controller 66.37 seconds); its source and logs are preserved.
 
-正式两组各 320 PG／1600 I，于 11 月 11 日启动前估计 **90 分钟、排队 0**：640 个更新按约 3.2 秒计为 2048 秒，再参考旧完整 PG 每组约 500 秒的全开发集标签刷新／双分支验证开销，加约 200 秒 I 和启动审计，基准外推约 55 分钟，保守预留至 5400 秒。不是把小流程 4 场景的验证成本当作完整 108 场景成本；无物理采集或其他模型训练并发。正式测试仍在训练前另冻 72 场景；不会因小流程结果调整两组定义或选模顺序。
+Before the November 11 launch, estimate the full two-arm 320 PG / 1600 I run at **90 minutes with zero queue time**: 640 updates at about 3.2 seconds give 2048 seconds; allow about 500 seconds per arm for full-development label refresh and both-branch validation, plus about 200 seconds for I and startup audits. The baseline extrapolation is about 55 minutes, with a conservative 5400-second budget. The smoke test's 4-scene validation cost is not the full 108-scene cost. No collection or other model training runs concurrently. Freeze a new 72-scene formal test before training without changing arms or selection order from smoke outcomes.

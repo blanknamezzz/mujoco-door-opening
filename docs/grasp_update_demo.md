@@ -1,66 +1,66 @@
-# 抓握方案更新对比 Demo
+# Grasp-plan update comparison demo
 
-当前目录已同步 `GraspPlan` 和参数化控制器。旧 `simulate.py`、`planning.py`
-保存在 `reproduced/before_grasp_update/`，原始参考结果未改动。
+This directory integrates `GraspPlan` and parameterized control. Previous `simulate.py` and `planning.py`
+are preserved in `reproduced/before_grasp_update/`, with original reference results unchanged.
 
-## 直接观看
+## Watching existing outputs
 
-打开 `reproduced/grasp_update_demo/index.html`。可切换角度、夹持力、速度、能力边界四个章节，
-观看双侧实测动画、参数和结果。`grasp_update_demo.webm` 是完整视频；每组也有独立 GIF。
+Open `reproduced/grasp_update_demo/index.html` to switch among angle, force, speed, and workspace-limit chapters,
+with paired measured animations, parameters, and outcomes. `grasp_update_demo.webm` contains all chapters; each also has a GIF.
 
-## 生成与复现
+## Generation and reproduction
 
-在 Mac 上运行：
+On Mac:
 
 ```bash
-# 在仓库根目录运行，并先激活已安装 requirements.txt 的环境
+# Run from the repository root after activating an environment with requirements.txt installed
 source .venv/bin/activate
 python demo_grasp_update.py
 ```
 
-也可以分别运行物理计算与渲染：
+Or separate physics computation from rendering:
 
 ```bash
 python demo_grasp_update.py --physics-only
 python demo_grasp_update.py --render-only
 ```
 
-导出 WebM 需要 FFmpeg。程序优先使用 PATH 中的 `ffmpeg`，其次使用本机已有的
-Playwright FFmpeg；也可以 `--ffmpeg /绝对路径/ffmpeg` 指定。没有 FFmpeg 时仍导出 GIF。
-中文标题需要系统中文字体。当前 Mac 已有字体与编码器，无须额外安装。
+WebM export requires FFmpeg, using `ffmpeg` on PATH first and then an installed
+Playwright FFmpeg. Specify `--ffmpeg /absolute/path/ffmpeg` if needed. GIF export works without FFmpeg.
+Titles use system fonts. The verified Mac environment already provides fonts and an encoder.
 
-## 在实时 MuJoCo 窗口中看某一侧
+## Viewing one plan live in MuJoCo
 
 ```bash
 mjpython demo_grasp_update.py --view angle --variant before
 mjpython demo_grasp_update.py --view angle --variant after
 ```
 
-`angle` 可换成 `force`、`speed`、`limit`。`before/after` 是手动指定的两套方案，
-**不是新旧神经网络的对照**。实时运行输出保存在 `reproduced/grasp_update_demo/live/`。
+Replace `angle` with `force`, `speed`, or `limit`. Before/after are two manually configured plans,
+**not old/new neural-network controls**. Live outputs go to `reproduced/grasp_update_demo/live/`.
 
-## 演示说明
+## Demonstration details
 
-1. **角度**：同一底座位置 `(0.8,-1.0)`，只改接近偏角 `0° → +8°`。
-   原方案在接近全开时前臂与右手指自碰撞，调整后全开并保持。
-   这个结果说明整段姿态的重要性；并不说明只有 8° 可行，或 8° 已是最优解。
-2. **夹持力**：相同摩擦 `μ=0.2`，只改每指驱动力上限 `2 N → 25 N`。
-   原方案拉动时滑移，调整后完成任务。该上限与实际接触力是两个量，CSV 记录实际接触力。
-3. **速度**：同一抓点与同一圆弧，开门时间 `2 s → 14 s`。
-   快速方案中途滑移，慢速方案成功。未声称越慢越好或 14 秒最优。
-4. **能力边界**：在 `(0.3,-0.9)`，每指上限 `25 N → 35 N`。
-   两者仍在约 42.5° 因后续关节目标越界停止，此时仍抓住；增加力不能扩大工作空间。
+1. **Angle**: same base `(0.8,-1.0)`, approach offset `0 to +8 degrees` only.
+   Original forearm/right-finger self-collision occurs near full opening; the adjusted plan opens and holds.
+   This illustrates whole-motion configuration rather than proving 8 degrees uniquely feasible or optimal.
+2. **Grip force**: same friction `mu=0.2`, actuator cap per finger `2 N to 25 N` only.
+   Original slips during pulling; adjusted completes. Caps differ from actual contact forces recorded in CSV.
+3. **Speed**: same grasp/arc, opening duration `2 s to 14 s`.
+   Fast motion slips; slow motion succeeds, without establishing monotonic benefit or optimality at 14 seconds.
+4. **Workspace limit**: at `(0.3,-0.9)`, force caps `25 N to 35 N`.
+   Both stop near 42.5 degrees at an out-of-range joint target while still grasping; force cannot expand workspace.
 
-每组只改变一个方案字段，程序会自动检查；还检查预期成功/失败和关键终止原因。
-视频为 2 倍模拟时间，失败侧停止后冻结，不能把画面冻结理解成继续运行并保持接触。
-总结果、方案、CSV 和 NPZ 都保存在同一输出目录中，可独立核查。
+Each pair changes one plan field, checked automatically alongside expected success/failure and stop reasons.
+Video plays at 2x simulated speed; the failed side freezes at termination rather than continuing to integrate/contact.
+Aggregate results, plans, CSV, and NPZ share one output directory for independent inspection.
 
-## 已实现与后续能力
+## Implemented and future capabilities
 
-本次展示的是更丰富的动作参数、可追溯的对照试验及方案重放。
-这有助于研究狭窄空间、有限夹持力、较滑接触表面和动作速度的取舍，
-但没有验证真实材料或机器人。表面摩擦参数未经实测标定。
+This demonstrates richer action parameters, traceable controls, and plan replay.
+It supports studying narrow spaces, limited grip force, slippery contact, and speed tradeoffs,
+without measured-material calibration or real-robot validation.
 
-当前从预抓取姿态初始化，采用固定肘分支、直线接近和铰链圆弧控制。
-本目录不包含 H-JEPA 学习流水线。自动候选搜索、全程可行性筛选、
-学习成功概率和执行过程中的重抓纠错仍需进一步实现。
+Current demos initialize at pregrasp with a fixed elbow branch, straight approach, and hinge-arc control.
+This directory does not include H-JEPA training. Automatic candidate search, whole-trajectory screening,
+learned success probabilities, and online regrasp/correction remain future work.

@@ -1,137 +1,137 @@
-# 自动生成数据、监督学习与强化学习对照
+# Generated data, supervised learning, and reinforcement-learning controls
 
-新增默认 [PRM 准备步骤](prm_pregrasp.md)：先分析并实际执行到预抓取位置的路径。新默认数据与模型目录带 `_prm` 后缀。本文链接的 36/12/24 站位历史结果采用原初始化方式；新的 PRM 流程验证见 [PRM 报告](prm_results/REPORT.md)。
+New defaults add [PRM preparation](prm_pregrasp.md), analyzing and physically executing a path to pregrasp. New data/model directories use `_prm`. Linked historical 36/12/24-station results use original initialization; see [PRM integration results](prm_results/REPORT.md) for the new workflow.
 
-## 为什么自生成数据可用于监督学习
+## Why generated data support supervised learning
 
-监督学习需要输入与对应标签，不要求数据必须来自真实机器人。本项目把执行前的场景和候选角度作为输入，实际运行 MuJoCo 的完整抓持、开门与保持技能，以执行后的成功、碰撞、滑移、角度和奖励作为标签。标签不是神经网络自己猜测，也没有预先指定某个角度为正确答案。
+Supervised learning requires paired inputs/labels, not necessarily hardware data. Inputs are pre-execution scene/angle; full MuJoCo grasp/open/hold execution supplies success, collision, slip, angle, and reward labels. Networks neither invent labels nor receive a prescribed correct angle.
 
-模型学习的是模拟器中 `(状态, 动作) → 结果` 的关系，用于执行前评估候选。即使采集过程没有人工标注，这仍是监督学习。完整物理仿真产生结果标签，与通过未来帧训练表示的自监督学习应区分。
+The model learns simulated `(state, action) -> outcome` for pre-execution candidate assessment. Automatic label collection remains supervised learning, distinct from self-supervised representation learning through future frames.
 
-可行性需要三个条件：仿真与标签判据有合理依据；训练数据覆盖任务中的成功、失败与边界；在模型未见过的场景上冻结权重验证。网络不得把执行后的结果当作输入。最后的测试证明的是同一模拟器下新站位表现，不能替代真实机器人验证或证明模拟器本身准确。
+Validity requires reasonable physics/criteria, coverage of successes/failures/boundaries, and frozen evaluation on unseen scenes. Post-execution outcomes cannot enter inputs. Testing establishes new-station performance in the same simulator rather than hardware validity or simulator accuracy.
 
-网络可能减少新场景下逐个执行候选的成本，但对于固定场景和很小的候选集合，直接扫描可能更合适。本次实验也保留固定角度与穷举参考，防止把“训练完成”误当成“学习方法必需”。
+Networks may reduce candidate-execution costs on new scenes, while direct scans can suit small fixed problems. Retain fixed-angle/exhaustive references rather than treating completed training as proof that learning is necessary.
 
-已发布的解释与实测结论见 [分析报告](grasp_learning_results/ANALYSIS.md)。重新评估生成的文件位于 `reproduced/grasp_learning_comparison/`。
+See [analysis and measured findings](grasp_learning_results/ANALYSIS.md). Regenerated evaluation files are in `reproduced/grasp_learning_comparison/`.
 
-## 文件与运行入口
+## Files and entry points
 
-- `collect_grasp_data.py`：生成场景清单，运行 MuJoCo，记录带标签的数据。
-- `compare_grasp_learning.py`：训练监督奖励预测器、重新训练 REINFORCE、评估并生成报告。
-- `test_grasp_learning.py`：梯度、数据隔离、完整性及模型加载检查。
-- 原 `train_grasp_rl.py` 和以前的训练结果保持独立；本对照不拿旧的单站位模型冒充多场景 RL 基线。
+- `collect_grasp_data.py`: generate manifests, run MuJoCo, and record labeled data.
+- `compare_grasp_learning.py`: train reward predictors/REINFORCE, evaluate, and generate reports.
+- `test_grasp_learning.py`: gradients, split isolation, integrity, and model loading.
+- Original `train_grasp_rl.py` and historical training remain independent; do not substitute old single-station models for multi-scene RL controls.
 
-在仓库根目录运行：
+Run from the repository root:
 
 ```bash
-# 在仓库根目录运行，并先激活已安装 requirements.txt 的环境
+# Run from the root after activating an environment with requirements.txt installed
 source .venv/bin/activate
 
-# 默认 36 个训练、12 个验证、24 个测试站位，每站位默认 29 个角度；旧实验显式使用 --angle-grid legacy21。
+# Defaults: 36 training, 12 validation, 24 test stations; 29 angles each. Historical runs explicitly use --angle-grid legacy21.
 python collect_grasp_data.py --output reproduced/grasp_learning_data_new
 
-# 新实验默认种子 42；每种方法每个种子 756 次训练交互。
+# New experiments default to seed 42; each method/seed has 756 training interactions.
 python compare_grasp_learning.py train \
   --data reproduced/grasp_learning_data_new \
   --output reproduced/grasp_learning_comparison_new
 
-# 冻结权重后读取验证/测试标签，独立重跑所选测试动作，生成 REPORT.md。
+# After freezing weights, read validation/test labels, replay selected actions, and generate REPORT.md.
 python compare_grasp_learning.py evaluate \
   --data reproduced/grasp_learning_data_new \
   --output reproduced/grasp_learning_comparison_new
 ```
 
-2026-10-26 合并后，新数据、模型与 PRM 采样默认种子统一为42。
-已发布的无 PRM 历史报告保留原数据种子20261026、训练种子42/43/44；
-复现该历史设置须显式使用 `collect_grasp_data.py --no-prm --seed 20261026`
-和 `compare_grasp_learning.py train --seeds 42 43 44`，并指定新的数据/输出目录。
-`prm_examples.py` 是已发布五例的复现入口，显式保留其历史采样种子7。
+After integration on 2026-10-26, new data/model/PRM sampling defaults use seed 42.
+Published historical no-PRM reports retain data seed 20261026 and training seeds 42/43/44.
+Reproduce with explicit `collect_grasp_data.py --no-prm --seed 20261026`
+and `compare_grasp_learning.py train --seeds 42 43 44`, using new data/output directories.
+`prm_examples.py` preserves historical sampling seed 7 for the five published examples.
 
-第一次采集若中断，可以用同一数据目录加 `--resume` 继续；manifest 中的物理相关代码哈希必须相同。已生成的完整记录不会重复执行。训练输出目录必须为空；训练本身未实现断点续训。
+Resume interrupted collection with `--resume` in the same directory only when manifest physics-source hashes match; completed records are skipped. Training outputs must be empty, with no training checkpoint-resume implementation.
 
-只使用项目现有 MuJoCo、NumPy、Pillow，不需要额外安装 PyTorch。并行进程只运行相互独立的物理回合；学习更新仍按顺序进行。默认 `--workers 4`，可降低进程数减少电脑负载。
+Use existing MuJoCo, NumPy, and Pillow without PyTorch. Workers execute independent physical episodes; learning updates remain sequential. Default `--workers 4` can be reduced for host load.
 
-## 场景如何划分
+## Scene splits
 
-先用固定场景种子生成 manifest，再进行任何仿真：
+Generate the manifest with a fixed scene seed before simulation:
 
-- 底座 x：0.35–0.95 m。
-- 底座 y：−1.15 至 −0.75 m。
-- 底座朝向：60–120°。
-- 每个数据分组分别做 Latin hypercube 采样，初始状态不重复。
-- 同一站位的所有角度、所有试验只能属于同一分组。
+- Base x: 0.35-0.95 m.
+- Base y: -1.15 to -0.75 m.
+- Base yaw: 60-120 degrees.
+- Independent Latin hypercube sampling per split, without repeated initial states.
+- All angles/attempts at one station stay in the same split.
 
-这验证的是同一门族下对新底座位置与朝向的插值能力，不是新门尺寸、反向开门、未知摩擦或真实机器人迁移。没有通过观察结果选择“更有利于 SL”的测试集。
+This measures interpolation to new base positions/orientations within one door family, not new dimensions, reverse opening, unknown friction, or hardware transfer. Outcomes do not select an SL-favorable test set.
 
-训练阶段只读取 `train.jsonl`。输入归一化只使用训练站位。验证和测试集在所有模型保存后才用于评估；本次不进行基于验证结果的调参、早停或选权重。如果以后用验证集调参，应保持测试集冻结，不能根据测试结果反复选模型。
+Training reads only `train.jsonl`; normalization uses training stations. Validation/test evaluate after all models are saved, without tuning, early stopping, or checkpoint selection in this experiment. Future validation tuning must retain a frozen test rather than repeatedly selecting on test outcomes.
 
-## 数据记录
+## Data records
 
-数据目录包含：
+Data directory:
 
-| 文件 | 内容 |
+| File | Content |
 | --- | --- |
-| `manifest.json` | 场景编号、分组、参数范围、候选角度、固定物理配置、库版本、源文件哈希 |
-| `train.csv` / `validation.csv` / `test.csv` | 每次尝试一行，方便检查和作图 |
-| 对应 `.jsonl` | 奖励分项、执行方案、抓持结果、第一次碰撞、滑移/丢失等详细结果 |
-| `collection_summary.json` | 各组数量、成功尝试数及本次采集耗时 |
+| `manifest.json` | Scene IDs, splits, ranges, angles, fixed physics, library versions, source hashes |
+| `train.csv` / `validation.csv` / `test.csv` | One attempt per row for inspection/plotting |
+| Corresponding `.jsonl` | Reward components, plans, grasp results, first collision, slip/contact loss |
+| `collection_summary.json` | Split counts, successful attempts, collection duration |
 
-CSV 包含场景编号、底座 x/y/yaw、候选角度、奖励、成功标记、抓住标记、安全最大角度、最终角度、碰撞、滑移、停止原因。标签由实际执行产生，不是人工根据角度大小编造。
+CSV records scene ID, base x/y/yaw, angle, reward, success/grasp flags, maximum safe/final angles, collision, slip, and stop reason. Labels come from physical execution rather than assumed angle quality.
 
-批量数据存储回合结果摘要，不保存每一个仿真步的全部图像与接触轨迹。若要训练时序 world model，应另外增加序列采集；本次保存的场景和动作可以用于重放。对照报告选出的例子另外保存完整的接触 CSV 与关节轨迹 NPZ。
+Batch data store episode summaries rather than images/contact traces at every step. Temporal world-model training needs extra sequence collection; saved scenes/actions support replay. Selected report examples separately preserve full contact CSV and joint NPZ trajectories.
 
-## 三种方法学什么
+## What the three methods learn
 
-三种方法都使用 4 → 16（tanh）→ K 的网络，K 按数据 manifest 的候选角度数确定，新默认 K=29。输入为把手相对底座的水平位置 dx/dy，以及底座方向的 sin/cos；输入只来自执行前已知信息。新默认保留原 21 个角度（−20° 至 +20°，步长 2°），另加入 ±30°、±45°、±60°、±90°，共 29 个。旧模型保留原动作索引；见 [角度扩展](grasp_angle_diversity.md)。
+All use 4 -> 16 tanh -> K, with K from manifest angles, default 29. Inputs are pre-execution handle-relative dx/dy and base-yaw sine/cosine. Retain 21 angles from -20 to +20 degrees at step 2, adding +/-30, +/-45, +/-60, +/-90. Preserve old checkpoint indices; see [angle extension](grasp_angle_diversity.md).
 
-### A：监督奖励预测
+### A: Supervised reward prediction
 
-每个训练站位执行全部 K 个角度。网络预测每个角度的 `R / 10`，对实际观察到的动作使用均方误差训练，测试时取预测奖励最高的角度。这里没有额外成功概率头，因此不能把数值输出解释为校准后的概率。
+Execute all K angles at every training station. Predict `R / 10`, fit observed actions by MSE, and choose maximum predicted reward at test. No separate success-probability head exists, so outputs are not calibrated probabilities.
 
-标签 R 完全复用原 RL 奖励：安全全开保持奖励、抓持奖励、安全进度，以及碰撞、滑移、工作空间、不可达、未全开和时间惩罚。
+Reuse the RL reward exactly: safe opening/hold, grasp, safe progress, and collision/slip/workspace/unreachable/incomplete/time penalties.
 
-网络使用 1,200 次全批次梯度更新，学习率 0.01。数据生成只做一次，之后可反复训练。
+Use 1,200 full-batch updates at rate 0.01. Generate data once and reuse for training.
 
-### B：REINFORCE
+### B: REINFORCE
 
-每个训练站位同样访问 K 次，但每次根据当前策略随机选择角度，所以某些角度会重复、某些不会尝试。每 12 个实际新回合进行一次策略梯度更新，学习率 0.02，熵系数 0.02，历史批次平均奖励 baseline。没有从离线标签表取训练奖励，每次都实际运行物理仿真。
+RL visits each training station K times, sampling from the current policy with possible repeated/missed angles. Update every 12 fresh episodes at rate 0.02, entropy 0.02, and a previous-batch mean-reward baseline. Every training reward comes from fresh physics rather than offline labels.
 
-此处是单次高层动作 RL，不是多步关节力矩控制，也不是 PPO、DQN 或 world-model RL。
+This is single-high-level-action RL rather than multi-step joint torques, PPO, DQN, or world-model RL.
 
-### C：用 RL 数据做监督学习
+### C: Supervised learning on RL records
 
-取 B 的真实交互记录，用 A 的损失和训练方法拟合，不再增加物理试验。如果 A 优于 C，说明完整角度覆盖可能有价值；如果 C 优于 B，说明重复利用同一批数据做奖励拟合可能有价值。这些是诊断线索，有限实验不能完全分离所有因素。
+Fit B's actual interactions with A's objective/training, without more physical trials. A versus C probes angle coverage; C versus B probes reuse for reward fitting. These finite controls do not isolate every factor completely.
 
-## 公平性和指标
+## Fairness and metrics
 
-主要对齐：训练站位、每站位访问数、物理交互总数、角度候选、控制器、物理模型、输入特征、网络参数数量和奖励。
+Match training stations, visits, physical interactions, angles, controller/physics, input features, parameter count, and rewards.
 
-没有对齐：优化更新次数、损失函数、探索机制和总计算量。这正是两种实际流程的差别，不能把结果解释成抽象学习范式的普遍定理。
+Optimization updates, objectives, exploration, and total compute differ by workflow; results are not universal claims about abstract learning paradigms.
 
-SL 的数据集可被三个初始化重复利用；每个 RL 种子需要重新交互。统计单种子训练预算时两者均为 756 次，但复现实验的总采集成本不同。应把数据采集、训练计算和测试评估成本分别报告。验证/测试候选扫描是共享评估成本，不计入任何方法的训练预算。
+SL data support three initializations; each RL seed needs new interactions. Both use 756 per-seed training decisions, but reproduction collection costs differ. Report collection, optimization, and evaluation costs separately. Shared validation/test scans are excluded from training budgets.
 
-指标包括：安全全开成功数、平均奖励、与有限网格最优奖励的差、碰撞次数、滑移次数、工作空间失败。另列：固定 0°、训练集选出的最佳固定角度、均匀随机角度期望，以及网格穷举参考。后者需要执行全部测试候选，是评估参考，不是可免费使用的部署策略。
+Metrics include safe complete openings, mean reward, finite-grid regret, collisions, slip, and workspace failures. References include fixed zero, training-selected best fixed, uniform random, and exhaustive grid. The oracle requires all test candidates and is not a free deployment policy.
 
-监督学习与 RL 均没有拒绝动作；全部角度不可行时仍会推荐一个。因此报告同时说明有多少测试场景在网格中至少存在一个成功角度。
+Neither method has refusal; both recommend an angle when all fail. Report how many test stations have at least one successful grid angle.
 
-三个训练种子测试的是相同 24 个场景，不能把它们当成 72 个独立新场景。不只报告最好的种子；也不声称统计显著。
+Three seeds share 24 test scenes rather than 72 independent samples. Report every seed without claiming significance.
 
-## 查看默认已生成的结果
+## Viewing generated results
 
-已发布的完整报告见 [实验报告](grasp_learning_results/REPORT.md)。新克隆不包含模型权重，需要先运行上面的数据采集与训练命令，再启动下面的 demo。
+See the [published full report](grasp_learning_results/REPORT.md). Fresh clones lack weights; collect/train before launching these demos.
 
 ```bash
-# 分别观看两个模型在同一测试位置的决策。
+# View both models on the same test station.
 mjpython compare_grasp_learning.py demo --scene test_000 --method supervised --seed 42
 mjpython compare_grasp_learning.py demo --scene test_000 --method reinforce --seed 42
 
-# 查看 RL 记录训练出的监督模型。
+# Inspect the supervised model trained on RL records.
 mjpython compare_grasp_learning.py demo --scene test_000 --method supervised_on_rl --seed 42
 
-# 数值与数据隔离测试。
+# Numerical and split-isolation checks.
 python -m unittest test_grasp_learning test_grasp_rl -v
 ```
 
-可用的 `scene_id` 见 manifest。报告的 `examples.json` 给出 SL 单独成功、RL 单独成功和双方成功的例子（仅在实际存在时），相应完整轨迹在 `examples/` 中。不是所有模型推荐都一定能成功。
+Available scene IDs are in the manifest. Report `examples.json` lists SL-only/RL-only/shared successes when present, with full trajectories in `examples/`. Recommendations do not guarantee success.
 
-实验设计参考：[Empirical Design in Reinforcement Learning](https://www.jmlr.org/papers/volume25/23-0183/23-0183.pdf)。
+Design reference: [Empirical Design in Reinforcement Learning](https://www.jmlr.org/papers/volume25/23-0183/23-0183.pdf).

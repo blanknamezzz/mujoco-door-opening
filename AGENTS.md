@@ -34,5 +34,5 @@
 - Keep generated arrays, weights, logs and videos out of Git. Run the repository
   size guard before delivery.
 
-- 每次提交实验前先分别估计运行时长和排队时间，并在启动说明中写出估计依据；提交后先按两者之和`sleep`，优先监听本地`origin/main`是否出现结果提交。若醒来时仍在排队或未完成，不判定失败，再`sleep`30分钟；没有Git回传且未到walltime时仍按未完成处理，避免几分钟一次SSH轮询。
-- 2026-10-23用户要求：以后新实验默认固定`seed=42`，同时设置Python、NumPy、Torch和CUDA，并把实际seed写入运行／结果记录。既有冻结实验和历史回执保留原seed及源码身份，不追溯回写；模型若不暴露显式seed，须记录确定性设置和限制。
+- Before submitting each experiment, estimate runtime and queue time separately and state the evidence in the launch note. After submission, sleep for their sum and prioritize listening for result commits on local `origin/main`. If the job is still queued or unfinished on waking, do not mark it failed; sleep another 30 minutes. Without Git results and before walltime, continue treating it as unfinished rather than polling SSH every few minutes.
+- User requirement dated 2026-10-23: new experiments default to `seed=42`, set Python, NumPy, Torch, and CUDA seeds, and record the actual seed in run/result records. Preserve the original seeds and source identities of existing frozen experiments and historical receipts without retroactive edits. If a model exposes no explicit seed, record its deterministic settings and limitations.

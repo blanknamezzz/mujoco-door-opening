@@ -1,11 +1,11 @@
 # validation_000
 
-用途：validation；站位 [0.7684208174356183, -1.11232906084494] m，朝向 118.537°。
+Split: validation; station [0.7684208174356183, -1.11232906084494] m; orientation 118.537 degrees.
 
-- 原21角度中成功：[-4.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]。
-- 新增8角度中成功：[30.0, 45.0, 60.0, 90.0]。
-- 准备失败：0/29；失败样本仍保留。
+- Successful original-grid angles: [-4.0, -2.0, 0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0].
+- Successful added angles: [30.0, 45.0, 60.0, 90.0].
+- Preparation failures: 0/29; failed candidates are retained.
 
-[逐角度结果摘要](summary.json) · [实验说明](../README.md)
+[Per-angle summary](summary.json) · [Experiment description](../README.md)
 
-这里未增加抓握后的中途判断或闭环调整。角度网格全失败不等于证明该站位物理无解。
+No mid-grasp decisions or closed-loop adjustments are added here. Failure at every grid angle does not establish physical station infeasibility.

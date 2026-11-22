@@ -185,64 +185,64 @@ def render_report(tables, metrics, output):
     figure_path = Path('docs/hjepa_structural_results.png')
     fig.savefig(figure_path, dpi=140)
     plt.close(fig)
-    rows = ['# 结构性门约束实验（2026-10-17）', '',
-            '这些场景新增实体柱子、双向/单向铰链，以及正反面独立把手。'
-            '柱子与门板通过 MuJoCo 接触产生阻挡；没有按场景名硬编码失败。'
-            '正面拉开对应正铰链角，反面拉开对应负铰链角，底座在开门时固定。', '',
-            '**换站位不能绕过同一条受阻的门轨迹。** 双向门能改用反向转动；'
-            '单向门若唯一允许的转动路径也被柱子挡住，则当前候选池没有完整开门解。', '',
-            '![实体场景终止状态](hjepa_structural_results.png)', '',
-            '图中统一为顶视图，蓝色机械臂、棕色门板、灰色实体柱子。'
-            '每格展示对应侧的中性抓取终止状态；无可见把手时展示到达状态。', '',
-            '## 冻结 checkpoint 的实测', '',
-            '沿用官方完整模型的更新前 `best.pt` 与更新后 `selected.pt`。'
-            '共享世界模型、价值头及归一化参数逐张量相同；此次未训练或按测试结果调参。'
-            '候选池为两侧各两个底座、每个底座四个抓取，共四个底座。'
-            '**反面底座、反向动作和新结构都在旧训练分布之外**，这些是能力检查，不是已完成适配的模型。', '',
-            '| 方法 | 成功/9 | Position → Align → Grasp → Open/Hold |', '|---|---:|---|']
+    rows = ['# Structural door-constraint experiments (2026-10-17)', '',
+            'Scenes add physical pillars, one-/two-way hinges, and front/back handles. '
+            'MuJoCo contact blocks the panel without scene-name failure rules. '
+            'Front pulling gives positive hinge angles, back pulling negative; base stays fixed while opening.', '',
+            '**Changing stations cannot bypass the same blocked door arc.** Two-way doors can turn oppositely; '
+            'if a pillar blocks the only permitted direction, the current library has no complete-opening candidate.', '',
+            '![Physical scene terminal states](hjepa_structural_results.png)', '',
+            'Top views show blue arms, brown doors, and gray pillars. '
+            'Panels use neutral-grasp terminal states, or reached states where no handle is visible.', '',
+            '## Frozen-checkpoint measurements', '',
+            'Use complete official-model pre-update `best.pt` and post-update `selected.pt`. '
+            'Shared world/value/normalization tensors match without training or test tuning. '
+            'Candidates include two bases per side and four grasps per base: four bases total. '
+            '**Back-side bases, reverse actions, and new structures are outside old training data**; these are capability checks.', '',
+            '| Method | Success /9 | Position -> Align -> Grasp -> Open/Hold |', '|---|---:|---|']
     for name, m in metrics['conditions'].items():
         rows.append(f'| {name} | {m["stage_counts"]["open_hold"]}/{m["episodes"]} | '
                     +' → '.join(map(str, m['stage_counts'].values()))+' |')
-    rows += ['', '## 哪一侧实际可行', '',
-             '| 场景 | 候选执行验证的可行侧 | 旧 P/G 结果 | 更新后 P/G 结果 | 已知几何选侧结果 |',
+    rows += ['', '## Physically feasible sides', '',
+             '| Scene | Candidate-verified feasible side | Old P/G | Updated P/G | Known-geometry selection |',
              '|---|---|---|---|---|']
     def label(t):
-        return f'{t["side"]}: '+('成功' if t['metrics']['success'] else t['result']['stop_reason'])
+        return f'{t["side"]}: '+('success' if t['metrics']['success'] else t['result']['stop_reason'])
     for i, c in enumerate(metrics['physical_coverage']):
-        rows.append(f'| {c["scene_id"]} | {", ".join(c["feasible_sides"]) or "无完整开门解"} | '
+        rows.append(f'| {c["scene_id"]} | {", ".join(c["feasible_sides"]) or "No complete-opening candidate"} | '
                     + ' | '.join(label(metrics['decisions'][k][i]) for k in
                                  ['P_pre/G_pre', 'P_post/G_post', 'geometry-side'])+' |')
     guard = metrics['geometry_guard_summary']
-    rows += ['', f'已知几何的完整路径筛选：执行 {guard["attempts"]} 个场景、成功 {guard["successes"]} 个；'
-             f'拒绝 {guard["rejections"]} 个，其中正确拒绝 {guard["correct_rejections"]} 个，误拒绝 {guard["false_rejections"]} 个。'
-             '拒绝不计为开门成功。该参考读取已知几何/铰链范围，属于显式特权基线；'
-             '这些信息未送入 learned policy 或 latent rollout。', '',
-             '## 物理含义和限制', '',
-             '- `pillar-front/back`：门板运动到约 40° 时接触柱子；只有另一转向可完成 90°。',
-             '- `pillar-both`：两个转向都受阻，单纯重新选底座或抓取不能完成。',
-             '- `one-way-positive/negative`：两侧都有把手，铰链限位只允许一个转向。'
-             '错误侧的固定“拉门”技能可以夹住，但拉不动并出现滑移。'
-             '这不代表从该侧使用另一种推门技能也绝对不可能；当前动作库只有拉门。',
-             '- `front/back-access-only`：只在指定面安装把手；另一面看不到把手。'
-             '额外的几何诊断确认从反面穿过门板去抓真实把手会碰撞，此诊断没有作为感知失败的回退。',
-             '- `front-only-blocked`：单面把手、单向铰链与允许方向上的柱子共同构成无完整开门解的场景。',
-             '- 现有 learned selector 始终选一个动作，没有训练过拒绝/换侧策略，也没有校准可行性阈值。'
-             '真实碰撞停止属于执行器保护，不应当作模型提前预测了阻挡。',
-             '- 到达后传感器切换到对应操作面，并刷新标定 RGB-D。移动到对侧仍是模拟器重置；'
-             '没有实现绕门导航或自动重抓。', '',
-             '## 记录与复现', '',
-             f'{metrics["metadata"]["candidate_assessments"]} 条候选评估，'
-             f'{metrics["metadata"]["executor_calls"]} 次执行器调用，'
-             f'{metrics["metadata"]["integrated_trials"]} 次实际动力学积分。'
-             '失败分类使用到达观察、当前 IK、接近、稳定夹持和最终开门/保持状态；'
-             '同时保存了中性抓取在 0/2.5/3.5 s 和终止时的关节状态。', '',
+    rows += ['', f'Known-geometry full-path screening executes {guard["attempts"]} scenes with {guard["successes"]} successes; '
+             f'{guard["rejections"]} refusals include {guard["correct_rejections"]} correct and {guard["false_rejections"]} false. '
+             'Refusal is not opening success. This privileged reference reads geometry/hinge ranges '
+             'unavailable to learned policy or latent rollout.', '',
+             '## Physical interpretation and limitations', '',
+             '- `pillar-front/back`: contact near 40 degrees blocks one turn; the opposite reaches 90.',
+             '- `pillar-both`: both turns are blocked; changing only base/grasp does not complete opening.',
+             '- `one-way-positive/negative`: handles on both sides but only one allowed turn. '
+             'Wrong-side pulling can grasp but slips without moving the door. '
+             'This does not exclude a different pushing skill; the library supports pulling only.',
+             '- `front/back-access-only`: only one face has a handle. '
+             'Geometry checks confirm collision when reaching through the panel; no perception-failure fallback uses them.',
+             '- `front-only-blocked`: one-sided handle, one-way hinge, and pillar leave no full-opening candidate.',
+             '- Learned selection always chooses an action, without trained refusal/side switching or calibrated feasibility. '
+             'Collision stops are executor protection rather than advance predictions.',
+             '- Arrival switches the calibrated camera to the operating face. Side changes still reset simulation; '
+             'navigation around the door and automatic regrasp are not implemented.', '',
+             '## Records and reproduction', '',
+             f'{metrics["metadata"]["candidate_assessments"]} candidate evaluations, '
+             f'{metrics["metadata"]["executor_calls"]} executor calls, '
+             f'{metrics["metadata"]["integrated_trials"]} dynamic integrations. '
+             'Classify by reached vision, IK, approach, stable grasp, and opening/hold; '
+             'save neutral-grasp joints at 0/2.5/3.5 s and termination.', '',
              '```powershell', '.\.venv\Scripts\python.exe evaluate_hjepa_structure.py --device cuda',
              '.\.venv\Scripts\python.exe run_hjepa.py --scenario pillar-front --base-mode fixed --fixed-base-id 2 --method geometry --output runs/hjepa/structural_demo',
              '.\.venv\Scripts\python.exe -m unittest test_structural_scene test_hjepa test_hjepa_stages test_git_size -v',
              '```', '',
-             'JSON、逐候选 CSV 与 source/checkpoint SHA256 位于忽略目录 '
-             '`runs/hjepa/structural_evaluation/`。旧参数/角度报告是其当时源码版本的历史结果；'
-             '重跑旧套件时如源码校验变化，应指定新的 `--output`，避免混用缓存。', '']
+             'JSON, candidate CSV, and source/checkpoint SHA256 records are in ignored '
+             '`runs/hjepa/structural_evaluation/`. Older reports bind historical source; '
+             'reruns with changed hashes need a new `--output` rather than mixed caches.', '']
     Path('docs/hjepa_structural_results.md').write_text('\n'.join(rows), encoding='utf-8')
     with (output/'candidates.csv').open('w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)

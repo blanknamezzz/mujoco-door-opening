@@ -30,27 +30,27 @@ def main():
         source = ROOT / "results" / "observation.npz"
         if observation != source:
             shutil.copy2(source, observation)
-        print("[1/3] 使用包内已有 RGB-D 观测；之后重新计算动力学。", flush=True)
+        print("[1/3] Reuse bundled RGB-D, then recompute dynamics.", flush=True)
     else:
-        run("[1/3] 渲染新的 RGB-D 观测并识别把手。",
+        run("[1/3] Render fresh RGB-D and detect the handle.",
             "perception.py", "capture", "--observation", observation)
-    run("[2/3] 选择抓取姿态，运行六组动力学实验与验证。",
+    run("[2/3] Select a grasp and run six physical cases with verification.",
         "benchmark.py", "--observation", observation, "--output", output)
-    run("核对半开案例的实际停止状态与第一个越界参考目标。",
+    run("Check the partial-opening stopping state and first out-of-range target.",
         "diagnose_workspace.py", "--results", output)
-    run("[3/3] 渲染保存轨迹，导出 GIF 和夹持特写。",
+    run("[3/3] Render saved trajectories, GIFs, and grasp close-ups.",
         "render_results.py", "--output", output)
-    run("导出正常速度的滑移到脱手近景及完整参数。",
+    run("Export normal-speed slip/release close-up and full parameters.",
         "render_slip_detail.py", "--output", output)
-    print(f"\n运行完成。正常开门动画：{case_directory(output, 'nominal') / 'nominal.gif'}", flush=True)
-    print(f"滑脱动画：{case_directory(output, 'low_friction') / 'low_friction.gif'}", flush=True)
-    print(f"滑脱近景与参数：{case_directory(output, 'low_friction') / 'low_friction_closeup.gif'}，{case_directory(output, 'low_friction') / 'low_friction_parameters.json'}", flush=True)
-    print(f"半开失败动画：{case_directory(output, 'workspace_limit') / 'workspace_limit.gif'}", flush=True)
-    print(f"实验与验证结果：{output / 'summary.json'}", flush=True)
+    print(f"\nComplete. Opening animation: {case_directory(output, 'nominal') / 'nominal.gif'}", flush=True)
+    print(f"Release animation: {case_directory(output, 'low_friction') / 'low_friction.gif'}", flush=True)
+    print(f"Release close-up and parameters: {case_directory(output, 'low_friction') / 'low_friction_closeup.gif'}, {case_directory(output, 'low_friction') / 'low_friction_parameters.json'}", flush=True)
+    print(f"Partial-opening failure: {case_directory(output, 'workspace_limit') / 'workspace_limit.gif'}", flush=True)
+    print(f"Experiment and verification results: {output / 'summary.json'}", flush=True)
 
 
 if __name__ == "__main__":
     try:
         main()
     except subprocess.CalledProcessError as error:
-        raise SystemExit(f"运行在上述步骤中止，退出码 {error.returncode}。请检查该步骤输出。") from error
+        raise SystemExit(f"The step above stopped with exit code {error.returncode}. Check its output.") from error

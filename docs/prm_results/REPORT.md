@@ -1,38 +1,38 @@
-# PRM 已接入训练：本次验证结果
+# PRM training integration: verification results
 
-新流程为：初始站位与关节姿态 → PRM 预检查 → 实际执行准备路径 → 抓持 → 开门与保持。
+Workflow: initial station/joints -> PRM preflight -> physical preparation execution -> grasp -> opening/hold.
 
-[交互式路线图和实际轨迹重放](index.html) · [实现、参数、训练和复现说明](../prm_pregrasp.md)
+[Interactive roadmap and physical trajectory replay](index.html) · [Implementation, settings, training, reproduction](../prm_pregrasp.md)
 
-## 五个实测例子
+## Five measured examples
 
-| 例子 | 站位 | PRM 结果 | 实际后续结果 |
+| Example | Station | PRM outcome | Physical continuation |
 | --- | --- | --- | --- |
-| A | (0.6, −1.0) | 直连路径有效，2 个路标，无需采样 | 安全全开并保持，89.676° |
-| B | (0.6, −1.0)，增加小障碍 | 直连失败；715 次采样中 215 个无效，500 个有效节点，找到 5 个路标 | 利用已有升降轴下降最多约 9.6 cm 绕行，再恢复高度并全开，89.676° |
-| C | 与 B 完全相同，零随机采样预算 | 直连失败，有限预算未找到路径 | 未执行开门；B 证明这个位置并非绝对不可行 |
-| D | (0.3, −0.9) | 能到预抓取位置并成功执行准备路径 | 开门约 42.505° 后工作空间受限 |
-| E | (2.0, −1.2) | 当前肘分支的预抓取目标无合法 IK | 跳过准备与开门 |
+| A | (0.6, -1.0) | Valid direct path, 2 waypoints, no sampling | Safe opening/hold, 89.676 degrees |
+| B | (0.6, -1.0), small obstacle | Direct fails; 715 samples, 215 invalid, 500 valid nodes, 5-waypoint path | Existing lift lowers up to 9.6 cm to detour, restores height, opens to 89.676 degrees |
+| C | Same as B, zero sampling budget | Direct fails; no path within budget | Opening skipped; B establishes a feasible route |
+| D | (0.3, -0.9) | Pregrasp reached through physical preparation | Workspace limit after 42.505 degrees |
+| E | (2.0, -1.2) | No legal pregrasp IK on this elbow branch | Preparation/opening skipped |
 
-B 采用 Lazy PRM：先连接近邻候选边，按最短路搜索，验证当前路径上的边；检查失败则删边再搜。最终路上的每条边均通过离散检查，不代表全部灰色候选边都已验证。肩–肘投影隐藏了升降和腕角，不能用投影线条交叉判断四维连通关系。
+B uses Lazy PRM: connect neighboring candidates, find a shortest path, validate its edges, remove failures, and search again. Every final-path edge passes discrete checking; gray candidate edges need not all be verified. Shoulder/elbow projection hides lift/wrist, so crossing projected lines do not establish four-dimensional connectivity.
 
-## 真正补上的能力
+## Added capability
 
-旧流程直接将机器人初始化到预抓取姿态。现在明确指定初始关节状态，检查能否到达预抓取位置，并使用位置伺服与 mj_step 实际执行。准备阶段保持门被动，机器人到位后保留实际状态接着抓持，没有瞬移到目标点。
+Previously the robot initialized at pregrasp. Now specify initial joints, plan reachability, and execute position servos with mj_step. The door stays passive during preparation; grasping continues from actual reached state without teleporting.
 
-PRM 没有给机器人增加关节，也没有让抓住后机械上够不到的位置变得可达。它补上运动路径可行性检查，并区分规划未确认、准备执行失败和开门失败。
+PRM adds no joints and cannot expand post-grasp reach. It adds motion-path assessment and separates unconfirmed planning, preparation-execution failure, and opening failure.
 
-## 训练流程验证
+## Training integration verification
 
-- 新数据划分 12 / 4 / 8 个训练、验证、测试站位，共 504 个候选流程。
-- 所有候选先经过 PRM，再实际执行准备路径和开门。本批 24 个站位都至少有一条预抓取路径，不能据此说所有站位都能完整开门。
-- RL 以种子 42 完成 252 次训练决策；SL 使用同一训练站位的候选结果。
-- 冻结模型后，独立测试重新执行 32 个去重后的位置–角度组合，全部与采集记录一致。
-- 此小规模测试中 SL、RL 各成功 3/8；网格内仅 3 个测试位置存在全开方案。此结果用于验证 PRM 流程接入，不证明 SL/RL 排名或 PRM 提高成功率。
-- 单独的 train_grasp_rl.py 也完成 8 回合 CLI 验证，保存/加载模型可执行；选出的 +6° 安全全开，固定 0° 发生自碰撞。
-- 上传前复核 32 项数值、几何、物理与数据隔离测试通过，包含路径执行碰撞后的 CSV 导出与碰撞计数。浏览器不可用，已通过模拟 DOM/canvas 的交互逻辑测试，尚未进行实际浏览器视觉检查。
+- New split: 12/4/8 training/validation/test stations, 504 candidate procedures.
+- Every candidate runs PRM, physical preparation, and opening. All 24 stations have pregrasp paths, without establishing complete opening at all stations.
+- Seed-42 RL completes 252 training decisions; SL uses candidates at the same training stations.
+- After freezing, independently replay 32 distinct test station-angle combinations; all match collection.
+- SL/RL each score 3/8, matching 3 grid-feasible test stations. This verifies integration rather than method ranking or a PRM success-rate gain.
+- Independent train_grasp_rl.py completes 8 CLI episodes and save/load execution. Selected +6 degrees opens safely; fixed zero self-collides.
+- Thirty-two numerical/geometric/physical/split tests pass before upload, including collision CSV export/counting. Mock DOM/canvas interactions pass without an available browser; no actual-browser visual review is performed.
 
-## 复现
+## Reproduction
 
 ```bash
 python prm_examples.py
@@ -40,4 +40,4 @@ mjpython prm_examples.py --view detour
 python prm_examples.py --render detour
 ```
 
-生成的全部几何节点、准备接触记录、真实关节轨迹和开门结果在 reproduced/prm_examples/。完整数据与模型在 reproduced/prm_training_data_final/ 和 reproduced/prm_training_comparison_final/。初始关节状态和碰撞检查精度见实现说明；有限 PRM 失败只能报告本次未找到。
+Geometry nodes, preparation contacts, actual joints, and opening outcomes are in reproduced/prm_examples/. Full data/models are in reproduced/prm_training_data_final/ and reproduced/prm_training_comparison_final/. See implementation notes for initial joints/check precision. Finite PRM failure means no path found in this run.

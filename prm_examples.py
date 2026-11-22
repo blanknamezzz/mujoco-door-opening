@@ -64,18 +64,18 @@ def cases():
                   pos=' '.join(map(str, obstacle)), size='.035 .035 .035', rgba='.8 .2 .2 1')
     xml = ET.tostring(tree.getroot(), encoding='unicode')
     return [
-        dict(key='direct', title='A：直接到达并全开', base=[.6, -1.], angle=8., samples=240,
-             explanation='直连局部路径通过检查，使用起点到目标的直接边。无需为了展示随机采样而强行建图。'),
-        dict(key='detour', title='B：直连受阻，路线图绕行', base=[.6, -1.], angle=8., samples=500,
+        dict(key='direct', title='A: Direct path and complete opening', base=[.6, -1.], angle=8., samples=240,
+             explanation='The direct local path passes, using the start-goal edge without unnecessary random sampling.'),
+        dict(key='detour', title='B: Blocked direct path, roadmap detour', base=[.6, -1.], angle=8., samples=500,
              model_xml=xml, obstacle=obstacle.tolist(),
-             explanation='与 A 相同的站位和目标，增加一个小障碍。直连失败后采样关节姿态，搜索利用现有升降轴的绕行路径。'),
-        dict(key='limited_budget', title='C：同一障碍，采样预算不足', base=[.6, -1.], angle=8., samples=0,
+             explanation='Same station and target as A, with a small obstacle. After direct failure, sample joints and find a detour using the existing lift.'),
+        dict(key='limited_budget', title='C: Same obstacle, insufficient sampling budget', base=[.6, -1.], angle=8., samples=0,
              model_xml=xml, obstacle=obstacle.tolist(),
-             explanation='与 B 的物理场景完全相同，但关闭随机采样。直连失败且无替代边，返回本次未找到，不能据此判定位置绝对不可行。'),
-        dict(key='partial', title='D：能到把手，开门中途受限', base=[.3, -.9], angle=0., samples=240,
-             explanation='PRM 只证明到预抓取位置的几何路径。实际开门仍会遇到后续工作空间限制。'),
-        dict(key='unreachable', title='E：目标超出当前分支工作空间', base=[2., -1.2], angle=8., samples=240,
-             explanation='预抓取目标没有当前肘分支的合法逆运动学解，先排除该目标，不浪费采样。其他抓点或移动底座属于另一个问题。'),
+             explanation='Same physics as B with sampling disabled. Direct failure leaves no alternative edge; no path found within budget does not prove infeasibility.'),
+        dict(key='partial', title='D: Reachable handle, limited opening', base=[.3, -.9], angle=0., samples=240,
+             explanation='PRM establishes a geometric pregrasp path only. Physical opening still encounters downstream workspace limits.'),
+        dict(key='unreachable', title='E: Target beyond this branch workspace', base=[2., -1.2], angle=8., samples=240,
+             explanation='No legal pregrasp IK exists on the selected elbow branch, so exclude this target before sampling. Other grasps or base motion are separate choices.'),
     ]
 
 
@@ -148,17 +148,17 @@ def main():
     html = (ROOT/'prm_examples_template.html').read_text(encoding='utf-8')
     html = html.replace('__PRM_DATA__', json.dumps(results, ensure_ascii=False).replace('</', '<\\/'))
     (args.output/'index.html').write_text(html, encoding='utf-8')
-    lines = ['# PRM 预抓取路径：五个实际例子', '',
-        '节点为升降、肩、肘、腕四个关节配置。初始姿态固定为 [0 m, −90°, −120°, 0°]，夹爪张开、门关闭。',
-        '门和机器人未增加自由度。B/C 增加同一个小障碍，比较不同采样预算。', '',
-        '| 例子 | 底座位置 m | PRM 状态 | 采样有效节点 | 路径点数 | 实际开门结果 |',
+    lines = ['# PRM pregrasp paths: five physical examples', '',
+        'Nodes are lift/shoulder/elbow/wrist configurations. Initial joints are [0 m, -90 degrees, -120 degrees, 0 degrees], fingers open, door closed.',
+        'Door and robot gain no degrees of freedom. B/C share one added obstacle with different sampling budgets.', '',
+        '| Example | Base, m | PRM status | Valid sampled nodes | Waypoints | Physical opening outcome |',
         '| --- | --- | --- | --- | --- | --- |']
     for d in results:
         q, o = d['query'], d['opening'] or {}
-        lines.append(f"| {d['title']} | {d['base']} | {q['status']} | {q.get('accepted_nodes',0)} | {len(q['path_q'])} | {o.get('stop_reason','未执行开门')}；{o.get('final_angle_deg','—')}° |")
-    lines += ['', '打开 index.html 查看采样点、候选连边、最终路径，以及真实物理积分得到的关节轨迹俯视重放。',
-        '灰边是尚未验证的候选；绿色最终路径的每段已按配置空间步长检查。二维投影中的交叉不代表四维节点相交。',
-        '碰撞检查使用有限步长，不是连续碰撞检测或全局不可行证明；路径找到后还要执行控制和开门验证。', '',
+        lines.append(f"| {d['title']} | {d['base']} | {q['status']} | {q.get('accepted_nodes',0)} | {len(q['path_q'])} | {o.get('stop_reason','opening not executed')}; {o.get('final_angle_deg','—')}° |")
+    lines += ['', 'Open index.html for samples, candidate edges, final paths, and top-view replay of physically integrated joints.',
+        'Gray edges are unverified candidates; every green final edge passes the configured discrete check. Crossings in projection need not connect four-dimensional nodes.',
+        'Finite-step checks are not continuous collision detection or global infeasibility proofs. Execute preparation and opening after finding a path.', '',
         '```bash', 'python prm_examples.py', 'mjpython prm_examples.py --view detour', '```', '']
     (args.output/'REPORT.md').write_text('\n'.join(lines), encoding='utf-8')
     if args.render:

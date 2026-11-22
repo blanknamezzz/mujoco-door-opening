@@ -47,31 +47,31 @@ def comparisons():
     center = tuple(estimate(ROOT/'results'/'observation.npz')['center_world_m'])
     default = GraspPlan(center)
     return [
-        Comparison('angle', '角度：抓得到，还要全程不碰撞',
-            '相同站位 (0.80, -1.00) m；相同抓点、肘分支、速度和力上限',
-            '接近偏角 0°', '接近偏角 +8°',
-            '0° 方案接近全开时前臂与右手指发生自碰撞；+8° 方案通过并稳定保持。',
-            '对应狭窄操作空间：抓取姿态会改变整段机械臂配置，必须考虑后续动作。',
+        Comparison('angle', 'Angle: reach and avoid collision throughout',
+            'Same base (0.80, -1.00) m, grasp, elbow branch, speed, and force cap',
+            'Approach offset 0 deg', 'Approach offset +8 deg',
+            'At 0 degrees the forearm/right finger self-collide near full opening; +8 degrees opens and holds.',
+            'Narrow spaces require grasp configurations that support the complete continuation.',
             'approach_angle_deg', default, replace(default, approach_angle_deg=8.), base=(.8, -1.)),
-        Comparison('force', '夹持力：相同表面，接触承载能力不同',
-            '相同站位与轨迹；滑动摩擦系数 μ = 0.20',
-            '每指驱动力上限 2 N', '每指驱动力上限 25 N',
-            '2 N 方案已抓住但拉门时滑移；提高允许的驱动力后完成开门并保持。',
-            '对应较滑的把手或夹持力预算不足；这是驱动力上限，不是直接指定接触力。',
+        Comparison('force', 'Grip force: same surface, different load capacity',
+            'Same station and path; sliding friction mu = 0.20',
+            'Force cap 2 N/finger', 'Force cap 25 N/finger',
+            'The 2 N plan grasps but slips during pulling; a higher actuator cap completes opening and hold.',
+            'This models limited grip budget on slippery handles; actuator caps are not prescribed contact forces.',
             'grip_force_limit_N', replace(default, grip_force_limit_N=2.),
             replace(default, grip_force_limit_N=25.), friction=.2),
-        Comparison('speed', '时序：同一个抓点，拉动速度也重要',
-            '相同站位、抓点、角度、接触参数和驱动力上限',
-            '开门动作 2 秒', '开门动作 14 秒',
-            '快速拉动中途触发滑移；放慢相同圆弧轨迹后完成开门。',
-            '对应时间与接触稳定性的取舍：夹住后不能只追求更快。',
+        Comparison('speed', 'Timing: pulling speed matters after grasping',
+            'Same station, grasp, angle, contact settings, and force cap',
+            'Opening duration 2 s', 'Opening duration 14 s',
+            'Fast pulling triggers slip; slowing the same arc completes opening.',
+            'Execution time trades off against contact stability.',
             'timing.open_s', replace(default, timing=SkillTiming(open_s=2.)),
             replace(default, timing=SkillTiming(open_s=14.))),
-        Comparison('limit', '能力边界：更用力不能扩大机械臂工作空间',
-            '相同受限站位 (0.30, -0.90) m；角度、抓点和速度相同',
-            '每指驱动力上限 25 N', '每指驱动力上限 35 N',
-            '两个方案均在约 42.5° 因后续关节目标越界而停止；此时仍保持抓握。',
-            '这类失败需要改姿态、站位或运动方案；加大夹持力无法解决几何限制。',
+        Comparison('limit', 'Workspace: more force cannot add reach',
+            'Same limited station (0.30, -0.90) m, angle, grasp, and speed',
+            'Force cap 25 N/finger', 'Force cap 35 N/finger',
+            'Both stop near 42.5 degrees at an out-of-range joint target while maintaining grasp.',
+            'Change posture, station, or motion; increased grip force cannot remove geometric limits.',
             'grip_force_limit_N', replace(default, grip_force_limit_N=25.), default,
             base=(.3, -.9), after_succeeds=False),
     ]
@@ -152,11 +152,11 @@ W, H, FPS = 1152, 832, 12
 
 
 def reason_text(result):
-    return {'full_open_and_hold': '成功：完全打开并稳定保持',
-            'unexpected_collision': '停止：前臂与右手指自碰撞',
-            'slip_or_contact_loss': '停止：滑移或接触丢失',
-            'arm_workspace_limit': '停止：后续关节目标越界',
-            'grasp_not_acquired': '失败：未建立稳定抓握'}.get(result['stop_reason'], result['stop_reason'])
+    return {'full_open_and_hold': 'Success: complete opening and hold',
+            'unexpected_collision': 'Stop: forearm/finger self-collision',
+            'slip_or_contact_loss': 'Stop: slip or contact loss',
+            'arm_workspace_limit': 'Stop: joint target outside workspace',
+            'grasp_not_acquired': 'Failure: no stable grasp'}.get(result['stop_reason'], result['stop_reason'])
 
 
 class VideoWriter:
@@ -203,12 +203,12 @@ def render_comparison(case, pair, output, ffmpeg, combined):
         for frame_id, t in enumerate(times):
             frame = Image.new('RGB', (W, H), BG)
             d = ImageDraw.Draw(frame)
-            d.text((24, 14), f'抓握方案更新  /  {chapter:02d}', font=small, fill=MUTED)
+            d.text((24, 14), f'Grasp-plan update  /  {chapter:02d}', font=small, fill=MUTED)
             d.text((24, 43), case.title, font=title_font, fill=FG)
             d.text((24, 88), case.condition, font=small, fill=MUTED)
             for side, color in [(0, BEFORE), (1, AFTER)]:
                 x = 16+side*568
-                name = '原方案' if side == 0 else '调整方案'
+                name = 'Original plan' if side == 0 else 'Adjusted plan'
                 variant = pair['variants'][side]
                 result = variant['result']
                 data, e = trajectories[side], exps[side]
@@ -234,10 +234,10 @@ def render_comparison(case, pair, output, ffmpeg, combined):
                 inset = Image.fromarray(renderers[side].render().copy()).resize((212, 120))
                 frame.paste(inset, (x+332, 348))
                 d.rectangle((x+332, 326, x+544, 348), fill=BG)
-                d.text((x+336, 327), '实际接触近景', font=small, fill=FG)
-                d.text((x+8, 488), f'门角度 {float(row["door_deg"]):.1f}°   相对漂移 {1000*float(row["relative_drift_m"]):.1f} mm', font=font, fill=FG)
-                d.text((x+8, 520), f'接触法向力 L/R：{float(row["left_normal_N"]):.1f} / {float(row["right_normal_N"]):.1f} N', font=small, fill=MUTED)
-                status = reason_text(result) if terminal else ('双侧接触已建立' if row['bilateral_contact']=='True' else '接近 / 建立接触')
+                d.text((x+336, 327), 'Contact close-up', font=small, fill=FG)
+                d.text((x+8, 488), f'Door {float(row["door_deg"]):.1f} deg   Drift {1000*float(row["relative_drift_m"]):.1f} mm', font=font, fill=FG)
+                d.text((x+8, 520), f'Normal force L/R: {float(row["left_normal_N"]):.1f} / {float(row["right_normal_N"]):.1f} N', font=small, fill=MUTED)
+                status = reason_text(result) if terminal else ('Bilateral contact' if row['bilateral_contact']=='True' else 'Approach / contact acquisition')
                 d.text((x+8, 548), status, font=small, fill=color)
             # Angle traces use simulated time, including distinct termination times.
             gx, gy, gw, gh = 70, 594, 1048, 94
@@ -260,8 +260,8 @@ def render_comparison(case, pair, output, ffmpeg, combined):
                 tx = gx+gw*tick/max_time
                 d.text((tx-d.textlength(label,font=small)/2, gy+gh+5), label, font=small, fill=MUTED)
             d.text((24, 731), case.explanation, font=small, fill=FG)
-            d.text((24, 762), 'MuJoCo 物理实测 · 两侧仅改变一个参数 · 手动配置，非网络自动优化', font=small, fill=MUTED)
-            d.text((24, 793), '播放 2 倍速；失败侧到停止时刻后冻结，未继续积分。接触近景来自同一物理状态。', font=small, fill=MUTED)
+            d.text((24, 762), 'MuJoCo physics · One parameter per pair · Manual plans, no network optimization', font=small, fill=MUTED)
+            d.text((24, 793), '2x playback; failed sides freeze at termination. Close-ups use the same physical state.', font=small, fill=MUTED)
             if writer:
                 writer.add(frame)
                 combined.add(frame)
@@ -286,63 +286,63 @@ def write_presentation(summary, output, has_video):
     data = json.dumps(summary, ensure_ascii=False).replace('</','<\\/')
     html = PRESENTATION.replace('__DATA__', data).replace('__VIDEO__', 'true' if has_video else 'false')
     (output/'index.html').write_text(html, encoding='utf-8')
-    lines = ['# 抓握方案更新：实测对比演示', '',
-             '全部结果来自当前 MuJoCo 模型的实际积分。每组固定场景，只改变一个方案参数。',
-             '方案由人工指定，未运行神经网络或自动优化，不能把这些对照解释为新旧模型胜率。', '',
-             '| 对照 | 原方案 | 调整方案 |', '| --- | --- | --- |']
+    lines = ['# Grasp-plan updates: measured comparison', '',
+             'Every result comes from actual MuJoCo integration. Each pair fixes the scene and changes one plan parameter.',
+             'Plans are manual, without networks or automatic optimization; comparisons are not old/new model win rates.', '',
+             '| Control | Original plan | Adjusted plan |', '| --- | --- | --- |']
     for pair in summary['comparisons']:
         cells=[]
         for variant in pair['variants']:
             r=variant['result']
-            cells.append(f'{variant["label"]}：{r["final_angle_deg"]:.3f}°，{reason_text(r)}')
+            cells.append(f'{variant["label"]}: {r["final_angle_deg"]:.3f}°, {reason_text(r)}')
         lines.append('| '+pair['title']+' | '+' | '.join(cells)+' |')
-    lines += ['', '## 已展示的优势', '',
-              '- 可将抓点、接近角度、肘关节分支、时序和夹持力上限保存为完整方案并重放。',
-              '- 可以隔离角度、力和速度对全程成功的影响，而不是只看能否夹住或最终角度。',
-              '- 边界案例明确展示：几何工作空间不足无法靠增加夹持力解决。', '',
-              '## 更现实的问题及当前边界', '',
-              '这些机制对应狭窄空间、表面摩擦差异、有限夹持力和动作速度的取舍；',
-              '但本演示没有对真实材料标定，也没有验证真实机器人、遮挡、移动底座导航或在线重抓。',
-              '当前从预抓取姿态初始化。后续需加入候选搜索、完整轨迹筛选和闭环纠错，才能自动选择方案。', '',
-              '## 复现', '', '```bash',
+    lines += ['', '## Demonstrated capabilities', '',
+              '- Save/replay complete plans including point, angle, elbow branch, timing, and force cap.',
+              '- Isolate angle/force/speed effects on complete execution rather than grasp acquisition or final angle alone.',
+              '- Workspace examples show that force cannot compensate for insufficient geometric reach.', '',
+              '## Practical interpretation and scope', '',
+              'These mechanisms illustrate narrow spaces, friction differences, grip budgets, and speed tradeoffs. ',
+              'No material calibration, hardware, occlusion, mobile navigation, or online regrasp is validated.',
+              'Current demos initialize at pregrasp. Automatic selection needs candidate search, trajectory screening, and closed-loop correction.', '',
+              '## Reproduction', '', '```bash',
               'python demo_grasp_update.py --physics-only',
               'python demo_grasp_update.py --render-only',
               'mjpython demo_grasp_update.py --view angle --variant before',
               'mjpython demo_grasp_update.py --view angle --variant after',
-              '```', '', '打开 index.html 可切换章节；summary.json、各案例 CSV/NPZ 和方案 JSON 为原始证据。']
+              '```', '', 'Open index.html to switch chapters. summary.json, case CSV/NPZ, and plan JSON preserve the evidence.']
     (output/'REPORT.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
 
 
 PRESENTATION = r'''<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>抓握方案更新 · MuJoCo 实测对照</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grasp-plan updates · MuJoCo comparisons</title>
 <style>
 :root{color-scheme:dark;--bg:#0d1723;--text:#eef4fa;--muted:#acbbcd;--line:#2a394d;--a:#f7b267;--b:#59d4bc}[hidden]{display:none!important}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.7 system-ui,-apple-system,"PingFang SC",sans-serif}main{max-width:1200px;padding:44px 26px 64px;margin:auto}h1{font-size:clamp(27px,4vw,42px);line-height:1.25;letter-spacing:-.04em;margin:14px 0}h2{font-size:22px;margin:10px 0}p{margin:10px 0}small,.muted{color:var(--muted)}.eyebrow{color:var(--b);letter-spacing:.12em;font-size:12px}nav{display:flex;gap:9px;flex-wrap:wrap;margin:25px 0 20px}button{font:inherit;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:9px;padding:9px 16px;cursor:pointer}button[aria-pressed=true]{background:var(--text);color:var(--bg)}button:focus-visible{outline:3px solid var(--b);outline-offset:3px}video,img{display:block;width:100%;border-radius:10px;background:#101b2a}.facts{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:22px 0}.fact{border-top:3px solid var(--a);padding-top:14px}.fact.after{border-color:var(--b)}.value{font-size:30px;font-variant-numeric:tabular-nums}.section{border-top:1px solid var(--line);padding-top:22px;margin-top:30px}a{color:var(--b)}code{font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}.command{padding:14px;background:#172435;border-radius:9px}details{margin:18px 0}table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}td{overflow-wrap:anywhere}ul{padding-left:22px}li{margin:9px 0}@media(max-width:600px){main{padding:28px 16px}.facts{grid-template-columns:1fr}.value{font-size:25px}nav button{padding:8px 10px}}
 </style></head><body><main>
 <div class="eyebrow">MUJOCO / GRASP PLAN DEMO</div>
-<h1>从一个抓点，到完整抓握方案</h1>
-<p class="muted">同一场景，只改一个参数。看角度、夹持力与速度如何改变整段开门结果。</p>
-<p><small>人工配置方案 · 物理仿真实测 · 不代表网络自动优化或真实机器人验证</small></p>
-<nav id="chapters" aria-label="对照章节"></nav>
+<h1>From a grasp point to a complete plan</h1>
+<p class="muted">Same scene, one changed parameter. Compare angle, force, and speed over the full opening.</p>
+<p><small>Manual plans · Physical simulation · No automatic network optimization or hardware validation</small></p>
+<nav id="chapters" aria-label="Comparison chapters"></nav>
 <h2 id="case-title"></h2><p id="condition" class="muted"></p>
-<video id="player" controls playsinline preload="metadata" aria-label="两套抓握方案的真实仿真轨迹"></video>
-<img id="gif" alt="抓握方案物理实测对比动画" hidden>
+<video id="player" controls playsinline preload="metadata" aria-label="Physical trajectories of two grasp plans"></video>
+<img id="gif" alt="Measured grasp-plan comparison animation" hidden>
 <div class="facts" id="facts" aria-live="polite"></div>
 <p id="explanation"></p><p id="practical" class="muted"></p>
-<details><summary>查看可复现的两套方案参数</summary><table><thead><tr><th>参数</th><th>原方案</th><th>调整方案</th></tr></thead><tbody id="parameters"></tbody></table><p id="raw"></p></details>
-<div class="section"><h2>这次更新已经带来了什么？</h2>
-<ul><li><strong>扩大动作表达：</strong>抓握不再只是一个点，还包含接近角度、肘分支、速度安排和驱动力上限。</li>
-<li><strong>能比较整段过程：</strong>接近全开仍可能自碰撞，能抓住仍可能滑脱；不能只凭“够到了”或门角度判断成功。</li>
-<li><strong>可追溯：</strong>每次尝试保留方案、实际接触力、漂移、轨迹和终止原因，可重放和用于后续训练。</li></ul>
-<h2>下一步才能做到的事</h2><p class="muted">自动搜索最优方案、未知初始位置的可靠预测、视觉遮挡处理和在线重抓均尚未实现。当前演示从预抓取姿态开始。</p>
-<p><a href="REPORT.md">实测报告</a> · <a href="summary.json">原始结果汇总</a> · <a href="grasp_update_demo.webm" id="full-video">完整四段演示</a></p>
-<details><summary>在 MuJoCo 中实时运行当前章节</summary><pre class="command"><code id="commands"></code></pre><small>先激活已安装 MuJoCo 的 Python 环境；Mac 实时窗口使用 mjpython。</small></details>
+<details><summary>Reproducible plan parameters</summary><table><thead><tr><th>Parameter</th><th>Original</th><th>Adjusted</th></tr></thead><tbody id="parameters"></tbody></table><p id="raw"></p></details>
+<div class="section"><h2>Implemented capabilities</h2>
+<ul><li><strong>Richer actions:</strong> grasp point, approach angle, elbow branch, timing, and actuator caps.</li>
+<li><strong>Complete-process comparison:</strong> self-collision or slip can follow successful reach/grasp; reach and angle alone are insufficient.</li>
+<li><strong>Traceability:</strong> retain plans, actual forces, drift, trajectories, and stop reasons for replay/training.</li></ul>
+<h2>Future capabilities</h2><p class="muted">Optimal search, reliable prediction from unknown poses, visual occlusion handling, and online regrasp remain unimplemented. Current demos begin at pregrasp.</p>
+<p><a href="REPORT.md">Measured report</a> · <a href="summary.json">Raw summary</a> · <a href="grasp_update_demo.webm" id="full-video">Complete four-chapter demo</a></p>
+<details><summary>Run this chapter live in MuJoCo</summary><pre class="command"><code id="commands"></code></pre><small>Activate a Python environment with MuJoCo installed; use mjpython for Mac live windows.</small></details>
 </div></main><script>
 const summary=__DATA__;const hasVideo=__VIDEO__;
 const $=id=>document.getElementById(id);
-const reasons={full_open_and_hold:'完全打开并稳定保持',unexpected_collision:'前臂与右手指自碰撞',slip_or_contact_loss:'滑移告警触发停止',arm_workspace_limit:'后续关节目标越界'};
-const fields=[['height_offset_m','抓握高度偏移 / m'],['approach_angle_deg','接近偏角 / °'],['ik_branch','肘分支'],['grip_force_limit_N','每指驱动力上限 / N'],['timing.open_s','开门时长 / s']];
+const reasons={full_open_and_hold:'Complete opening and hold',unexpected_collision:'Forearm/right-finger self-collision',slip_or_contact_loss:'Stopped by slip alarm',arm_workspace_limit:'Joint target outside workspace'};
+const fields=[['height_offset_m','Height offset / m'],['approach_angle_deg','Approach offset / deg'],['ik_branch','Elbow branch'],['grip_force_limit_N','Force cap per finger / N'],['timing.open_s','Opening duration / s']];
 const get=(o,path)=>path.split('.').reduce((v,k)=>v[k],o);
 function select(index){const c=summary.comparisons[index];$('case-title').textContent=c.title;$('condition').textContent=c.condition;
 document.querySelectorAll('nav button').forEach((b,i)=>b.setAttribute('aria-pressed',String(i===index)));
@@ -352,8 +352,8 @@ $('facts').replaceChildren();c.variants.forEach((v,i)=>{const div=document.creat
 $('explanation').textContent=c.explanation;$('practical').textContent=c.practical;
 $('parameters').replaceChildren();fields.forEach(([key,label])=>{const tr=document.createElement('tr');[label,...c.variants.map(v=>get(v.result.execution_plan,key))].forEach(value=>{const td=document.createElement('td');td.textContent=value;tr.append(td)});$('parameters').append(tr)});
 $('raw').replaceChildren();c.variants.forEach(v=>{const a=document.createElement('a');a.href=v.name+'_plan.json';a.textContent=v.label+' JSON';a.style.marginRight='20px';$('raw').append(a)});
-$('commands').textContent='# 在项目根目录运行，先激活 Python 环境\n\nmjpython demo_grasp_update.py --view '+c.key+' --variant before\nmjpython demo_grasp_update.py --view '+c.key+' --variant after';}
-summary.comparisons.forEach((c,i)=>{const b=document.createElement('button');b.type='button';b.textContent=['01 角度','02 夹持力','03 速度','04 能力边界'][i];b.addEventListener('click',()=>select(i));$('chapters').append(b)});
+$('commands').textContent='# Run from the project root after activating Python\n\nmjpython demo_grasp_update.py --view '+c.key+' --variant before\nmjpython demo_grasp_update.py --view '+c.key+' --variant after';}
+summary.comparisons.forEach((c,i)=>{const b=document.createElement('button');b.type='button';b.textContent=['01 Angle','02 Grip force','03 Speed','04 Workspace'][i];b.addEventListener('click',()=>select(i));$('chapters').append(b)});
 $('full-video').hidden=!hasVideo;select(0);
 </script></body></html>'''
 

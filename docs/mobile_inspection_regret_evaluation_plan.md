@@ -1,22 +1,22 @@
-# v6 新冻结测试与实时回放
+# v6 fresh frozen test and live replays
 
-主策略已在训练／验证阶段选为 `joint_regret` 第 40 步。正式测试使用训练启动时另冻的 18 组／72 场景，不使用历史 v5 测试结果选择权重、温度、损失权重或地图设置。
+Training/validation selected `joint_regret` at update 40. The formal test uses 18 groups and 72 scenes separately frozen at training launch; historical v5 results do not select weights, temperature, loss weights, or maps.
 
-| 策略 | 权重 | 观察方式 |
+| Policy | Weights | Inspection mode |
 | --- | --- | --- |
-| outcome | 本轮匹配结果监督组 | 自主 |
-| joint_regret〔主策略〕 | 本轮结果监督＋后悔组 | 自主 |
-| decision_regret | 本轮仅后悔监督组 | 自主 |
-| frozen_v5_learned | 冻结 v5 深度组 | 自主 |
-| frozen_v5_always | 同一冻结 v5 | 始终，初始全排除则拒绝 |
-| frozen_v5_never | 同一冻结 v5 | 从不 |
+| outcome | Matched outcome-supervised arm | Learned |
+| joint_regret (primary) | Outcome plus regret arm | Learned |
+| decision_regret | Regret-only arm | Learned |
+| frozen_v5_learned | Frozen v5 depth-feature arm | Learned |
+| frozen_v5_always | Same frozen v5 | Always; refuse if every initial action is excluded |
+| frozen_v5_never | Same frozen v5 | Never |
 
-后三项在训练冻结记录中已声明。所有策略使用相同 P/G、既有 LoRA、核心及归一化；评估前逐张量检查，之后才能共用固定前向缓存。完整任务仍为各策略独立的实时 RGB-D 决策和物理执行，不从缓存读取地图或动作。沿用未修改的 v5 采集器与回放器，只更换预先声明的模型路径与观察模式。
+The last three controls were declared in the training freeze record. All policies share P/G, existing LoRA, core, and normalization, verified tensor by tensor before sharing fixed-forward caches. Each policy still makes independent live RGB-D decisions and physically executes the task without cached maps or actions. Retain the unmodified v5 collector and replay engine, changing only preregistered model paths and inspection modes.
 
-每个新场景从头执行两分支×四站位×两抓持，共 **1152** 条物理候选；六策略独立回放共 **432** 条。指标同时报告开门、正确拒绝、误拒绝、碰撞、观察、净回报、实际路程与仿真时间。正确决策含正确拒绝，“可行”只限当前候选集合。主策略结果按原选择保留，不以新测试重选获胜模型。
+For every fresh scene, execute two branches x four stations x two grasps from scratch, totaling **1152** physical candidates. Six independent policy replays total **432**. Report openings, correct/false refusals, collisions, inspections, net utility, actual path length, and simulated time. Correct decisions include correct refusals, and feasibility refers to the candidate library. Retain the preselected primary policy rather than choosing a new winner on the test.
 
-先使用与正式场景不重叠的训练短流程冻结清单，执行 4 场景／64 候选／24 实时回放，检查新路由与审计。它只验证执行，不能重新调整训练。正式结果另外采集。每回合初始化一次、开门入口 q/v 连续、当前深度掩码与时钟、速度和步长均核验，六个新阶段检查点及冻结 v5 参考所有非 I 张量保持，原 422 核心张量和历史输入保持。
+First use the smoke test's separately frozen 4-scene manifest, disjoint from formal scenes, for 64 candidates and 24 live replays to check routing and audits. It verifies execution without retuning training. Collect formal results separately. Check one initialization, continuous opening-entry q/v, current depth masks, clocks, speeds, and timesteps. Preserve all non-I tensors across six new stage checkpoints and frozen-v5 references, plus the original 422 core tensors and historical inputs.
 
-小流程预计运行 **15 分钟、排队 0**。依据前轮完整 v5 小流程 4 场景采集 368.51 秒、40 回放 551.98 秒；本轮 24 回放，预留加载和审计。正式阶段先保守估计 **4 小时、排队 0**，依据已完成 v5 正式 72 场景采集 6560.84 秒、六个相近神经策略回放约 4184.63 秒，外加缓存／审计和负载余量。新小流程完成后分阶段修正，区分采集与训练并发情况。本阶段没有训练或并发采集任务。
+Estimate the smoke test at **15 minutes with zero queue time**, referencing v5's 4-scene collection of 368.51 seconds and 40 replays of 551.98 seconds; this run uses 24 replays plus loading/audits. Initially reserve **4 hours with zero queue time** for the formal test, from v5's 72-scene collection of 6560.84 seconds and about 4184.63 seconds for six comparable neural-policy replay sets, plus caching/audits and load variation. Refine by phase after the new smoke test, distinguishing collection from concurrent training. No training or concurrent collection runs in this phase.
 
-启动后确认实际进程／权威会话与预热数据，记录截止时间并连续代理休眠。到时检查同一会话；未完成按仓库要求延长 30 分钟，不重复启动。固定 seed=42，所有原始数据、模型、视频与日志仅存新 ignored `runs/`。
+After launch, confirm the actual process/authoritative session and warmup, record the deadline, and sleep continuously. Inspect the same session at the deadline; if incomplete, extend by 30 minutes under repository rules without duplicate launches. Fix seed=42 and keep raw data, models, videos, and logs only in new ignored `runs/` directories.

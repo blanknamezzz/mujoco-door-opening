@@ -1,50 +1,50 @@
-# 分解结果监督与门扇扫掠对照（v4）
+# Factorized outcome supervision and door-sweep controls (v4)
 
-状态：正式实验已完成，864/864 次物理回放匹配；[完整结果与核验](mobile_outcome_results.md)。前置小流程通过 41 项契约测试和 48 次回放。上一轮 v3 是独立历史实验，所有权重、冻结测试和回执保留。以下保留启动前预注册设计与估时。
+Status: the formal experiment is complete, with 864/864 physical replays matching; see [full results and verification](mobile_outcome_results.md). The preceding smoke test passed 41 contracts and 48 replays. The v3 run remains independent historical evidence, with weights, frozen tests, and receipts preserved. The preregistered design and estimates follow.
 
-## 本轮问题
+## Questions
 
-v3 训练/验证的 1,728 条候选中有 152 条碰撞、304 条完整成功；观察代价模型在验证集自主观察比始终观察少做对 4 个决策。这些开发集证据支持同时检查结果表示、训练阶段与开门几何约束。
+Among v3's 1,728 training/validation candidates, 152 collide and 304 complete opening. On validation, learned inspection with the cost model makes 4 fewer correct decisions than always inspecting. These development observations motivate comparing outcome representation, staged training, and opening-geometry constraints.
 
-1. 标量平均回报会合并普通失败与碰撞风险。比较同容量网络的期望回报 MSE，与成功／普通失败／碰撞三类结果的交叉熵监督。
-2. 先训练并选定定位／抓持 P/G 与编码器 LoRA，再冻结它们，单独拟合观察策略；观察标签使用当前冻结 P/G 真正选择的后续动作，不取反事实中的最优动作。
-3. 将门扇和把手的扫掠几何纳入已知地图规划。只在独立 `MjData` 上查询门组件与静态障碍、目标底盘外形的交叠；实际门仍由接触推动。
+1. Scalar mean return merges ordinary failure and collision risk. Compare expected-return MSE against success/ordinary-failure/collision cross-entropy with equal-capacity networks.
+2. Train and select positioning/grasping P/G and encoder LoRA first, freeze them, then fit inspection separately. Inspection labels use actions actually selected by frozen P/G rather than the best counterfactual action.
+3. Include door-leaf and handle sweeps in known-map planning. Query overlap between door components, static obstacles, and the target base footprint only in a separate `MjData`; physical opening still comes from contact.
 
-## 匹配设置
+## Matched settings
 
-- 两模型从 v3 验证选定的 `view_free/selected.pt` 初始化，使用相同 P/G 隐层、三类输出、独立观察网络和种子 42。
-- 第一阶段每模型 320 次更新，只训练原有 rank-8 LoRA 与 P/G，其他原张量保持冻结；按“不加扫掠、始终观察、风险系数 1”的验证结果选 P/G 检查点。
-- 第二阶段冻结选定 P/G 和全部编码器，仅训练观察网络 800 次。两模型同样使用风险系数 1/3、普通／扫掠规划共 4 种条件；风险偏好与规划模式在执行时已知。
-- 观察网络预测成功、普通失败、碰撞、后续拒绝四种结果，并以独立正值输出拟合实际观察成本。它只收到初始图像特征、真实相对目标、风险系数和规划模式。
-- 三类结果价值为 `1, -1, -1-c`；风险系数 `c=1` 是主对照，`c=3` 是分解模型的预先声明附加对照。所有主指标仍使用共同的 `2*success-1-collision-observation_cost`。
-- 观察检查点按“不加扫掠、自主观察、风险 1”的验证结果选定，不用其他规划条件挑检查点。
+- Both models initialize from v3's validation-selected `view_free/selected.pt`, with matching P/G hidden layers, three-class outputs, independent inspection networks, and seed 42.
+- Stage 1 performs 320 updates per model to existing rank-8 LoRA and P/G only. Keep other tensors frozen and select PG on validation with no sweep, always inspection, and risk coefficient 1.
+- Stage 2 freezes selected P/G and every encoder parameter, training only inspection for 800 updates. Both models use four conditions: risk 1/3 crossed with ordinary/sweep planning. Risk and planning mode are known at execution.
+- Inspection predicts success, ordinary failure, collision, and downstream refusal, with a separate positive output for actual inspection cost. Inputs are initial-image features, actual relative target, risk, and planning mode.
+- The three outcome values are `1, -1, -1-c`; `c=1` is primary, and `c=3` is a preregistered factorized-model control. Main metrics retain the common utility `2*success-1-collision-observation_cost`.
+- Select I checkpoints on no-sweep, learned-inspection, risk-1 validation outcomes, without selecting across other planning conditions.
 
-## 数据和策略
+## Data and policies
 
-复用 v3 冻结的 72 个训练场景、36 个验证场景，逐一校验物理源码和读取文件哈希，不重采样或改写旧数组。最终测试重新生成 **18 组、72 个场景**，每组前挡／后挡／双挡／无挡，排除历史物理几何；模型、策略及哈希全部冻结后才采集测试结果。
+Reuse v3's frozen 72 training and 36 validation scenes, checking physical-source and input-file hashes individually without resampling or rewriting arrays. Generate a fresh test of **18 groups and 72 scenes**, with front/rear/both/no-obstacle layouts per group and no historical geometry. Collect outcomes only after freezing models, policies, and hashes.
 
-12 组策略：
+Twelve policies:
 
-- 原 v3 验证选定模型始终观察，普通／扫掠规划两组。
-- scalar 和 factorized 各自始终／自主观察，普通／扫掠规划，共八组。
-- factorized 风险系数 3 的自主观察，普通／扫掠规划两组。
+- The original v3 validation-selected model with always inspection, under ordinary/sweep planning.
+- Scalar and factorized models with always/learned inspection, crossed with ordinary/sweep planning: eight policies.
+- Factorized risk-3 learned inspection under ordinary/sweep planning: two policies.
 
-扫掠规划在选择前排除预计碰撞的站位；全部排除则在初始位置拒绝。可开场景分母仍使用未经该排除的两条实际分支候选并集，防止把保守拒绝当作成功。
+Sweep planning excludes predicted colliding stations before selection; if all are excluded, refuse at the initial pose. Feasibility still uses the union of unfiltered physical candidates from both branches, so conservative refusal does not inflate success.
 
-## 规划约束的范围
+## Planning scope
 
-默认每 1° 查询一次到 90° 的门扇运动，穿透容差 1 mm。开发集对照中，全部 152 条碰撞记录对应被排除站位，304 条成功记录均被保留。这些是同一批训练/验证候选的描述统计，不能直接当作新测试效果。
+By default query the sweep to 90 degrees at 1-degree intervals, with 1 mm penetration tolerance. In development, all 152 collision candidates are excluded and all 304 successful candidates retained. These describe the same training/validation records rather than fresh test performance.
 
-规划器使用完整已知地图，具有额外几何约束信息；其结果与神经监督效果分开报告。查询覆盖门组件、静态障碍和底盘外形；移动机械臂、摩擦、夹持动力学及离散查询间的碰撞仍须实际执行确认。
+The planner has a complete known map and extra geometric constraint information; report its effect separately from neural supervision. Queries cover door components, static obstacles, and base footprint. Moving-arm collisions, friction, grasp dynamics, and collisions between query angles still require physical execution.
 
-## 验证与预计时间
+## Verification and duration estimates
 
-已通过的测试包含：同标量均值对应不同碰撞组成、风险价值、后续标签不选事后最优动作、观察训练不改变 P/G、完整检查点往返、拒绝哨兵、门扇／底盘碰撞、几何查询不改变实时状态，以及原移动流程契约。
+Passed checks cover equal scalar means with different collision mixtures, risk values, selected-action rather than oracle labels, frozen P/G during I training, checkpoint round trips, refusal sentinels, door/base collisions, unchanged live state during geometry queries, and existing mobile contracts.
 
-先在 1 个训练组、1 个验证组、1 个全新测试组上做各 2 次更新，完整跑完 12 组策略与 48 次回放。小规模预计 25 分钟，排队 0；估计来自 v3 的 4 场景采集约 358 秒、32 回放约 208 秒，加新模型加载、40 项测试和余量。
+First run 2 updates on each of one training group, one validation group, and one fresh test group, including all 12 policies and 48 replays. Estimate 25 minutes and zero queue time from v3's roughly 358-second 4-scene collection and 208-second 32-replay run, plus model loading, 40 tests, and margin.
 
-首次小流程因 GPU 模型加载后归一化统计仍在 CPU 失败，原会话 74309 已确认退出；修复加载器并新增 CUDA 回归测试后，在新目录重跑。会话 79932 最终退出码 0：41 项测试通过；正式链路实际 757.43 秒，采集 295.34 秒、48 次回放 363.38 秒；代理按 20 分钟的修订预计时间连续休眠。小规模各模型仅 2 次更新，不用于效果结论。
+The first smoke run failed because normalization stayed on CPU after loading a GPU model; session 74309 exited. After fixing loading and adding a CUDA regression check, rerun in a new directory. Session 79932 exited 0: 41 tests passed; pipeline 757.43 seconds, collection 295.34 seconds, 48 replays 363.38 seconds. The agent slept continuously for the revised 20-minute estimate. Two updates per model are an integration check rather than performance evidence.
 
-两模型 selected/last、PG 和观察阶段检查点均已逐张量核验：原 422 个冻结张量及归一化统计保持；观察训练期间 P/G 与全部 LoRA 逐位不变。失败回执、原源码和权重保留。
+Tensor checks of selected/last, PG, and I-stage checkpoints preserve all 422 original frozen tensors and normalization statistics. P/G and all LoRA tensors remain bitwise unchanged during I training. Failed receipts, source, and weights are preserved.
 
-正式规模估计修订为 **5.5 小时，排队 0**：本轮小规模 4 个测试场景采集 295.34 秒，外推 72 个约 5,316 秒；48 次回放 363.38 秒，外推 864 次约 6,541 秒；两模型训练、目标刷新和验证参考 v3 完整阶段，预留约 4,200 秒，加 I/O、张量检查和负载变化余量。总预算 19,800 秒，是保守估计而非实测时间。启动后记录实际进程、吞吐与预计完成时刻。
+Revise the full estimate to **5.5 hours with zero queue time**: extrapolate 295.34 seconds for 4-scene collection to about 5,316 seconds for 72 scenes, and 363.38 seconds for 48 replays to about 6,541 seconds for 864. Reserve about 4,200 seconds for two-model training, label refresh, and validation using v3 as reference, plus I/O, tensor audits, and load variation. The 19,800-second budget is conservative rather than measured. Record the live process, throughput, and expected completion after launch.

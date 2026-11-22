@@ -1,128 +1,128 @@
-# 移动开门与真实主动观察实验（2026-11-09）
+# Mobile door opening and physical active inspection (2026-11-09)
 
-本轮完成三组各 480 步的 H-JEPA LoRA 续训，以及 288 次实际物理策略回放。验证集选定 `view_free_always`：新测试集上完整开门 **24/25 个可开场景**，正确决策 **30/36**；初始图像对照为 11/25、22/36。该策略仍有 2 次碰撞，安全拒绝尚未解决。
+Three H-JEPA LoRA arms each complete 480 updates, followed by 288 physical policy replays. Validation selects `view_free_always`: **24/25 feasible openings**, **30/36** correct decisions on the fresh test, versus 11/25 and 22/36 for the initial-image control. Primary still has 2 collisions and unresolved safe-refusal failures.
 
-## 场景、移动与训练范围
+## Scenes, motion, and training scope
 
-- 144 个新场景，训练/验证/测试为 **72/36/36**，即 18/9/9 组。每组共享门、把手、摩擦与初始位置，分别布置前侧阻挡、后侧阻挡、两侧阻挡、无阻挡；整组划分，避免同一外观跨训练和测试。
-- 支持 lever、t-bar、d-pull、offset-bar 四种既有把手，以及六种门外观。几何、把手位置和摩擦有连续扰动。这是已知类别的新参数组合。
-- 底盘采用 x/y/yaw 伺服的理想全向模型，A* 使用已知 MuJoCo 几何；机械臂以 RRT 准备抓持。检查器使用独立 `MjData`，执行由 `mj_step` 推进。
-- 真实执行“初始观察 → 可选绕到背面观察 → 选择站位 → 行走 → 准备抓持 → 接触开门”。每个回合只初始化一次；本轮开门阶段保持所选底盘站位。门铰链保持被动。
-- 相机随底盘移动。策略初次决策只收到当前 RGB/proprio；第二次决策读取真正到达观察点后的新图像；抓持策略只在站位到达后读取到达图像。
-- 原 H-JEPA 核心、归一化统计和历史实验保留。仅更新原有 rank-8 编码器 LoRA 与 P/G 策略。固定 seed=42，Python/NumPy/Torch/CUDA 与启动时的 Python hash seed 均有回执。
-- 本轮固定夹爪力 6 N、角度 −15°/22°。主分支的独立 29 角度抓持实验继续保留。
+- 144 fresh scenes split **72/36/36** across training/validation/test, or 18/9/9 groups. Each group shares door, handle, friction, and initial pose, with front/rear/both/no-obstacle layouts. Split complete groups to prevent shared appearance across training/testing.
+- Four familiar handles (lever, t-bar, d-pull, offset-bar) and six door appearances, with continuous perturbations to geometry, handle position, and friction. These are fresh parameter combinations within known categories.
+- An ideal x/y/yaw holonomic servo base uses A* on known MuJoCo geometry; the arm uses RRT preparation. Geometry checks use separate `MjData`; execution advances with `mj_step`.
+- Execute initial observation -> optional rear-side inspection -> station selection -> navigation -> grasp preparation -> contact opening, with one initialization per episode. Hold the selected base station during opening; retain a passive door hinge.
+- Cameras move with the base. Initial decisions receive current RGB/proprio only; inspection decisions use newly captured reached-view images, and grasp decisions use images captured after station arrival.
+- Preserve original H-JEPA core, normalization, and historical experiments. Update only existing rank-8 encoder LoRA and P/G policies. Fix seed=42 and record Python/NumPy/Torch/CUDA/startup hash seeds.
+- Fixed gripper force cap 6 N and angles -15/+22 degrees. Preserve the independent 29-angle grasp experiment on the main branch.
 
-![真实底盘轨迹及前后两次相机观察](mobile_active_motion.png)
+![Physical base path and initial/reached camera observations](mobile_active_motion.png)
 
-图中是冻结策略的实际回放轨迹和采集图像：同一回合累计移动 4.62 m，仿真持续 63.73 s；起始图像受到前方遮挡，移动后重新获得门的另一侧图像。地面示意使用已知场景几何。
+The figure uses an actual frozen-policy replay and recorded images: 4.62 m traveled in 63.73 simulated seconds. The initial view is obstructed; moving around the door reveals the opposite side. The floor diagram uses known scene geometry.
 
-## 定位、抓持、开门与观察的 reward
+## Positioning, grasping, opening, and inspection rewards
 
-本轮采用任务流监督，P 和 G 分别学习其后续执行回报：
+Task-flow supervision trains P and G on their downstream execution returns:
 
 ```text
-U(branch, base, grasp) = 2 × 完整成功 − 1 − 后续碰撞
-拒绝执行的价值 = 0
+U(branch, base, grasp) = 2 * complete_success - 1 - downstream_collision
+Refusal value = 0
 
-G 的目标：实际观察到抓持输入后，对应动作的 U
-P0 的目标：不观察分支中，当前 G0 所选动作的实际 U
-P1 的目标：观察分支中，当前 G1 所选动作的实际 U
+G target: actual U of the action after obtaining its grasp observation
+P0 target: actual U of the action selected by current G0 on the direct branch
+P1 target: actual U of the action selected by current G1 on the inspected branch
 
-观察成本 = 0.2 × 实际观察路径(m)/6
-         + 0.1 × 实际观察耗时(s)/60
-I 的目标 = 当前 P1/G1 所选后续执行的实际回报 − 观察成本
+Inspection cost = 0.2 * actual_inspection_path(m)/6
+                + 0.1 * actual_inspection_time(s)/60
+I target = actual return of continuation selected by current P1/G1 - inspection cost
 ```
 
-监督标签从训练场景的完整物理反事实表中查询。后续 P/G 选择停止梯度，每 40 次更新只在训练集刷新；观察标签对应当前后续策略的选择，而非预知哪个动作最终成功后挑选最优动作。P0、P1、I 共用现有 P 网络和不同的真实相对目标指令；没有为某个对照额外增加网络容量。
+Query labels from complete physical counterfactual tables for training scenes. Detach downstream P/G choices and refresh every 40 updates on training only. Inspection labels follow the current continuation rather than selecting a successful action afterward. P0, P1, and I share the existing P network with different physical relative-target commands; controls add no capacity.
 
-训练损失为 `LP0 + LP1 + 0.5×(LG0+LG1) + LI`。未获得抓持观察的动作屏蔽 G 监督；不安全的观察立即结束回合，并屏蔽后续 P/G 标签。观察后拒绝仍支付已发生的观察成本，每回合最多观察一次。
+Loss is `LP0 + LP1 + 0.5*(LG0+LG1) + LI`. Mask G labels where no grasp observation exists. Unsafe inspection terminates the episode and masks downstream P/G. Refusal after inspection still pays its incurred cost. At most one inspection per episode.
 
-这样，走到站位和部分开门不会单独抵消错误站位或最终失败；定位的目标与当前抓持、开门的实际后果保持关联。旧版阶段分解与二值对照代码仍保留在 `staged_mobile_reward.py`、`mobile_crossed_v2.py`。
+Reaching a station or partially opening does not offset a wrong station or terminal failure. Positioning targets remain tied to current grasp/opening consequences. Preserve earlier stage-factorized/binary controls in `staged_mobile_reward.py` and `mobile_crossed_v2.py`.
 
-## 对照与冻结规则
+## Controls and freezing rules
 
-三组模型使用同一批两分支数据，每场景 2×4×2=16 次从头执行的候选，共 **2,304 次候选执行**。每次更新均处理 2 个场景、同等数量的图像与策略输入。
+All three models use the same two-branch data: 2x4x2=16 independently initialized candidates per scene, totaling **2,304 executions**. Each update processes 2 scenes with matching image and policy-input counts.
 
-| 模型 | 观察后的图像输入 | 训练时观察成本 |
+| Model | Image after inspection | Inspection cost during training |
 | --- | --- | --- |
-| `repeat` | 重用初始图像；仍输入实际到达状态与相对目标 | 有 |
-| `view_free` | 实际新视角图像 | 0 |
-| `view_cost` | 实际新视角图像 | 有 |
+| `repeat` | Initial image reused; actual reached state and relative target retained | Yes |
+| `view_free` | Actual reached-view image | 0 |
+| `view_cost` | Actual reached-view image | Yes |
 
-`repeat` 测试直接执行和始终移动；另外两模型各测试直接执行、始终观察、自主决定观察，共 8 组策略。**所有测试策略均按相同正成本计算净回报**；`free` 只描述训练目标。
+Test repeat under direct/always-move modes, and each other model under direct/always/learned inspection: 8 policies. **All test net utilities use the same positive cost**; free refers only to training.
 
-初始化来自前轮验证集选定的 `fixed_binary_grouped/selected.pt`。各模型按验证集选择检查点，依次比较正确决策数、碰撞、完整开门、净回报、路径、观察数；跨模型采用相同规则，完全相同则按预先声明的策略顺序。选中步数为 repeat=400、view_free=440、view_cost=280。
+Initialize from earlier validation-selected `fixed_binary_grouped/selected.pt`. Select each model by validation correctness, collisions, full openings, net utility, path length, and inspection count. Use the same rule across models, with preregistered policy order on exact ties. Selected updates: repeat=400, view_free=440, view_cost=280.
 
-验证集的正确决策数为 20、24、19、31、31、20、30、26（顺序与下表一致）；`view_free_always` 在声明的平局规则下被选中。选定模型、策略及哈希写入 `frozen_for_test.json` 后才采集测试结果，文件时间顺序也已核验。
+Validation correctness is 20, 24, 19, 31, 31, 20, 30, 26 in table order. The declared tie rule selects `view_free_always`. Collect test outcomes only after recording selected model/policy/hashes in `frozen_for_test.json`; file chronology is verified.
 
-## 新测试结果
+## Fresh test results
 
-可开场景定义为两条实际分支中任一候选成功的共同并集：25 个可开、11 个当前候选集合均未成功。正确决策是完整开门，或在当前集合不可开时拒绝。
+Feasibility is the union of successful candidates across both physical branches: 25 feasible scenes and 11 with no successful library candidate. Correct decisions are complete openings or refusals on library-infeasible scenes.
 
-| 策略 | 完整开门 /25 | 正确拒绝 /11 | 误拒绝 | 正确决策 /36 | 碰撞 | 观察次数 | 平均净回报 |
+| Policy | Full open /25 | Correct refusal /11 | False refusal | Correct /36 | Collisions | Inspections | Mean net utility |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 初始图像，直接执行 | 11 | 11 | 14 | 22 | 0 | 0 | 0.3056 |
-| 移动后仍用旧图像 | 14 | 11 | 11 | 25 | 0 | 36 | 0.2068 |
-| 新视角模型，直接执行 | 16 | 5 | 5 | 21 | 1 | 0 | 0.1389 |
-| **新视角模型，始终观察〔验证选定〕** | **24** | **6** | **1** | **30** | **2** | **36** | **0.2902** |
-| 新视角模型，自主观察 | 23 | 7 | 2 | 30 | 1 | 34 | 0.3280 |
-| 代价模型，直接执行 | 11 | 10 | 10 | 21 | 0 | 0 | 0.1667 |
-| 代价模型，始终观察 | 21 | 10 | 4 | 31 | 0 | 36 | 0.3735 |
-| 代价模型，自主观察 | 17 | 10 | 8 | 27 | 0 | 18 | 0.3538 |
+| Initial image, direct | 11 | 11 | 14 | 22 | 0 | 0 | 0.3056 |
+| Move but reuse initial image | 14 | 11 | 11 | 25 | 0 | 36 | 0.2068 |
+| Reached-view model, direct | 16 | 5 | 5 | 21 | 1 | 0 | 0.1389 |
+| **Reached-view model, always inspect (validation selected)** | **24** | **6** | **1** | **30** | **2** | **36** | **0.2902** |
+| Reached-view model, learned inspection | 23 | 7 | 2 | 30 | 1 | 34 | 0.3280 |
+| Cost model, direct | 11 | 10 | 10 | 21 | 0 | 0 | 0.1667 |
+| Cost model, always inspect | 21 | 10 | 4 | 31 | 0 | 36 | 0.3735 |
+| Cost model, learned inspection | 17 | 10 | 8 | 27 | 0 | 18 | 0.3538 |
 
-![八组冻结策略结果](mobile_active_results.png)
+![Eight frozen-policy comparisons](mobile_active_results.png)
 
-可以作出的判断：
+Findings:
 
-1. 实际新视角在本批测试上有帮助。同一 `view_free` 权重从直接执行变为始终观察，开门从 16 增至 24；同等移动、同等训练计算但仍读旧图像的独立模型为 14。移动自身也有收益，不能把全部提升都归因于图像。
-2. 代价确实改变了观察行为：自主观察从 34 次降至 18 次，平均观察成本从 0.1720 降至 0.0906。但开门从 23 降至 17；代价模型自主观察的净回报也低于其始终观察对照，观察选择还没有取得最佳折中。
-3. 所选策略在不可开场景上正确拒绝 6/11，仍有 5 次不必要尝试、2 次流程碰撞。碰撞发生在开门续段，观察路径均安全完成。测试中 `view_cost_always` 的正确决策更高，但仍保留验证集选定的主结果。
+1. Reached views help on this test. With the same view_free weights, openings increase from 16 direct to 24 always-inspect. An independently trained, matched-motion/compute model reusing the initial image opens 14. Motion also helps, so gains are not entirely due to images.
+2. Cost changes inspection behavior from 34 to 18 inspections and mean cost from 0.1720 to 0.0906, but openings drop from 23 to 17. The cost model's learned-inspection utility is below its always-inspect control, so selection has not found the best tradeoff.
+3. Selected primary correctly refuses 6/11 infeasible scenes, with 5 unnecessary attempts and 2 pipeline collisions. Collisions occur during opening; inspection paths are safe. Retain validation-selected primary despite higher test correctness from view_cost_always.
 
-测试仅有 9 个相关场景组、一个训练种子。按组做探索性配对分析，主策略比初始图像对照多 8 次正确决策，比移动旧图像对照多 5 次；两项组级精确符号翻转检验均为 p=0.0625，且未作多重比较校正。结果支持继续研究，尚不足以宣称跨种子稳定的统计优势。
+Testing covers 9 correlated groups and one training seed. Exploratory grouped pairing gives 8 more correct decisions than initial-image control and 5 more than moving/old-image control. Both exact group sign-flip tests give p=0.0625, without multiplicity correction; stable cross-seed significance is not established.
 
-训练/验证观察审计另找到 1 组“初始 RGB、proprio 完全相同但可开性相反”的输入；实际观察后两图像不同，平均像素差 52.84/255。该检查不读取测试数据，也不意味着其余错误都由遮挡造成。
+A training/validation audit finds one group with identical initial RGB/proprio but opposite feasibility. Reached images differ, with mean pixel difference 52.84/255. This audit does not read test data or attribute every remaining error to occlusion.
 
-## 物理与权重核验
+## Physics and weight verification
 
-- **288/288** 次策略回放与离线所选动作、成功、拒绝、碰撞结果一致，每个回合初始化次数均为 1。
-- **141** 次实际进入开门技能，入口 qpos/qvel 与前一阶段逐位一致；时间轴连续。
-- **160** 次实际观察均到达；检查观察期间门未被提前推开，路径无碰撞。
-- 最大记录底盘平移速度 **0.28124 m/s**，相邻记录最大位移 **0.01641 m**；底盘目标限速 0.3 m/s。
-- 三组模型的 selected/last 均审计：**422 个原非策略、非 LoRA 张量**以及归一化统计逐位不变。每个 selected 检查点实际变化为 148 个 LoRA 张量、6 个 P 张量和 6 个 G 张量。
-- 当前与保存的 **101 份源码/配置**哈希一致；原始初始化、历史冻结文件、manifest、选中权重哈希均保持。
-- 回迁到当前主分支后 **32 项契约测试通过**，包括真实移动后开门、被动门铰链、无中途重置、图像使用时机、训练标签屏蔽和碰撞检查。
+- **288/288** replays match offline selected actions, success, refusal, and collision outcomes; every episode initializes once.
+- **141** opening entries preserve preceding qpos/qvel bitwise with continuous time.
+- **160** physical inspections reach their targets without early door motion or path collisions.
+- Maximum recorded translation speed **0.28124 m/s**, adjacent displacement **0.01641 m**; target speed cap 0.3 m/s.
+- Selected/last checkpoints for all three models preserve **422 non-policy, non-LoRA tensors** and normalization bitwise. Each selected checkpoint changes 148 LoRA, 6 P, and 6 G tensors.
+- Current and archived **101 source/configuration** hashes match. Preserve initialization, historical frozen files, manifest, and selected-weight hashes.
+- After integration, **32 contracts pass**, covering opening after real motion, passive hinge, no intermediate reset, image timing, label masking, and collision checking.
 
-## 运行记录与工作区恢复
+## Runtime and workspace recovery
 
-本地提交，无排队。启动预计 6 小时；05:57:09 启动，PID **25444**，权威工具会话 **65833**，启动约 8 秒。代理首次连续休眠约 21,571 秒，到期确认仍存活，再依仓库规则各休眠 30 分钟。12:48:44 完成，原会话最终退出码 **0**。实际 **24,694.37 秒，约 6 小时 52 分钟**。
+Local run, no queue. Initial estimate 6 hours; launch 05:57:09, PID **25444**, session **65833**, startup about 8 seconds. Sleep continuously for about 21,571 seconds, then inspect the still-live session and extend in 30-minute intervals under repository rules. Completion 12:48:44; final exit **0**. Actual **24,694.37 seconds, about 6 hours 52 minutes**.
 
-| 阶段 | 实际秒 | 实际分钟 |
+| Phase | Actual seconds | Actual minutes |
 | --- | ---: | ---: |
-| 训练/验证采集，2 workers | 9,309.05 | 155.15 |
-| repeat 训练、刷新目标与验证 | 4,094.25 | 68.24 |
-| view_free 训练、刷新目标与验证 | 3,526.11 | 58.77 |
-| view_cost 训练、刷新目标与验证 | 2,394.24 | 39.90 |
-| 冻结后的测试采集，2 workers | 2,618.56 | 43.64 |
-| 8 组物理回放 | 2,658.59 | 44.31 |
-| 启动、I/O 与其余核验 | 93.57 | 1.56 |
+| Training/validation collection, 2 workers | 9,309.05 | 155.15 |
+| repeat training, label refresh, validation | 4,094.25 | 68.24 |
+| view_free training, label refresh, validation | 3,526.11 | 58.77 |
+| view_cost training, label refresh, validation | 2,394.24 | 39.90 |
+| Post-freeze test collection, 2 workers | 2,618.56 | 43.64 |
+| Eight physical-policy replay sets | 2,658.59 | 44.31 |
+| Startup, I/O, remaining verification | 93.57 | 1.56 |
 
-采集与 GPU 训练没有并发。三组模型实际平均更新速度为 5.58、4.80、3.27 秒/步，前两组慢于小规模实测；未采集利用率时间序列，不能确定变慢原因。下一次估时应采用本批完整阶段耗时和实际场景组成，保守计入目标刷新与验证。
+Collection and GPU training do not overlap. Mean updates are 5.58, 4.80, and 3.27 seconds; the first two exceed smoke throughput. No utilization time series was collected, so the slowdown cause is unknown. Future estimates should use full-stage durations and action composition, allowing label refresh and validation.
 
-此前小规模流程完成了采集、三模型各 2 步更新和 32 次回放，但工作区在 05:23 执行外部 reset/pull、清理未跟踪源码，最后源码核验失败。失败回执原样保留。随后在 ignored `runs/` 内建立 detached worktree，按启动源码快照恢复环境，重新通过 26 项测试、32 次回放及权重核验；正式实验在该隔离目录完成。当前主分支的 `simulate.py` 和新合入的抓持角度修改均保留。
+An earlier smoke run completes collection, 2 updates per model, and 32 replays, but an external reset/pull at 05:23 removes untracked source, failing the final source audit. Preserve its receipt. Create a detached worktree inside ignored `runs/`, restore launch snapshots, and pass 26 tests, 32 replays, and weight audits before the formal run there. Preserve the main branch's `simulate.py` and independently merged grasp-angle work.
 
-本地结果入口为 `runs/mobile_active_seed42_20261109/`，它指向 ignored 隔离目录里的正式结果。数组、模型、日志全部保持忽略：
+Convenience entry `runs/mobile_active_seed42_20261109/` points to formal results in the ignored isolation workspace. Arrays, models, and logs remain ignored:
 
-- [主结果](../runs/mobile_active_seed42_20261109/report.json)
-- [冻结前选择与哈希](../runs/mobile_active_seed42_20261109/frozen_for_test.json)
-- [完整权重、运动与配对核验](../runs/mobile_active_seed42_20261109/final_verification.json)
-- [协议](../runs/mobile_active_seed42_20261109/protocol.json)
-- [启动源码](../runs/mobile_active_seed42_20261109/source/)
+- [Main results](../runs/mobile_active_seed42_20261109/report.json)
+- [Pre-test selection and hashes](../runs/mobile_active_seed42_20261109/frozen_for_test.json)
+- [Full weight, motion, and paired verification](../runs/mobile_active_seed42_20261109/final_verification.json)
+- [Protocol](../runs/mobile_active_seed42_20261109/protocol.json)
+- [Launch source](../runs/mobile_active_seed42_20261109/source/)
 
-## 继续实验
+## Next experiments
 
-下一轮在训练/验证集上先冻结后观察 P/G，再校准观察及拒绝决策，比较减少观察与降低误拒绝的关系；同时考虑把门扇扫掠碰撞检查纳入开门规划。超参数、阈值、检查点均由训练/验证决定，使用新 stream、新输出目录和新的冻结测试场景。当前测试集转为历史比较。
+Select/freeze post-inspection P/G on training/validation, then calibrate inspection/refusal and compare inspection savings against false refusals. Consider door-sweep constraints in opening planning. Select hyperparameters, thresholds, and checkpoints on development data; use a fresh stream, output directory, and frozen test. This test becomes historical evidence.
 
-当前代码可用新的目录和 stream 启动完整复现实验，例如 PowerShell：
+Launch reproduction with a new directory and stream, for example in PowerShell:
 
 ```powershell
 $env:PYTHONHASHSEED = '42'
@@ -132,6 +132,6 @@ $env:PYTHONHASHSEED = '42'
   --steps 480 --workers 2 --estimate-seconds 25200
 ```
 
-`25200` 为按本次完整运行向上取整的 7 小时保守预算，队列单独记录；新实验仍须按实际启动和负载修订。输出目录非空会拒绝覆盖。正式结果始终绑定其启动时源码，回迁版本另加入了本批 manifest 的历史去重检查。
+`25200` is a conservative 7-hour budget rounded up from this full run. Record queue time separately and refine for actual startup/load. Refuse nonempty output directories. Formal results bind launch source; integrated code additionally excludes historical geometries from this manifest.
 
-方法参考：本轮借鉴 [Observe Then Act](https://arxiv.org/abs/2409.14891) 中先获得新观察、再执行操作并关联后续任务价值的组织方式；参考 [TAMPAgent](https://arxiv.org/abs/2611.03584) 将观测与运动约束放入执行、重规划链路的思路。这里采用离线反事实监督和已知几何规划，未复现论文的完整系统。
+References: this run adopts the organization of acquiring a new view before acting and linking decisions to downstream value from [Observe Then Act](https://arxiv.org/abs/2409.14891), and the integration of observations/motion constraints into execution/replanning from [TAMPAgent](https://arxiv.org/abs/2611.03584). It uses offline counterfactual supervision and known-geometry planning rather than reproducing either full system.

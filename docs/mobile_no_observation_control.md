@@ -1,35 +1,35 @@
-# 不观察对照：开发集诊断（2026-11-09）
+# No-inspection control: development diagnostic (2026-11-09)
 
-固定已有模型和已知几何扫掠规划后，当前神经策略在验证集仍受益于补充观察：scalar 的正确决策从不观察的 27/36 提高到自主观察的 34/36。这个诊断没有更新模型，也没有读取测试结果。
+With fixed models and known-geometry sweeps, validation still benefits from inspection: scalar correctness rises from 27/36 never-inspect to 34/36 learned. This diagnostic updates no models and reads no test outcomes.
 
-## 验证结果
+## Validation results
 
-验证集共 36 个场景，其中 26 个在当前候选集合可开。所有下列策略均使用同一已知地图扫掠约束；所有候选被排除时在初始位置拒绝。
+Validation contains 36 scenes, including 26 library-feasible scenes. Every policy uses the same known-map sweep constraint and refuses initially if all candidates are excluded.
 
-| 固定模型 | 观察方式 | 开门 /26 | 正确决策 /36 | 碰撞 | 实际观察次数 | 平均净回报 |
+| Frozen model | Inspection | Open /26 | Correct /36 | Collisions | Physical inspections | Mean net utility |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| v3 baseline | 从不 | 20 | 30 | 0 | 0 | 0.5556 |
-| v3 baseline | 始终 | 24 | 34 | 0 | 27 | 0.5321 |
-| v3 baseline | 自主 | 24 | 34 | 0 | 27 | 0.5321 |
-| v4 scalar | 从不 | 17 | 27 | 0 | 0 | 0.4722 |
-| v4 scalar | 始终 | 24 | 34 | 0 | 27 | 0.5321 |
-| v4 scalar | 自主 | 24 | 34 | 0 | 13 | 0.6013 |
-| v4 factorized | 从不 | 15 | 25 | 0 | 0 | 0.4167 |
-| v4 factorized | 始终 | 25 | 35 | 0 | 27 | 0.5599 |
-| v4 factorized | 自主 | 24 | 34 | 0 | 13 | 0.6011 |
+| v3 baseline | Never | 20 | 30 | 0 | 0 | 0.5556 |
+| v3 baseline | Always | 24 | 34 | 0 | 27 | 0.5321 |
+| v3 baseline | Learned | 24 | 34 | 0 | 27 | 0.5321 |
+| v4 scalar | Never | 17 | 27 | 0 | 0 | 0.4722 |
+| v4 scalar | Always | 24 | 34 | 0 | 27 | 0.5321 |
+| v4 scalar | Learned | 24 | 34 | 0 | 13 | 0.6013 |
+| v4 factorized | Never | 15 | 25 | 0 | 0 | 0.4167 |
+| v4 factorized | Always | 25 | 35 | 0 | 27 | 0.5599 |
+| v4 factorized | Learned | 24 | 34 | 0 | 13 | 0.6011 |
 
-训练集上的对应正确决策数（从不／始终／自主）为 baseline 61/71/70、scalar 51/71/69、factorized 53/71/69，分母均为 72。
+Corresponding training correctness (never/always/learned) is baseline 61/71/70, scalar 51/71/69, factorized 53/71/69, all out of 72.
 
-## 能说明什么
+## Interpretation
 
-当前 P/G 及其拒绝阈值下，单独使用初始图像的策略会产生更多误拒绝，补看能恢复部分执行。scalar 自主观察在这批验证数据上保持始终观察的正确决策数，同时减少 14 次观察。
+With current P/G/refusal thresholds, initial-image-only policies falsely refuse more scenes; inspection recovers some execution. Scalar learned inspection matches always-inspect correctness on validation with 14 fewer inspections.
 
-这不能证明所有不观察策略都不足：已知地图可能支持更简单的纯几何选站位规则，P0 的价值校准也可能是差异来源。后续应在训练／验证上比较“按几何选择可行站位、到达后再用 G 抓持”的控制器，并检查 P0 校准；部分地图实验再明确哪些障碍信息只能由实际 RGB-D 获得。新的最终性能比较使用新冻结测试。
+This does not establish that every no-inspection policy is inadequate. Known geometry may support simpler station rules, and P0 calibration may explain differences. Compare geometry-selected stations followed by G and audit P0 calibration on development data; partial maps should isolate information available only through physical RGB-D. Use fresh frozen tests for final comparisons.
 
-## 记录
+## Records
 
-输入严格限定为既有 72 个训练、36 个验证场景。三份既有检查点固定，模型更新次数 0；通过原物理候选表计算决策结果，本次没有新增物理回放。检查点文件哈希在前后保持一致。
+Read only 72 training and 36 validation scenes. Freeze three checkpoints with 0 updates. Compute decisions from existing physical candidate tables without new replays; checkpoint hashes match before/after.
 
-本地排队 0，预计 6 分钟；权威会话 **38633**，PID **5628**。代理按预计时间连续休眠，最终会话退出码 0，实际 **234.46 秒**。baseline/scalar/factorized 推理分别为 104.87/56.08/56.27 秒。
+Queue 0, estimate 6 minutes; session **38633**, PID **5628**. Sleep continuously to the deadline; final exit 0, actual **234.46 seconds**. Baseline/scalar/factorized inference takes 104.87/56.08/56.27 seconds.
 
-[开发集指标](../runs/mobile_control_audit_seed42_20261109/development_controls.json) · [运行核验](../runs/mobile_control_audit_seed42_20261109/verification.json) · [v4 正式独立测试](mobile_outcome_results.md)。诊断是下一轮设计证据，不补写或重新选择 v4 的主结果。
+[Development metrics](../runs/mobile_control_audit_seed42_20261109/development_controls.json) · [Run verification](../runs/mobile_control_audit_seed42_20261109/verification.json) · [v4 formal test](mobile_outcome_results.md). This informs the next design without revising or reselecting v4 primary results.

@@ -1,30 +1,30 @@
-# 续训学习率与旧策略保持对照
+# Continuation learning rates and output retention
 
-2026 年 11 月 11 日。前轮完整训练中，直接与补看分支的负梯度内积只占少量更新，PCGrad 未改善最终验证选择；普通续训却在第 40 步将始终补看验证正确数从 35/36 降到 12/36，随后逐步恢复。本轮检验降低更新幅度和约束旧输出能否保留已有能力，同时学习当前实际任务结果。
+November 11, 2026. In the previous full run, negative inner products between direct/inspected branch gradients occur in only a few updates, and PCGrad does not improve final validation selection. Ordinary continuation nevertheless drops always-inspect validation correctness from 35/36 to 12/36 at update 40 before recovery. Test whether smaller updates and retention of previous outputs preserve existing capability while learning actual task outcomes.
 
-| arm | PG 学习率倍率 | 旧输出 KL 权重 |
+| Arm | PG learning-rate multiplier | Previous-output KL weight |
 | --- | ---: | ---: |
 | standard | 1 | 0 |
 | low_lr | 0.1 | 0 |
 | retention | 1 | 1 |
 | low_lr_retention | 0.1 | 1 |
 
-原 PG 头学习率 3e-4、LoRA 2e-5；低学习率组分别为 3e-5、2e-6。其余架构、初始化、rank8 LoRA、alpha16、dropout0.05、AdamW 权重衰减 0.01 和 clip1 相同。四组每组 320 PG 步，每步同一采样序列中的同组两种布局，使用一次反传；标准组在本轮重新训练作为匹配基线，不能直接拿前轮双反传轨迹作数值一致对照。
+Original rates are 3e-4 for PG heads and 2e-5 for LoRA; low-rate arms use 3e-5 and 2e-6. Match architecture, initialization, rank-8 LoRA, alpha 16, dropout 0.05, AdamW weight decay 0.01, and clipping at 1. Each arm runs 320 PG updates with the same paired-layout scene sequence and one backward pass. Retrain the standard arm as a matched baseline rather than assuming numerical identity with the previous two-backward-pass trajectory.
 
-监督仍为两条分支各自的 P 交叉熵加 0.5 倍可见 G 交叉熵。每 40 步只用训练数据刷新当前 G 实际所选动作的终局标签。旧输出约束为同样监督行上的 KL(冻结初始模型输出 || 当前模型输出)，温度固定 1，G 项仍乘 0.5；不安全补看分支的 P、不曾观测的 G 均不参与两项监督。四组均计算 KL 以匹配前向开销，权重为 0 的组不使用它改变目标。正式终局效用、拒绝值和地图参数保持。
+Supervision remains branch-specific P cross-entropy plus 0.5 times visible-G cross-entropy. Refresh outcomes of current G's selected actions every 40 updates using training data only. Retention uses KL(frozen initial outputs || current outputs) on the same supervised rows, temperature 1, with G weighted by 0.5. Unsafe inspected-branch P and unobserved G rows are masked from both objectives. All arms compute KL to match forward cost; zero-weight arms do not include it in optimization. Terminal utility, refusal value, and maps stay fixed.
 
-参考[知识蒸馏](https://arxiv.org/abs/1503.02531)及 [Learning without Forgetting](https://arxiv.org/abs/1606.09282) 的保留旧输出思路。本轮仍在相同任务、相同开发集续训，不等同于原论文的新任务设置，也不增加模型容量或使用教师的真实测试结果。
+Use the output-retention idea from [knowledge distillation](https://arxiv.org/abs/1503.02531) and [Learning without Forgetting](https://arxiv.org/abs/1606.09282). This continues the same task on the same development set, without the papers' new-task setting, added capacity, or teacher test outcomes.
 
-教师始终为同一个冻结初始 PG，仅对 **72 个训练场景**编码一次，使用 eval 模式、bf16 autocast、与学生训练同样的候选批处理；共享缓存按初始检查点、场景身份、文件哈希锁定。教师不参与反传，验证／测试场景不进入缓存。学生仍保留原训练 dropout，因此 KL 也包含对随机扰动的一致性约束。验证及最终实时推理保持原标准编码，不复用不同学生模型的特征缓存。
+The teacher is the same frozen initial PG, encoding only **72 training scenes** once in eval mode with bf16 autocast and the student's candidate batching. Cache identity includes initial-checkpoint, scene, and file hashes. The teacher receives no gradients; validation/test scenes never enter its cache. Student dropout remains active, so KL also constrains stochastic variation. Validation and final live inference use standard encoding without sharing features between different student models.
 
-PG 仍以两分支安全优先的原验证规则选模，完全并列保留最早；选定 PG 后冻结所有非 I 参数，各训练同样 **1600 步 joint-regret I**，I 学习率不变。最终四组只用验证的任务表现、成本等原顺序选主策略，不按测试结果或单步最低 KL 选择。
+Select PG with the existing two-branch safety-first validation order, retaining earliest exact ties. Freeze all non-I parameters, then train **1600 joint-regret I updates** per arm at the original rate. Select the primary arm using existing validation task/cost criteria, without test-based selection or choosing the minimum-KL step.
 
-复用原 72 训练、36 验证场景。训练前另冻 18 组、72 个全新测试，排除全部历史几何，包括以前仍未读取的冻结清单。若所有选定模型都与旧主策略相同，保留新测试未读取；否则后续按另冻协议做独立物理采集与实时回放。全部既有测试仅作历史结果，模型、阈值、损失权重和停止预算不使用它们选择。
+Reuse 72 training and 36 validation scenes. Before training, freeze 18 new groups and 72 test scenes, excluding every historical geometry, including earlier unread manifests. If all selected models equal the old primary policy, preserve the unread test; otherwise evaluate under a separately frozen physical-collection/live-replay protocol. Historical tests do not select models, thresholds, loss weights, or stopping budgets.
 
-所有新实验固定 seed42，设置 Python、NumPy、Torch、CUDA 和 hash seed，保留 warn-only 算子等确定性限制。原 422 核心张量和归一化逐位保持，16 份阶段检查点及 I 阶段非 I 张量核验。旧模型、冻结数据与源码不覆盖；原始教师输出、数组、权重和日志仅存新 ignored `runs/`，在冻结 v3 物理工作区运行。
+Fix seed 42 in Python, NumPy, Torch, CUDA, and hash settings; retain deterministic limitations such as warn-only operators. Preserve all 422 core tensors and normalization bitwise; audit 16 stage checkpoints and non-I tensors during I training. Preserve old models, frozen data, and source. Store teacher outputs, arrays, weights, and logs only in new ignored `runs/`, using the frozen v3 physics workspace.
 
-先运行 6 项新目标／教师隔离契约及 4 项原采样／安全选择契约，再做四组各 8 PG／8 I 小流程。参考原四组同预算小流程约 197 秒，以及当前两组双反传小流程 121.51 秒，暂估 **8 分钟、排队 0**，预留教师生成、模型加载和 16 检查点审计。正式四组参考原完整训练 91 分钟，暂保守估计 **2 小时、排队 0**，以完整小流程和实测预热修正。启动后核实实际进程／会话、记录估计依据和截止，连续代理休眠到截止，再检查同一会话。
+Run 6 new objective/teacher-isolation and 4 existing sampling/safe-selection contracts, then 8 PG / 8 I updates per arm. Reference the earlier four-arm smoke run of about 197 seconds and two-arm two-backward-pass run of 121.51 seconds: initial estimate **8 minutes with zero queue time**, allowing teacher generation, loading, and 16-checkpoint audits. Reference the previous full 91-minute training for a conservative **2-hour, zero-queue** estimate, refined after smoke/warmup. Confirm process/session, evidence, and deadline, sleep continuously, then inspect the same session.
 
-小流程已正常完成：10 项契约通过，流程 293.92 秒、控制器 302.60 秒，权威会话 66702 退出码 0。四组场景序列、教师缓存哈希一致；16 份阶段检查点的原核心、归一化和 I 阶段非 I 张量核验通过。每组平均更新耗时 3.18–3.30 秒，比旧单反传参考慢；仅首次生成教师 2.78 秒，其余加载约 0.14 秒。
+The smoke run completes: 10 contracts pass, pipeline time 293.92 seconds, controller time 302.60 seconds, session 66702 exits 0. Scene-sequence and teacher-cache hashes match across all four arms. All 16 checkpoints preserve core, normalization, and non-I tensors during I training. Mean updates take 3.18-3.30 seconds, slower than the previous single-backward reference; first teacher generation takes 2.78 seconds and later loads about 0.14 seconds.
 
-正式预算仍为四组各 320 PG／1600 I，损失与组定义不因小流程结果改变。根据实测将估计修正为 **150 分钟、排队 0**：1280 次更新按 3.3 秒约 4224 秒，加旧完整开发集每组约 500 秒的标签刷新／验证开销、约 500 秒 I 和启动审计，基准约 112 分钟，保守预留到 9000 秒。小流程仅 4 训练／4 验证场景，完整训练使用 72／36；不把它的验证成本按更新步数直接外推，也无物理采集并发。
+Retain four arms of 320 PG / 1600 I updates without changing objectives from smoke results. Revise the estimate to **150 minutes with zero queue time**: 1280 updates at 3.3 seconds yield about 4224 seconds, plus about 500 seconds per arm for full-development label refresh/validation and about 500 seconds for I/startup audits. Baseline about 112 minutes; reserve 9000 seconds conservatively. Smoke uses only 4 training / 4 validation scenes versus 72/36 in the full run; do not extrapolate validation cost solely by update count. No physical collection runs concurrently.

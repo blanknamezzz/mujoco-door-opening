@@ -1,11 +1,11 @@
 # test_000
 
-用途：test；站位 [0.8066838211942118, -0.8355742778892185] m，朝向 67.687°。
+Split: test; station [0.8066838211942118, -0.8355742778892185] m; orientation 67.687 degrees.
 
-- 原21角度中成功：[]。
-- 新增8角度中成功：[]。
-- 准备失败：2/29；失败样本仍保留。
+- Successful original-grid angles: [].
+- Successful added angles: [].
+- Preparation failures: 2/29; failed candidates are retained.
 
-[逐角度结果摘要](summary.json) · [实验说明](../README.md)
+[Per-angle summary](summary.json) · [Experiment description](../README.md)
 
-这里未增加抓握后的中途判断或闭环调整。角度网格全失败不等于证明该站位物理无解。
+No mid-grasp decisions or closed-loop adjustments are added here. Failure at every grid angle does not establish physical station infeasibility.

@@ -1,20 +1,20 @@
-# 站位可行性诊断实测
+# Measured station-feasibility diagnostics
 
-[实现、证书条件和复现](../station_feasibility.md)
+[Implementation, certificate assumptions, reproduction](../station_feasibility.md)
 
-| 站位 | 实际证据 | 结论 |
+| Station | Physical evidence | Finding |
 |---|---|---|
-| (0.8, -1.0) | 原角度 0° 发生碰撞；只改成 +8° 后全开并保持 | 站位有解，原抓角限制了结果 |
-| (1.4, -0.4) | 88° 必经姿态的把手轴距离 1.535922 m，超过保守接触半径 1.448821 m | 在证书条件下可排除，未用试验失败充当证明 |
-| (0.3, -0.9)，1 回合 | 原方案在 42.505° 因关节参考越界停止 | 未确认，不能据此认定站位无解 |
-| (0.3, -0.9)，扩大搜索 | 检查 364 个候选，其中 332 个因具体参考姿态无 IK 被排除，实际执行 32 回合仍未找到全开 | 达到预算，仍为未知 |
+| (0.8, -1.0) | Zero-degree grasp collides; changing only to +8 degrees opens and holds | Station feasible; original angle limits performance |
+| (1.4, -0.4) | Required 88-degree handle-axis distance 1.535922 m exceeds conservative contact radius 1.448821 m | Excluded under certificate assumptions, without treating failed trials as proof |
+| (0.3, -0.9), 1 episode | Original plan stops at 42.505 degrees on an out-of-range target | Unknown, rather than proven infeasible |
+| (0.3, -0.9), expanded search | Check 364 candidates; exclude 332 with no reference-pose IK; 32 physical episodes find no complete opening | Budget exhausted; remains unknown |
 
-排除证书针对已知的固定底座、当前关节范围、竖直把手和持续指垫接触任务。它允许所有手臂/腕部方向，并包含手指行程、指垫尺寸、把手半径及 5 mm 余量。放手、重抓、推动门板、移动底座或改变模型后，不能照搬本证书。
+The certificate assumes the known fixed base, current joint limits, vertical handle, and sustained fingertip-pad contact. It allows all arm/wrist orientations and includes finger travel, pad size, handle radius, and 5 mm margin. Release/regrasp, pushing the panel, moving the base, or changing the model invalidate these assumptions.
 
-大范围搜索涉及原角度网格以外的角度、肘分支、高度、力与开门时间。有限候选和有限预算始终不足以证明所有方案不存在。
+Expanded search includes angles outside the original grid, elbow branches, height, force, and opening time. Finite candidates/budgets do not prove every plan impossible.
 
-40 项数值、几何、物理与数据隔离回归检查通过。另运行 1 / 1 / 1 站位、共 63 条候选记录的采集检查，三组预检均包含新的 `station_workspace_check` 字段。新字段只是几何诊断，不删除站位或更改既有 SL/RL 训练标签。
+Forty numerical/geometric/physical/split regressions pass. A 1/1/1-station, 63-candidate collection check adds `station_workspace_check` in every preflight. The field records geometry without removing stations or changing existing SL/RL labels.
 
-完整基线/成功轨迹与诊断 JSON 位于 `reproduced/station_feasibility_examples/`。可以用 `station_feasibility.py replay` 在 MuJoCo 窗口观看 0° 失败与 +8° 成功。原有 72 站位实验结果保持历史快照；不能将其中 21 个角度都失败的站位直接标成全局无解。
+Baseline/success trajectories and diagnostic JSON are in `reproduced/station_feasibility_examples/`. Use `station_feasibility.py replay` to view zero-degree failure versus +8-degree success. Preserve historical 72-station results without labeling all-21-angle failures globally infeasible.
 
-核对记录：[verification.json](verification.json)。
+Verification: [verification.json](verification.json).

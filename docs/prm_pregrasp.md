@@ -1,95 +1,95 @@
-# 在训练前增加 PRM：先检查能否到达预抓取位置
+# PRM before learning: verify a path to pregrasp
 
-新的默认流程是：初始站位与关节姿态 → PRM 预检查 → 实际执行准备路径 → 接近/抓持 → 开门/保持 → 记录结果。
+New default: initial station/joints -> PRM preflight -> physical preparation -> approach/grasp -> opening/hold -> record outcomes.
 
-## 已接入的位置
+## Integration points
 
-- `collect_grasp_data.py`：每组场景先为每个站位的全部候选做 PRM 分析，保存 `*_prm_preflight.jsonl`，然后才执行候选试验。
-- `train_grasp_rl.py`：每个被选择的角度必须先经过 PRM 和实际准备路径跟踪；默认开启，`--no-prm` 显式运行原来的预抓取初始化基线。
-- `compare_grasp_learning.py`：读取数据 manifest 中的 PRM 设置，SL、RL、验证和测试都使用同一准备流程；旧 manifest 没有 PRM 设置时仍可运行旧基线。
-- `prm_examples.py`：五个可复现例子、独立 MuJoCo 实时演示和离线交互重放。
+- `collect_grasp_data.py`: analyze every station/candidate, save `*_prm_preflight.jsonl`, then execute trials.
+- `train_grasp_rl.py`: every selected angle passes PRM and physical tracking; enabled by default, with `--no-prm` for old initialization.
+- `compare_grasp_learning.py`: read PRM settings from the manifest and share preparation across SL/RL/validation/test. Old manifests without PRM retain baseline compatibility.
+- `prm_examples.py`: five reproducible cases, live MuJoCo demos, offline replay.
 
-新默认目录为 `reproduced/grasp_learning_data_prm`、`reproduced/grasp_learning_comparison_prm` 和 `reproduced/grasp_rl_prm`，避免覆盖先前无 PRM 的实验。
+Defaults are `reproduced/grasp_learning_data_prm`, `reproduced/grasp_learning_comparison_prm`, and `reproduced/grasp_rl_prm`, preserving earlier no-PRM runs.
 
-## PRM 实际分析什么
+## What PRM checks
 
-固定一个底座位置与朝向，夹爪张开、门关闭。节点是四维配置：
+Fix base pose with fingers open and door closed. Nodes are four-dimensional joint configurations:
 
 `q = [lift_m, shoulder_rad, elbow_rad, wrist_rad]`
 
-默认初始关节姿态为 `[0 m, −90°, −120°, 0°]`。这是明确指定的初始状态，不能把它称为任意初始姿态；可用 `--initial-q` 修改。在每一轮学习内初始姿态固定，网络仍以站位信息为输入，尚未学习跨不同初始关节状态的泛化。
+Default initial joints `[0 m, -90 degrees, -120 degrees, 0 degrees]` are explicit rather than arbitrary, configurable with `--initial-q`. They stay fixed within training; networks still receive station features rather than varying-initial-joint inputs.
 
-对一个抓持角度，先根据把手点和接近方向计算距离把手 0.16 m 的预抓取目标，再求所选肘分支的逆运动学。没有该解时返回 `goal_ik_unreachable`，不进入随机采样。
+For each grasp angle, compute pregrasp 0.16 m from the handle along approach, then selected-branch IK. If absent, return `goal_ik_unreachable` without random sampling.
 
-### CLEAR：配置有效性
+### CLEAR: configuration validity
 
-检查关节限制，设置独立的探测 MjData，读取 MuJoCo 接触。为避免将深度穿过门板的初始姿态误认成自由空间，另用线段–有向盒距离检查机械臂胶囊与门板。地面和门板的零距离支撑接触不算穿透。容许穿透误差为 1e-5 m。
+Check joint ranges and contacts in separate probe MjData. Also use segment-to-oriented-box distance for arm capsules/panel to reject deeply penetrating initial states. Zero-distance support on floor/panel is allowed; penetration tolerance is 1e-5 m.
 
-探测数据只用于几何检查，不修改执行中的机器人状态。
+Probe data do not modify live execution state.
 
-### LINK：边有效性
+### LINK: edge validity
 
-在关节空间插值，相邻检查点的升降变化不大于 0.008 m，各旋转关节变化不大于 0.06 rad。每个中间点调用 CLEAR。关节有物理限位，因此不会把 +165° 到 −165° 通过圆周最短角度直接绕过去。
+Interpolate joints with lift increments <=0.008 m and rotations <=0.06 rad, calling CLEAR at each point. Physical ranges prevent wrapping +165 to -165 degrees through the shortest circular angle.
 
-这仍是离散碰撞检查，不是连续碰撞检测或严格安全保证。随后还要进行动力学执行监测。
+These are discrete collision checks rather than continuous proofs; dynamic monitoring still follows.
 
-### 采样、连边与搜索
+### Sampling, neighbors, and search
 
-先尝试起点到目标的直接 LINK。通过时直接返回，随机节点数为零是正常结果。
+Try direct start-goal LINK first. Success with zero random nodes is expected behavior.
 
-直连失败后，在四个关节范围内随机采样；默认保留 240 个有效节点、连接 12 个近邻。距离计算对升降和旋转坐标做尺度归一化。构造近邻候选边后，以 Dijkstra 寻路，只验证搜索路径上的边；无效边被删除，再搜索。这是 Lazy PRM 的实现方式，不是预先验证全部边的 BasicPRM。只有最终路径的每条边都通过检查，才返回 `path_found=true`。
+After failure, sample four joint ranges, retaining 240 valid nodes and 12 neighbors by default. Normalize lift/rotation scales in distance. Dijkstra searches candidate neighbor edges; validate only the current path, delete invalid edges, and search again. This is Lazy PRM rather than prevalidated BasicPRM. Return `path_found=true` only after every final edge passes.
 
-相同静态场景和设置的路线图可在一个工作进程内复用；改变底座、模型或规划设置会使用不同缓存。有限预算没有找到路线记作 `no_path_within_budget`，不记作绝对不可行。
+Reuse roadmaps within a worker for identical static scenes/settings. Base/model/planning changes select different caches. Finite failure is `no_path_within_budget`, not absolute infeasibility.
 
-## 路径找到后如何执行
+## Executing a found path
 
-每个 episode 只在初始时将机器人重置到指定初始关节姿态。之后根据路线图的关节路标，用平滑插值和现有位置伺服执行 `mj_step`；仅对机器人关节做偏置力补偿，门没有驱动或外力。
+Reset once to specified initial joints per episode, then smoothly interpolate waypoints with position servos and `mj_step`. Apply bias compensation only to robot joints, without door actuation/external forces.
 
-执行中监测非预期接触和门是否提前移动，末端路标还检查关节跟踪误差与速度。成功到达后保留实际 qpos/qvel，将技能时钟归零，调用 `trial(reset_before_trial=False)` 接着抓持和开门。没有把机器人瞬移到预抓取点。
+Monitor unexpected contact/early door motion and final tracking error/speed. Preserve reached qpos/qvel, reset the skill clock, and call `trial(reset_before_trial=False)` for grasp/opening without teleportation.
 
-准备阶段耗时、轨迹和失败原因单独记录。奖励仍采用原开门阶段的奖励与时间项；准备失败的流程奖励为负值，准备耗时尚未纳入原奖励的时间惩罚。
+Record preparation time/path/failure separately. Existing rewards/time penalties still describe opening; preparation failure gets negative pipeline reward, and preparation time is not yet included in that time penalty.
 
-## 三类结论必须分开
+## Distinguish planning, execution, and opening outcomes
 
-| 结果 | 含义 |
+| Outcome | Meaning |
 | --- | --- |
-| `goal_ik_unreachable` | 当前预抓取目标和肘分支不存在合法逆运动学解 |
-| `invalid_start` / `invalid_goal` | 当前指定端点碰撞或越界 |
-| `no_path_within_budget` | 有限路线图未连通，其他预算或方法可能找到 |
-| `direct_path` / `roadmap_path` | 找到了通过当前离散几何检查的预抓取路径 |
-| 准备执行失败 | 几何路线存在，但当前控制器没有安全执行完成 |
-| 开门失败 | 已到预抓取位置，抓持或之后开门过程失败 |
+| `goal_ik_unreachable` | No legal IK for this pregrasp target/elbow branch |
+| `invalid_start` / `invalid_goal` | Specified endpoint collides or exceeds ranges |
+| `no_path_within_budget` | Finite roadmap not connected; other budgets/methods may succeed |
+| `direct_path` / `roadmap_path` | A pregrasp route passes current discrete geometry checks |
+| Preparation execution failure | A geometric route exists but current control cannot execute safely |
+| Opening failure | Pregrasp reached, but grasp/opening fails |
 
-准备执行中碰撞会写入结果并计入流程碰撞次数；即使没有开门轨迹也可以导出 CSV。
+Preparation collisions are recorded/count toward pipeline collisions; CSV export works without an opening trajectory.
 
-数据中的 `opening_tested=false` 表示未执行开门，不应把这种记录解释成经过物理验证的“开门必然失败”。监督标签中的负奖励表示当前规划预算与控制流程的结果；如果要训练纯接触成功预测器，应排除未执行开门的样本。RL 对应的也是当前端到端流程奖励。
+`opening_tested=false` means opening was not executed, rather than physically proved to fail. Negative supervised reward describes current planning/control outcome. Exclude unexecuted openings when fitting pure contact-success predictors; RL likewise optimizes current end-to-end pipeline reward.
 
-PRM 还没有对抓住之后的机器人–门闭环约束进行规划。底座保持固定，开门仍执行原铰链弧线控制器。因此，不能用 `path_found` 代替全开成功标签。
+PRM does not plan post-grasp robot-door closed-chain constraints. Base stays fixed and the original hinge-arc controller opens; `path_found` is not complete-opening success.
 
-## 五个例子
+## Five examples
 
 ```bash
 python prm_examples.py
-# 打开 reproduced/prm_examples/index.html
+# Open reproduced/prm_examples/index.html
 
-# 在 MuJoCo 窗口中完整观看准备路径与开门：
+# Watch preparation and opening live in MuJoCo:
 mjpython prm_examples.py --view detour
 mjpython prm_examples.py --view partial
 ```
 
-| 例子 | 站位 | 要观察的区别 |
+| Example | Station | Distinction |
 | --- | --- | --- |
-| A：direct | (0.6, −1.0) | 直连通过，无需随机建图，随后全开 |
-| B：detour | (0.6, −1.0)，增加小障碍 | 直连被挡，采样 500 个有效节点后，通过降低现有升降轴绕行，随后全开 |
-| C：limited_budget | 与 B 完全相同 | 零采样预算只检查直连，未找到；B 已证明这不等于绝对不可行 |
-| D：partial | (0.3, −0.9) | 找到并执行到预抓取位置的路径，之后约 42.5° 处受工作空间限制 |
-| E：unreachable | (2.0, −1.2) | 当前预抓取目标无 IK，跳过运动与开门 |
+| A: direct | (0.6, -1.0) | Direct succeeds without sampling, followed by full opening |
+| B: detour | (0.6, -1.0), added obstacle | Direct blocked; 500 valid nodes find a lift-lowering detour, then full opening |
+| C: limited_budget | Same as B | Zero samples checks direct only; B establishes a path despite this failure |
+| D: partial | (0.3, -0.9) | Reach pregrasp physically, then workspace limit near 42.5 degrees |
+| E: unreachable | (2.0, -1.2) | No pregrasp IK; skip motion/opening |
 
-图上的灰边尚未全部验证，绿线是最终已检查的路径。肩–肘二维投影隐藏升降和腕角，线条交叉不代表四维节点相交。右侧是实际物理积分记录的关节姿态重放，不是仅按规划路标插值的成功动画。
+Gray edges are not all verified; green is the checked final path. Shoulder/elbow projection hides lift/wrist, so crossing lines need not share four-dimensional nodes. The right panel replays integrated joints rather than interpolated success-only roadmap waypoints.
 
-## 训练与独立测试
+## Training and independent testing
 
-完整默认规模：
+Complete default scale:
 
 ```bash
 python collect_grasp_data.py
@@ -97,7 +97,7 @@ python compare_grasp_learning.py train
 python compare_grasp_learning.py evaluate
 ```
 
-本次小规模验证使用新的场景划分：
+This pilot uses a fresh scene split:
 
 ```bash
 python collect_grasp_data.py --train-scenes 12 --validation-scenes 4 --test-scenes 8 --output reproduced/prm_training_data_final
@@ -105,16 +105,16 @@ python compare_grasp_learning.py train --data reproduced/prm_training_data_final
 python compare_grasp_learning.py evaluate --data reproduced/prm_training_data_final --output reproduced/prm_training_comparison_final
 ```
 
-共 24 个站位、504 次候选流程；RL 使用 252 次训练决策。这里只验证新准备步骤确实接入并可复现，不能与上一版 36/12/24、三个种子的结果直接比较优劣。
+Total 24 stations and 504 candidate procedures, with 252 RL training decisions. This verifies preparation integration/reproduction rather than comparison against the earlier 36/12/24-station, three-seed experiment.
 
-PRM 拒绝的候选会跳过实际开门，所以预算记录为候选决策次数；`opening_trials_executed` 和准备失败次数另外统计，不应把所有决策都称为实际开门试验。
+PRM-rejected candidates skip opening, so budgets count candidate decisions. Report `opening_trials_executed` and preparation failures separately rather than calling every decision an opening trial.
 
-修改起始关节姿态示例：
+Changing initial joints:
 
 ```bash
 python collect_grasp_data.py --initial-q 0 -1.57 -2.09 0 --output reproduced/prm_custom_start
 ```
 
-单位依次是米、弧度、弧度、弧度。训练后需要在同样的初始状态约定下评估。
+Units are meters, radians, radians, radians. Evaluate under the same initial-state convention after training.
 
-数值与物理回归：`python -m unittest test_prm test_grasp_plan test_grasp_learning test_grasp_rl test_git_size -v`。
+Numerical/physical regressions: `python -m unittest test_prm test_grasp_plan test_grasp_learning test_grasp_rl test_git_size -v`.

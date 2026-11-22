@@ -3,7 +3,7 @@
 
 **English presentation script · Team 42 · Total: approximately 3 minutes**
 
-配合最新版 PPT：Zheyu 讲第 1–3 页，Haoming 讲第 4–6 页；第 7 页留作问答备份。以下时间包含翻页及短暂停顿，实际时长请以排练为准。标题和时间提示不朗读。
+Use the latest slides: Zheyu presents slides 1-3, Haoming presents slides 4-6, and slide 7 is reserved for questions. Timings below include slide changes and short pauses; verify the total during rehearsal. Do not read the headings or timing cues aloud.
 
 ## Speaker 1 — Zheyu Zheng · 0:00–1:30
 

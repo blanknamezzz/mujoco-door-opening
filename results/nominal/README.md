@@ -1,6 +1,6 @@
-# nominal：完整打开并保持
+# nominal: complete opening and hold
 
-文件：
+Files:
 
 - [nominal.csv](nominal.csv)
 - [nominal.gif](nominal.gif)
@@ -10,4 +10,4 @@
 - [nominal_grasp_closeup.png](nominal_grasp_closeup.png)
 - [opening_sequence.png](opening_sequence.png)
 
-共享输入与总汇总见 [上级索引](../README.md)。
+See the [parent index](../README.md) for shared inputs and aggregate results.

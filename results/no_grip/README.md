@@ -1,9 +1,9 @@
-# no_grip：未形成抓握，无法带动门
+# no_grip: no grasp acquired, so the door cannot be driven
 
-文件：
+Files:
 
 - [no_grip.csv](no_grip.csv)
 - [no_grip.json](no_grip.json)
 - [no_grip.npz](no_grip.npz)
 
-共享输入与总汇总见 [上级索引](../README.md)。
+See the [parent index](../README.md) for shared inputs and aggregate results.

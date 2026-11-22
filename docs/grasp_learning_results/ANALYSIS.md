@@ -1,130 +1,130 @@
-# 实验解释：监督学习有没有比强化学习更好？
+# Did supervised learning outperform reinforcement learning?
 
-**这次没有。** 相同物理训练交互预算下，REINFORCE 平均成功率略高，但差异很小，不能推广成“强化学习普遍更好”。训练集选出的固定 +18° 方案也不弱于两个神经网络。
+**Not in this experiment.** At equal physical training budgets, REINFORCE has a slightly higher mean success rate, without evidence of general superiority. Training-selected fixed +18 degrees also matches or exceeds both networks.
 
-全部逐种子指标见同目录 `REPORT.md`，原始记录见 `evaluation.json` 与 `selections.json`。没有根据这次测试结果重新训练或挑选权重。
+See REPORT.md for all seed metrics and evaluation.json/selections.json for raw records. Test outcomes do not trigger retraining or checkpoint selection.
 
-## 为什么自己生成数据用于训练是可行的？
+## Why generated training data are valid here
 
-### 监督学习要求输入与标签，不要求标签必须来自现实或人工
+### Supervision needs input-label pairs, not necessarily human or hardware labels
 
-一条样本可以写成 `(初始状态 s，候选动作 a，执行结果 y)`。对本项目：
+A sample is `(initial state s, candidate action a, outcome y)`:
 
-- s：执行前的底座位置、朝向和把手位置等信息。
-- a：准备尝试的抓取偏角。
-- y：实际仿真执行后的安全全开、碰撞、滑移、开门角度与奖励。
+- s: pre-execution base pose/orientation and handle position.
+- a: the grasp approach offset to attempt.
+- y: physical success, collision, slip, opening angle, and reward.
 
-仿真自动产生 y，之后用 `(s,a) → y` 训练网络，这仍然是监督学习。标签来自模拟器，不代表学习过程是无监督学习，也不要求人工先告诉机器人最佳角度。
+Simulation generates y, and fitting `(s,a) -> y` is supervised learning. Automatically collected simulator labels neither make it unsupervised nor require an assigned best angle.
 
-### 标签来自物理执行，不是把想要的答案写进数据
+### Labels come from execution rather than desired answers
 
-采集程序调用现有 `Experiment.trial()`，通过 MuJoCo 的 `mj_step` 推进机器人、门和接触状态，再读取碰撞、双侧接触、滑移及门角度。只有安全打开并保持才获得成功标签。
+Collection calls existing `Experiment.trial()` and MuJoCo `mj_step`, then measures collision, bilateral contact, slip, and door angle. Only safe complete opening/hold receives success.
 
-我们没有写规则说“+18° 一定成功”，也没有让当前预测网络为自己生成成功标签。每个候选都经过相同的物理控制与判据，成功和失败都会保留。神经网络近似学习的是这个仿真任务的输入–结果关系；它不需要从零学习牛顿力学，物理求解由模拟器完成。
+No rule declares +18 degrees successful, and the network does not generate its own success labels. Apply matching physics/criteria to every candidate and retain failures. The network approximates the simulator task's input-outcome relationship; the simulator, rather than learned Newtonian dynamics, solves the physics.
 
-### 模拟器已经能算结果，为什么还需要网络？
+### A network can score candidates before complete simulation
 
-模拟器通常需要执行完整轨迹才能知道结果。网络学习后可以在执行前快速给多个候选评分，把过去的试验经验用于新站位。
+Simulation generally needs a whole trajectory to establish the outcome. A trained model can quickly score several candidates before execution and transfer experience to new stations.
 
-其潜在价值是减少新场景中实际尝试或完整候选仿真的次数。但如果只有一个固定场景、21 个候选，直接扫描可能更简单；本次固定 +18° 很强，也说明不能仅凭训练成功就断言网络必不可少。只有在未见条件下比较预测错误、动作质量和计算成本，才能证明它的价值。
+Potential value is fewer physical attempts/full simulations. For one fixed scene and 21 candidates, scanning may be simpler. Strong fixed +18 degrees means training completion alone does not establish necessity. Compare prediction errors, action quality, and compute on unseen conditions.
 
-### 本次为什么没有构成“自己出题、自己证明正确”的循环？
+### Separation of learning and evaluation
 
-训练模型只读取 36 个训练站位；场景编号、位置和朝向在采集前已经划分。归一化也只使用训练数据。模型冻结后，在另外 24 个测试站位选择角度，再重新运行物理仿真核对结果。最终开门角度、碰撞与奖励作为训练标签，不作为执行前输入。
+Training reads only 36 training stations, with IDs/poses split before collection and training-only normalization. Freeze models, select angles on 24 different test stations, and replay physics. Final angles/collisions/rewards are labels rather than pre-execution features.
 
-因此这检验了模型是否能适应同一模拟器中未见过的站位，而不是只记住训练表格。仍须明确：测试和训练共享相同物理模型，重新执行一致只能说明复现性，不能独立证明模拟器与真实世界完全一致。
+This checks adaptation to unseen stations in the same simulator rather than table memorization. Shared train/test physics and matching replays establish reproducibility, not independent real-world validity.
 
-### 什么时候这种数据不够？
+### When these data are insufficient
 
-- 若接触参数、机器人几何或成功判据有错误，模型会学习错误关系；应通过控制对照、数值检查和必要的物理标定审查模拟器。
-- 若训练只包含容易成功的位置，模型不会因此自动理解碰撞边界；需要覆盖失败和临界场景。
-- 若测试与训练共享同一初始条件或把执行后结果当输入，会得到虚高成绩；需按场景分组并检查输入时序。
-- 若部署时无法知道摩擦等参数，不能把仿真中精确的内部值当成现实可获得的观测。本次摩擦固定，策略输入没有摩擦真值。
-- 若目标是现实机器人，还需要真实执行验证、传感器和接触参数校准；仿真随机化可以用于扩展训练条件，但不是现实成功保证。
+- Wrong contacts, geometry, or criteria teach wrong relationships; audit simulation with controls, numerical checks, and physical calibration when needed.
+- Easy successful stations alone do not teach collision boundaries; include failures and borderline cases.
+- Shared initial conditions or post-outcome features inflate scores; group by scene and check information timing.
+- Unavailable deployment parameters must not become privileged inputs. Friction is fixed here and its truth is absent from policy features.
+- Hardware transfer still needs execution validation and sensor/contact calibration; randomization expands training conditions without guaranteeing success.
 
-所以，自生成数据足以支持当前“仿真任务中的监督学习与新站位验证”，不等于已经完成真实机器人迁移。
+Generated data support supervised learning and new-station validation in this simulation, without establishing hardware transfer.
 
-这种做法也有研究先例：Dex-Net 2.0 使用合成点云、候选抓持与解析抓持质量标签训练模型。它说明标签可来自生成过程，但任务主要是物体抓取，不能代替本项目的完整开门标签或验证。来源：[Berkeley Dex-Net 2.0 介绍](https://bair.berkeley.edu/blog/2017/06/27/dexnet-2.0/)。
+A related precedent is Dex-Net 2.0's synthetic point clouds, candidate grasps, and analytical-quality labels. Its object-grasping task does not replace complete door-opening labels or validation. [Berkeley introduction](https://bair.berkeley.edu/blog/2017/06/27/dexnet-2.0/).
 
-## 完成内容与范围
+## Completed work and scope
 
-- 72 个底座位置与朝向：36 个训练、12 个验证、24 个测试。
-- 每个位置实际执行 21 个角度，共 1,512 条自动生成标签的记录。
-- 每个种子、每种主方法使用 756 次物理训练交互；种子为 42、43、44。
-- 网络均为 4 → 16 → 21，共 437 个参数，输入与控制器一致。
-- 加入复用 RL 记录的监督模型、固定 0° 和训练集最佳固定角度对照。
-- 冻结模型后重新执行 179 个不同测试位置–动作组合，全部与采集时一致。
-- 10 项数值、数据隔离、模型保存加载及学习方向测试通过。
+- Seventy-two base poses: 36 training, 12 validation, 24 test.
+- Execute 21 angles per station: 1,512 automatically labeled records.
+- Each main method/seed uses 756 physical interactions; seeds 42, 43, 44.
+- Networks are 4 -> 16 -> 21 with 437 parameters and matching inputs/controllers.
+- Include SL on RL records, fixed zero, and training-selected best-fixed controls.
+- Replay 179 distinct frozen-test station/action combinations, all matching collection.
+- Ten numerical, split-isolation, save/load, and learning-direction tests pass.
 
-新场景指同一扇门周围的新站位与朝向，不代表新门型或真实机器人。
+New scenes are base poses/orientations around the same door, rather than new door types or hardware.
 
-## 结果
+## Results
 
-| 方法 | 相同 24 个测试站位上的成功数 | 平均成功率 | 平均奖励 |
+| Method | Successes on the same 24 stations | Mean success rate | Mean reward |
 | --- | --- | --- | --- |
-| 监督学习，完整角度采样 | 9、9、9 | 37.50% | 3.462 |
-| REINFORCE，在线探索 | 10、9、9 | 38.89% | 3.534 |
-| 监督学习，复用 RL 记录 | 9、8、8 | 34.72% | 2.614 |
-| 固定 0° | 7 | 29.17% | 1.519 |
-| 训练集选出的固定 +18° | 10 | 41.67% | 4.168 |
+| Supervised, full-angle coverage | 9, 9, 9 | 37.50% | 3.462 |
+| REINFORCE, online exploration | 10, 9, 9 | 38.89% | 3.534 |
+| Supervised on RL records | 9, 8, 8 | 34.72% | 2.614 |
+| Fixed 0 degrees | 7 | 29.17% | 1.519 |
+| Training-selected fixed +18 degrees | 10 | 41.67% | 4.168 |
 
-三个种子共享测试场景，不是 72 个独立测试场景。SL 与 RL 相差约 1.39 个百分点，来自种子 42 多成功一个位置，其他两个种子成功数相同。不能据此证明稳定的算法优劣。
+Seeds share test scenes rather than adding 72 independent samples. The approximately 1.39-point gap comes from one extra seed-42 success; the other seeds tie. Stable algorithmic superiority is not established.
 
-24 个测试位置中，网格内只有 10 个位置存在成功角度。SL 分别解决 9/10、9/10、9/10，RL 为 10/10、9/10、9/10。其余 14 个位置在当前候选、固定抓点、肘分支、速度和力下没有找到成功方案；不代表所有连续角度或控制方案都不可能成功。
+Only 10/24 stations have successful grid angles. SL solves 9/10 for each seed, RL 10/10, 9/10, 9/10. The other 14 have no successes under current angles/height/elbow/speed/force, without proving all continuous plans impossible.
 
-## RL 在哪里更好：test_021
+## RL's additional success: test_021
 
-种子 42，底座约 (0.83987, -0.91868) m、朝向 91.1557°：
+Seed 42, base about (0.83987, -0.91868) m, yaw 91.1557 degrees:
 
-- SL 选择 +10°，开到 88.984° 时自碰撞，奖励 −2.141。
-- RL 选择 +18°，开到 89.725° 并保持，奖励 12.885。
+- SL selects +10 degrees, self-collides at 88.984 degrees, reward -2.141.
+- RL selects +18 degrees, opens to 89.725 degrees and holds, reward 12.885.
 
-监督网络错误排列了候选：
+SL ranks the candidates incorrectly:
 
-| 候选 | SL 预测奖励 | 实际奖励 | 实际结果 |
+| Candidate | Predicted SL reward | Actual reward | Outcome |
 | --- | --- | --- | --- |
-| +10° | 9.792 | −2.141 | 碰撞 |
-| +18° | 9.330 | 12.885 | 全开保持 |
+| +10 degrees | 9.792 | -2.141 | Collision |
+| +18 degrees | 9.330 | 12.885 | Full opening/hold |
 
-这是新站位上的奖励预测与排序错误。真实碰撞边界处结果变化很陡，模型未能准确表达这个变化。边界样本不足、MSE 拟合平滑、模型拟合不足等都可能参与，当前没有单独证明唯一原因。
+This is a reward-ranking error at an unseen station near a sharp collision boundary. Sparse boundary samples, MSE smoothing, and underfitting are possible contributors; no single cause is established.
 
-RL 在这次决策中选对，不代表它预测结果更准：它输出动作选择概率，不是成功概率。其他两个 RL 种子在该位置也未成功。
+RL's correct choice does not imply more accurate outcome prediction: it outputs action probabilities, not success probabilities. The other two RL seeds fail here.
 
 ```bash
-# 在仓库根目录运行，并先激活已安装 requirements.txt 的环境
+# Run from the repository root after activating an environment with requirements.txt installed
 source .venv/bin/activate
 mjpython compare_grasp_learning.py demo --scene test_021 --method supervised --seed 42
 mjpython compare_grasp_learning.py demo --scene test_021 --method reinforce --seed 42
 ```
 
-完整接触 CSV、关节状态 NPZ 和计划 JSON 在 `examples/rl_only_success/`。本次检查了无窗口物理执行，未人工检查图形窗口。
+Full contact CSV, joint NPZ, and plan JSON are in `examples/rl_only_success/`. Headless physics is checked; the graphical window was not manually reviewed.
 
-## 监督学习的实用价值
+## Practical value of supervision
 
-1. 采集一次数据后可以反复训练、检查标签和更换模型；三个 SL 初始化复用同一份数据，三个 RL 种子分别重新交互。
-2. 可以查看候选预测奖励和实际奖励，定位排序错误；RL 动作概率本身不提供结果估计。
-3. 完整采样覆盖 756 个训练组合；RL 三个种子覆盖 438、471、446 个组合。
+1. Reuse one collected dataset across fits, label audits, and models; three SL initializations share data while each RL seed collects again.
+2. Compare candidate predicted/actual rewards to locate ranking errors; RL probabilities alone estimate no outcome.
+3. Full SL sampling covers 756 training pairs; RL covers 438, 471, 446.
 
-完整采样 SL 的平均成功率 37.50%，高于复用 RL 记录的 SL 的 34.72%，支持关注数据覆盖，但不证明充分覆盖必然让 SL 超过 RL。
+Full-coverage SL averages 37.50% versus 34.72% on RL records, motivating coverage studies without proving SL must beat RL.
 
-SL 平均碰撞 6.33/24，RL 为 7/24，但 SL 有更多工作空间失败，不能只凭碰撞数说整体更安全。两者都没有拒绝动作。本次测试选择没有触发滑移，也不能证明抗滑移能力提升。
+SL averages 6.33/24 collisions versus RL 7/24 but has more workspace failures, so collision counts alone do not establish overall safety. Neither refuses. No selected test action slips, without evidence of improved slip resistance.
 
-## 最重要的发现：固定 +18° 已经很强
+## A strong fixed +18-degree baseline
 
-固定 +18° 根据训练数据平均奖励选择，不使用测试结果。它在测试中成功 10/24，达到该网格中可成功的场景数，平均奖励高于两种网络。
+Select +18 degrees by training mean reward only. Its 10/24 test successes cover every grid-feasible station, with higher mean reward than either network.
 
-当前很多可行位置共享一个不错的角度。模型虽有学习，也比固定 0° 改进，但尚未证明必须使用因场景而变的抓持策略，更未证明 world-model foresight 的增益。
+Many feasible stations share a good angle. Models learn and improve over fixed zero without establishing the need for adaptive grasp selection or world-model foresight.
 
-## 下一步重点
+## Next priorities
 
-1. 建立确实需要不同抓持策略的场景族，例如不同障碍、门几何/方向和肘部姿态。在新的训练/验证集合上设计，保留新的独立测试集，不针对这 24 个测试位置反复调参。
-2. 在训练集碰撞和可达性边界补充样本，优先尝试模型分歧大或不确定的候选。
-3. 增加当前站位不可行时的拒绝或重新定位决策；只调整角度不能解决所有固定技能失败的位置。
-4. SL 可比较成功/碰撞多任务预测或排序损失；RL 可比较更充分探索与价值学习。先用验证集检验，再评估新测试集。
-5. 始终保留最佳固定角度、随机选择和完整路径几何参考，证明学习方法到底多解决了什么。
+1. Design training/validation scene families requiring different grasps, using obstacles, door geometry/direction, and elbow configurations. Preserve fresh independent tests rather than tuning on these 24 stations.
+2. Add training samples near collision/reachability boundaries, prioritizing uncertainty/disagreement.
+3. Add refusal/repositioning for infeasible stations; angles alone cannot solve every fixed-skill failure.
+4. Compare SL outcome/collision multitask or ranking losses and RL exploration/value learning, selecting on validation before fresh testing.
+5. Retain best-fixed, random, and full-path geometry controls to measure what learning adds.
 
-## 成本与边界
+## Costs and limitations
 
-本机完整数据采集约 153 s，包含训练、验证和测试参考；每个 SL 网络离线拟合约 0.15–0.18 s；每个 RL 种子在线采集加训练约 86–104 s。不能直接以 0.2 s 对比 100 s，因为 SL 也需要数据生成成本，且并行方式和失败提前终止影响耗时。
+Full collection takes about 153 s including shared evaluation references; each SL fit about 0.15-0.18 s; each RL seed about 86-104 s including interactions. Comparing 0.2 s to 100 s omits SL collection and differences in parallelism/early termination.
 
-匹配的是物理训练试验次数，不是优化步数、总计算量或训练时长。本次结果不构成现实部署结论或学习范式的一般排名。
+Physical trial counts match, rather than optimization steps, compute, or duration. Findings are not hardware deployment conclusions or universal learning-paradigm rankings.

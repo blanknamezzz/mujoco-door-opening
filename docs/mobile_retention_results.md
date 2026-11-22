@@ -1,32 +1,32 @@
-# 过拟合核查与旧输出保持约束（v10，2026-11-11）
+# Overfitting review and output retention (v10, 2026-11-11)
 
-**结论：当前选定主策略在已知九个模板的新几何上没有检测到明显过拟合；不能保证在未见过的模板或真实机器人上也如此。** 早期另一次 H-JEPA 末步 LoRA 确曾明显过拟合（训练 185/192、验证 9/24），该末步权重没有被选作本轮主策略。本轮四组训练中，验证仍选回旧主策略；新保持约束组有不同权重，但验证不升，因此未在测试后改选它。
+**The selected primary policy shows no clear overfitting on fresh geometries within nine familiar templates; unseen templates and hardware remain untested.** An earlier H-JEPA last-step LoRA checkpoint did overfit (training 185/192, validation 9/24), but it is not this run's primary. Four-arm validation retains the old policy; retention selects different weights without validation improvement and is not promoted after testing.
 
-## 训练、验证、冻结测试
+## Training, validation, and frozen test
 
-训练、验证、测试分别为 **72／36／72 个场景**和 **18／9／18 个完整参数组**；各自包含同样九个模板的不同参数与四种布局。场景组和几何身份跨三划分无重叠，新测试排除 **758** 个历史几何身份。测试清单在训练开始前冻结，`test_outcomes_available_at_creation=false`；模型、主选择、别名和测试清单在结果读取前按哈希冻结。
+Train/validation/test have **72/36/72 scenes** in **18/9/18 complete groups**, using distinct parameters and four layouts within nine shared templates. Group/geometry identities do not overlap; new testing excludes **758** historical geometries. Freeze the manifest before training with `test_outcomes_available_at_creation=false`, and hash-freeze models, primary selection, aliases, and manifest before reading outcomes.
 
-| 冻结策略 | 训练正确 | 验证正确 | 新测试正确 | 新测试开门／候选可行 | 新测试正确拒绝／候选不可行 | 碰撞 | 新测试补看 | 新测试平均净回报 |
+| Frozen policy | Training correct | Validation correct | New test correct | Test open / feasible | Test correct refusal / infeasible | Collisions | Test inspections | Test mean net utility |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| **旧主策略 `standard`〔预先选定〕** | **71/72** | **35/36** | **70/72** | **50/52** | **20/20** | **0** | **43** | **0.5853** |
-| `retention`〔新权重，验证并列〕 | 71/72 | 35/36 | 71/72 | 51/52 | 20/20 | 0 | 41 | 0.6041 |
+| **Old primary `standard` (preselected)** | **71/72** | **35/36** | **70/72** | **50/52** | **20/20** | **0** | **43** | **0.5853** |
+| `retention` (new weights, validation tie) | 71/72 | 35/36 | 71/72 | 51/52 | 20/20 | 0 | 41 | 0.6041 |
 
-旧主策略三个划分的正确率为 **98.6%／97.2%／97.2%**；新权重为 **98.6%／97.2%／98.6%**。这没有出现早期末步 LoRA 的大幅训练／验证落差。训练是用来学习的场景，不能当成独立泛化证据；更有力的证据是冻结后才采集的新几何测试。测试仍与开发集共享九个模板，验证集也已在多轮开发中重复使用。
+Old-policy correctness is **98.6%/97.2%/97.2%** across splits; new weights give **98.6%/97.2%/98.6%**, without the earlier large train/validation gap. Training is not independent generalization evidence; newly collected frozen-test geometries provide stronger evidence. Testing still shares nine templates, and validation was repeatedly used in development.
 
-四组各完成 **320 步 P/G＋LoRA、1600 步 I**。验证指标四组均为 35/36、25/26 开门、10/10 正确拒绝、零碰撞、21 次补看。`standard`、`low_lr`、`low_lr_retention` 的选定模型与旧 v9/v6 主策略逐张量等价；`retention` 在第 280 步选中不同 P/G 权重，最终 I 第 40 步，但验证没有胜出。四组末步 LoRA 均实际更新，不能把选回初始权重解释为没有训练。原 **422** 个核心张量与归一化逐位保持；I 阶段所有非 I 张量保持。
+Four arms each complete **320 P/G plus LoRA and 1600 I updates**. All validation scores are 35/36, 25/26 openings, 10/10 correct refusals, zero collisions, and 21 inspections. Selected `standard`, `low_lr`, and `low_lr_retention` equal old v9/v6 tensor by tensor. Retention selects PG update 280 and I update 40 without validation improvement. Every last-step LoRA updates; selecting initialization is not failure to train. Preserve **422** core tensors/normalization bitwise and non-I tensors during I training.
 
-## 同批配对结果与限制
+## Matched results and limitations
 
-在 72 个新测试场景中，新权重比旧主策略多正确 **1** 例、少补看 **2** 次。唯一纠正的是 `g006_front_blocked`：旧主策略补看后误拒绝，新权重补看后选择站位 2、抓持 0 并开门；两组共同未解决 `g004_rear_blocked` 的误拒绝。另在 `g005_rear_blocked` 和 `g005_free`，新权重直接完成开门，旧主策略需补看后也能开门。没有新增失败。平均净回报同批差 **+0.01885**，平均路径少 **0.133 m**、回合仿真时间少 **0.764 s**。
+New weights correct **1** additional test scene and remove **2** inspections. In `g006_front_blocked`, old primary falsely refuses after inspection, while retention selects station 2/grasp 0 and opens. Both retain the false refusal in `g004_rear_blocked`. In `g005_rear_blocked` and `g005_free`, retention opens directly while primary inspects first. No new failures occur. Mean utility difference **+0.01885**, path reduction **0.133 m**, and simulated duration reduction **0.764 s**.
 
-这只是一个被纠正的决策，不能声称保持约束稳定提高准确率。**主策略仍为测试前验证选定的 `standard`**；若未来想部署 `retention`，需要在另一个全新冻结测试上重新预先声明选择规则并验证。此前 v6 和 v8 两批同一旧策略分别为 **68/72** 与 **72/72**；加本批 `standard` 的 **70/72**，可描述为三批不同新几何共 **210/216**，但这些场景相关、模板相同、训练种子只有一个，不是跨模板或跨种子实验。旧版 v5 的另一份 I 权重测试不能并入。
+One corrected decision does not establish a reliable accuracy gain. **Primary remains validation-selected `standard`**; deploying retention requires preregistered selection and another fresh frozen test. Old-policy v6/v8 score **68/72** and **72/72**; adding this **70/72** gives a descriptive **210/216** over three geometry cohorts. Correlated scenes, shared templates, and one seed do not establish cross-template/seed generalization. Exclude v5's different I weights.
 
-“可行”只表示冻结的两分支×四站位×两抓持候选中存在成功，不代表连续动作空间全局可解。导航和机械臂准备仍用已知地图；开门阶段用当前 RGB-D、CAD 和真实物理执行，底盘是理想全向伺服。零碰撞是这批测试的观测结果，不是安全保证。早期 185/192 对 9/24 的过拟合记录见 [H-JEPA 历史](hjepa_setup.md)；本轮不抹去该负结果。
+Feasibility means success among frozen two-branch x four-station x two-grasp candidates rather than global continuous solvability. Navigation/preparation use known maps; opening uses current RGB-D, CAD, and physical contact with an ideal holonomic base. Zero collisions is an observed result rather than a guarantee. Preserve the earlier 185/192 versus 9/24 overfitting record in [H-JEPA history](hjepa_setup.md).
 
-## 运行、复核与文件
+## Runtime, verification, and files
 
-原四组正式训练在第四组第 200 步后失去进程，控制器与子进程均不在，未留下终止回执或 traceback，**原因未确认**。原输出完整保留；在新的 ignored 目录哈希复用前三组完整结果、原教师缓存和冻结测试清单，并用 seed42 从第 0 步重训第四组。恢复运行实际 **1492.54 秒**（24 分 53 秒），退出码 0；原前三组阶段时长分别记在训练回执，不把恢复时间冒充四组总训练时间。随后只读开发集审计实际 **134.58 秒**，退出码 0。
+The original full run loses its process after arm four update 200; neither controller nor child remains, with no termination receipt or traceback, so **the cause is unknown**. Preserve all outputs. In a new ignored directory, hash-reuse the first three completed arms, teacher cache, and frozen manifest, then retrain arm four from update 0 with seed 42. Recovery takes **1492.54 seconds (24 minutes 53 seconds)**, exit 0; earlier arm times remain in their receipts rather than being replaced by recovery duration. Read-only development auditing then takes **134.58 seconds**, exit 0.
 
-正式测试预计 **3.5 小时、排队 0**，根据此前同规模 2 小时 15 分与较慢 2 小时 39 分的正式运行保守预留。实际进程 **PID 26884**，启动 **17.33 秒**，在 **10:13:39** 完成，实际 **7895.56 秒（2 小时 11 分 36 秒）**，退出码 0；代理按 **11:32** 预计截止连续休眠后核验。采集 **1152** 条新物理候选；七个逻辑名称经模型、归一化、推理配置和观察模式的事前核验归并为四种实际策略，执行 **288 次**实时回放并全部匹配，别名不当成额外重复。每回合重置一次，**183** 次开门入口状态连续检查和 **156** 次实际补看通过；源代码、权重、输入与测试后哈希保持。仓库体积守卫通过；数组、权重、轨迹、日志只在 ignored `runs/`。
+Formal estimate **3.5 hours, queue 0**, conservatively referencing previous 2-hour-15-minute and 2-hour-39-minute runs. Process **26884**, startup **17.33 seconds**, completion **10:13:39**, actual **7895.56 seconds (2 hours 11 minutes 36 seconds)**, exit 0; the agent sleeps continuously until estimated **11:32** before verification. Collect **1152** candidates. Pre-test model/normalization/inference/mode checks group seven names into four policies for **288** matching live replays, without counting aliases as repetitions. One reset per episode; **183** continuous opening-entry checks and **156** physical inspections pass. Source/weight/input hashes remain unchanged after testing. Repository size guard passes; arrays, weights, trajectories, and logs remain ignored in `runs/`.
 
-[预定训练设计](mobile_retention_plan.md) · [测试前协议](mobile_retention_evaluation_plan.md) · [四组训练与预选哈希](../runs/mobile_partial_workspace_seed42_20261109/runs/p10_recovery_seed42_20261111/frozen_for_test.json) · [开发集审计](../runs/mobile_partial_workspace_seed42_20261109/runs/p10_overfit_dev_seed42_20261111/report.json) · [新测试报告](../runs/mobile_partial_workspace_seed42_20261109/runs/p10t_seed42_20261111/report.json) · [逐场景配对分析](../runs/mobile_partial_workspace_seed42_20261109/runs/p10t_seed42_20261111/post_analysis.json) · [回放与权重审计](../runs/mobile_partial_workspace_seed42_20261109/runs/p10t_seed42_20261111/tensor_and_physics_audit.json)。
+[Training design](mobile_retention_plan.md) · [Pre-test protocol](mobile_retention_evaluation_plan.md) · [Four-arm selection hashes](../runs/mobile_partial_workspace_seed42_20261109/runs/p10_recovery_seed42_20261111/frozen_for_test.json) · [Development audit](../runs/mobile_partial_workspace_seed42_20261109/runs/p10_overfit_dev_seed42_20261111/report.json) · [New test report](../runs/mobile_partial_workspace_seed42_20261109/runs/p10t_seed42_20261111/report.json) · [Per-scene paired analysis](../runs/mobile_partial_workspace_seed42_20261109/runs/p10t_seed42_20261111/post_analysis.json) · [Replay/weight audit](../runs/mobile_partial_workspace_seed42_20261109/runs/p10t_seed42_20261111/tensor_and_physics_audit.json).

@@ -1,8 +1,8 @@
-# workspace_limit：开到约 42.5°，下一参考目标超出关节范围
+# workspace_limit: opening stops near 42.5 degrees before an out-of-range joint target
 
-这是当前抓法和控制流程的失败记录，不代表已证明该站位对所有抓法都不可行。
+This records failure of the current grasp and controller, rather than proving all grasps infeasible at this station.
 
-文件：
+Files:
 
 - [workspace_limit.csv](workspace_limit.csv)
 - [workspace_limit.gif](workspace_limit.gif)
@@ -12,4 +12,4 @@
 - [workspace_limit_final.png](workspace_limit_final.png)
 - [workspace_limit_grasp_closeup.png](workspace_limit_grasp_closeup.png)
 
-共享输入与总汇总见 [上级索引](../README.md)。
+See the [parent index](../README.md) for shared inputs and aggregate results.

@@ -1,13 +1,13 @@
 [
   {
     "key": "direct",
-    "title": "A：直接到达并全开",
+    "title": "A: Direct path and complete opening",
     "base": [
       0.6,
       -1.0
     ],
     "angle": 8.0,
-    "explanation": "直连局部路径通过检查，使用起点到目标的直接边。无需为了展示随机采样而强行建图。",
+    "explanation": "The direct local path passes, using the start-goal edge without unnecessary random sampling.",
     "obstacle": null,
     "execution": {
       "success": true,
@@ -139,13 +139,13 @@
   },
   {
     "key": "detour",
-    "title": "B：直连受阻，路线图绕行",
+    "title": "B: Blocked direct path, roadmap detour",
     "base": [
       0.6,
       -1.0
     ],
     "angle": 8.0,
-    "explanation": "与 A 相同的站位和目标，增加一个小障碍。直连失败后采样关节姿态，搜索利用现有升降轴的绕行路径。",
+    "explanation": "Same station and target as A, with a small obstacle. After direct failure, sample joints and find a detour using the existing lift.",
     "obstacle": [
       1.1816153636012094,
       -0.8849590023664262,
@@ -306,13 +306,13 @@
   },
   {
     "key": "limited_budget",
-    "title": "C：同一障碍，采样预算不足",
+    "title": "C: Same obstacle, insufficient sampling budget",
     "base": [
       0.6,
       -1.0
     ],
     "angle": 8.0,
-    "explanation": "与 B 的物理场景完全相同，但关闭随机采样。直连失败且无替代边，返回本次未找到，不能据此判定位置绝对不可行。",
+    "explanation": "Same physics as B with sampling disabled. Direct failure leaves no alternative edge; no path found within budget does not prove infeasibility.",
     "obstacle": [
       1.1816153636012094,
       -0.8849590023664262,
@@ -368,13 +368,13 @@
   },
   {
     "key": "partial",
-    "title": "D：能到把手，开门中途受限",
+    "title": "D: Reachable handle, limited opening",
     "base": [
       0.3,
       -0.9
     ],
     "angle": 0.0,
-    "explanation": "PRM 只证明到预抓取位置的几何路径。实际开门仍会遇到后续工作空间限制。",
+    "explanation": "PRM establishes a geometric pregrasp path only. Physical opening still encounters downstream workspace limits.",
     "obstacle": null,
     "execution": {
       "success": true,
@@ -506,13 +506,13 @@
   },
   {
     "key": "unreachable",
-    "title": "E：目标超出当前分支工作空间",
+    "title": "E: Target beyond this branch workspace",
     "base": [
       2.0,
       -1.2
     ],
     "angle": 8.0,
-    "explanation": "预抓取目标没有当前肘分支的合法逆运动学解，先排除该目标，不浪费采样。其他抓点或移动底座属于另一个问题。",
+    "explanation": "No legal pregrasp IK exists on the selected elbow branch, so exclude this target before sampling. Other grasps or base motion are separate choices.",
     "obstacle": null,
     "execution": null,
     "opening": null,

@@ -1,41 +1,41 @@
-# 深度融合开发校准：保留原图（v7，2026-11-10）
+# Depth-fusion calibration retains the original map (v7, 2026-11-10)
 
-已完成 108 个训练／验证场景、四种地图配置的校准。三个新配置与历史地图的 **648 个初始／融合动作掩码比较完全一致**，验证统计没有改善，按预先规定的平局顺序保留 **historical**。未更新模型、未读取测试结果，也未把新地图部署为主策略。
+Calibration covers 108 training/validation scenes and four map profiles. All **648 initial/fused mask comparisons** between the three new profiles and historical match exactly. Validation does not improve, so the predefined tie order retains **historical**. No models are updated, test outcomes read, or new maps deployed as primary.
 
-新实现及 4 项契约检查确认：跨帧去重能使占据支持不随重复帧增加，未知区域不会因自由射线规则被当成自由；但本批真实数据的误排除并未因此消失。原实现的重复计数现象不是本批开发错误的充分解释，不能把代码性质改善等同于任务收益。
+The implementation and 4 contracts confirm that cross-frame deduplication prevents extra occupied support from repeated frames and free-ray rules preserve unknown space. However, exclusions in these physical development data remain. Duplicate counting alone does not explain the development errors; a code-level property improvement is not a measured task gain.
 
-| 验证诊断（36 场景） | 历史图 | 体素并集 | 并集＋自由射线 | 并集＋3 mm 膨胀 |
+| Validation diagnostic (36 scenes) | Historical | Voxel union | Union + free rays | Union + 3 mm inflation |
 | --- | ---: | ---: | ---: | ---: |
-| 初始额外排除的完整几何允许站位 | 2 | 2 | 2 | 2 |
-| 初始仍允许的完整几何阻挡站位 | 18 | 18 | 18 | 18 |
-| 融合后额外排除的完整几何允许站位 | 2 | 2 | 2 | 2 |
-| 融合后仍允许的完整几何阻挡站位 | 0 | 0 | 0 | 0 |
-| 融合后被误排除的成功候选 | 0 | 0 | 0 | 0 |
-| 融合后仍允许的碰撞候选 | 0 | 0 | 0 | 0 |
+| Initially excluded stations allowed by full geometry | 2 | 2 | 2 | 2 |
+| Initially allowed stations blocked by full geometry | 18 | 18 | 18 | 18 |
+| Post-fusion excluded stations allowed by full geometry | 2 | 2 | 2 | 2 |
+| Post-fusion allowed stations blocked by full geometry | 0 | 0 | 0 | 0 |
+| Successful candidates excluded after fusion | 0 | 0 | 0 | 0 |
+| Collision candidates allowed after fusion | 0 | 0 | 0 | 0 |
 
-站位记录和相关候选不是独立场景数。两个完整几何额外排除并未排除本验证集中已成功的物理候选；因此不能单凭完整几何差异声称损失两次任务成功。
+Station records and related candidates are not independent scenes. The two additional exclusions do not remove successful physical candidates in this validation set, so their full-geometry differences do not establish two lost task successes.
 
-## 同时发现的 PG 选模问题
+## PG selection issue found during calibration
 
-只在原验证集复用候选表、读取冻结 PG 检查点，未新增物理回放：
+Reuse validation candidate tables and frozen PG checkpoints only, without new physical replays:
 
-| 检查点／执行方式 | 正确 /36 | 开门 /26 | 正确拒绝 /10 | 碰撞 | 平均净回报 |
+| Checkpoint / mode | Correct /36 | Open /26 | Correct refusal /10 | Collisions | Mean net utility |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 第 0 步，直接 | 24 | 15 | 9 | 0 | 0.3889 |
-| 第 320 步，直接 | 25 | 22 | 3 | 2 | 0.3333 |
-| 第 0 步，始终观察 | 35 | 25 | 10 | 0 | 0.5133 |
-| 第 320 步，始终观察 | 35 | 25 | 10 | 0 | 0.5133 |
+| Update 0, direct | 24 | 15 | 9 | 0 | 0.3889 |
+| Update 320, direct | 25 | 22 | 3 | 2 | 0.3333 |
+| Update 0, always inspect | 35 | 25 | 10 | 0 | 0.5133 |
+| Update 320, always inspect | 35 | 25 | 10 | 0 | 0.5133 |
 
-旧 PG 验证只看始终观察，没有覆盖直接分支的变化。直接分支虽然多一次正确，但增加两次碰撞，净回报下降，不能宣称继续训练已改善整体表现。后续实验将同时检查两分支安全，再比较同组布局配对与碰撞加权损失，地图继续保留原图。[新实验设计](mobile_branch_balance_plan.md)。
+Previous PG validation considered only always inspection, missing direct-branch changes. Direct execution gains one correct decision but adds two collisions and lowers net utility. Future experiments check safety on both branches before comparing paired layouts and collision-weighted objectives, retaining the original map. [New experiment design](mobile_branch_balance_plan.md).
 
-开发数据的候选感知失败另有训练 168/1152、验证 88/576 次 `handle_not_detected`，这些是相关执行记录；此阶段未改变感知代码，不能把失败比例解释为场景检测成功率。
+Additional perception failures are training 168/1152 and validation 88/576 `handle_not_detected` candidates. These are correlated execution records rather than scene-detection rates. Perception code is unchanged in this phase.
 
-## 运行、来源与边界
+## Runtime, sources, and scope
 
-本地排队 0，预计 8 分钟。控制器 12696、实际进程 32240、权威会话 **32340**；启动 6.50 秒，首场三新配置 1.62 秒。代理一次休眠 **457.39 秒**至预计 11:14:28，再检查同一会话，确认已于 **11:09:45** 完成，退出码 **0**。实际流程 **194.52 秒**，控制器 196.84 秒；其中地图场景循环 137.71 秒、两个 PG 验证前向 49.06 秒、启动 6.50 秒、其余 1.24 秒。506 份输入与 123 份源码哈希核验保持。
+Queue 0; estimated 8 minutes. Controller 12696, process 32240, authoritative session **32340**. Startup 6.50 seconds; three new profiles on the first scene take 1.62 seconds. The agent sleeps once for **457.39 seconds** until estimated 11:14:28, then confirms the same session completed at **11:09:45**, exit **0**. Actual pipeline **194.52 seconds**, controller 196.84: map loop 137.71, two PG validation forwards 49.06, startup 6.50, other 1.24. All 506 input and 123 source hashes remain unchanged.
 
-自由射线变体参考 [Hornung 等，OctoMap，2013](https://www.arminhornung.de/Research/pub/hornung13auro.pdf) 中区分占据、自由和未知的原则。这里没有实现 OctoMap 的 octree 或概率融合，也没有从论文推断当前任务一定获益。
+The free-ray variant follows occupied/free/unknown distinctions in [Hornung et al., OctoMap, 2013](https://www.arminhornung.de/Research/pub/hornung13auro.pdf). It does not implement OctoMap's octree or probabilistic fusion, and the reference does not establish a benefit on this task.
 
-[训练前配置与选择规则](mobile_partial_fusion_plan.md) · [完整校准报告](../runs/mobile_partial_fusion_calibration_seed42_20261110/report.json) · [验证 PG 诊断](../runs/mobile_partial_fusion_calibration_seed42_20261110/validation_pg_diagnostic.json) · [运行与掩码核验](../runs/mobile_partial_fusion_calibration_seed42_20261110/verification.json)。
+[Pre-run profiles and selection rules](mobile_partial_fusion_plan.md) · [Full calibration report](../runs/mobile_partial_fusion_calibration_seed42_20261110/report.json) · [Validation PG diagnostic](../runs/mobile_partial_fusion_calibration_seed42_20261110/validation_pg_diagnostic.json) · [Runtime and mask verification](../runs/mobile_partial_fusion_calibration_seed42_20261110/verification.json).
 
-实际输出为冻结 v3 物理工作区下 `runs/p7_cal_seed42_20261110/`。原始 RGB-D、权重与历史回执未覆盖，所有新数组／日志仅在 ignored `runs/`，新实验固定 seed42，并记录 Python／NumPy／Torch／CUDA 与非确定性限制。
+Actual outputs are `runs/p7_cal_seed42_20261110/` inside the frozen v3 physics workspace. Original RGB-D, weights, and receipts are preserved. New arrays/logs remain ignored in `runs/`; new experiments use seed 42 and record Python/NumPy/Torch/CUDA settings and nondeterministic limitations.
