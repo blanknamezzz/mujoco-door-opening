@@ -1,0 +1,458 @@
+[
+  {
+    "layout": "front side blocked",
+    "seed": 42,
+    "scene": {
+      "scene_id": "sensor_demo_seed42_active_inspection",
+      "door_style": "oak-panel",
+      "handle_style": "lever",
+      "obstacles": [
+        {
+          "name": "wall_front",
+          "shape": "box",
+          "pos": [
+            0.48,
+            -0.62,
+            0.75
+          ],
+          "size": [
+            0.5,
+            0.07,
+            0.75
+          ],
+          "rgba": [
+            0.72,
+            0.74,
+            0.76,
+            1.0
+          ],
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "clutter_crate_a",
+          "shape": "box",
+          "pos": [
+            0.82,
+            -0.78,
+            0.22
+          ],
+          "size": [
+            0.22,
+            0.18,
+            0.22
+          ],
+          "rgba": [
+            0.59,
+            0.35,
+            0.18,
+            1.0
+          ],
+          "euler_deg": [
+            0.0,
+            0.0,
+            8.0
+          ]
+        }
+      ],
+      "wall_layout": "front-cross-wall",
+      "expected_open_side": "back",
+      "handle_faces": [
+        "front",
+        "back"
+      ],
+      "handle_x": 0.8,
+      "handle_z": 0.85,
+      "friction": 0.8,
+      "handle_friction": 0.1,
+      "hinge_resistance": 1.2,
+      "description": "Oak panel door, lever, front wall and crate"
+    },
+    "inspection": {
+      "attempted": true,
+      "success": true,
+      "collision": false,
+      "unsafe_abort": false,
+      "query": {
+        "path_found": true,
+        "reason": "collision_checked_path",
+        "path": [
+          [
+            0.6,
+            -1.65,
+            1.5707963267948966
+          ],
+          [
+            0.6,
+            -1.65,
+            -1.5707963267948966
+          ],
+          [
+            0.12,
+            -1.41,
+            -1.5707963267948966
+          ],
+          [
+            -0.36,
+            -0.69,
+            -1.5707963267948966
+          ],
+          [
+            -0.24,
+            0.1499999999999999,
+            -1.5707963267948966
+          ],
+          [
+            0.6,
+            1.65,
+            -1.5707963267948966
+          ]
+        ],
+        "geometric_length_m": 3.969702611962492,
+        "checks": 4560,
+        "distance_checks": 33439
+      },
+      "execution": {
+        "success": true,
+        "stop_reason": "arrived",
+        "collision": false,
+        "first_contact": null,
+        "start_time_s": 0.0,
+        "end_time_s": 30.35200000001411,
+        "wall_seconds": 0.4132312500005355,
+        "start_base_pose": [
+          0.6,
+          -1.65,
+          1.5707963267948966
+        ],
+        "end_base_pose": [
+          0.5999999999911819,
+          1.6499999999593673,
+          -1.5707963264446547
+        ],
+        "arm_error_max": 1.98581950883181e-09,
+        "xy_error_m": 4.157844394305714e-11,
+        "yaw_error_rad": 3.502418355338932e-10
+      },
+      "path_length_m": 3.9697210854777376,
+      "duration_s": 30.35200000001411,
+      "wall_seconds": 1.0250370840003598,
+      "actual_base_pose": [
+        0.5999999999911819,
+        1.6499999999593673,
+        -1.5707963264446547
+      ]
+    },
+    "allowed_station_ids": [
+      2
+    ],
+    "sweep_checks": [
+      {
+        "allowed": false,
+        "base_id": 0,
+        "first_blocked_angle_deg": 34.0,
+        "pair": "handle_bar:wall_front",
+        "signed_distance_m": -0.0025484557576521006,
+        "distance_checks": 304,
+        "step_deg": 1.0,
+        "penetration_tolerance_m": 0.001,
+        "scope": "known-map door assembly/static obstacles and commanded base box"
+      },
+      {
+        "allowed": false,
+        "base_id": 1,
+        "first_blocked_angle_deg": 34.0,
+        "pair": "handle_bar:wall_front",
+        "signed_distance_m": -0.0025484557576521006,
+        "distance_checks": 310,
+        "step_deg": 1.0,
+        "penetration_tolerance_m": 0.001,
+        "scope": "known-map door assembly/static obstacles and commanded base box"
+      },
+      {
+        "allowed": true,
+        "base_id": 2,
+        "first_blocked_angle_deg": null,
+        "pair": null,
+        "signed_distance_m": null,
+        "distance_checks": 356,
+        "step_deg": 1.0,
+        "penetration_tolerance_m": 0.001,
+        "scope": "known-map door assembly/static obstacles and commanded base box"
+      },
+      {
+        "allowed": false,
+        "base_id": 3,
+        "first_blocked_angle_deg": 57.0,
+        "pair": "door_panel:base_box",
+        "signed_distance_m": -0.007755575343775127,
+        "distance_checks": 296,
+        "step_deg": 1.0,
+        "penetration_tolerance_m": 0.001,
+        "scope": "known-map door assembly/static obstacles and commanded base box"
+      }
+    ],
+    "decision": "CONTINUE: geometry permits candidate stations",
+    "scope": "Fresh physical inspection, known-map sweep decision; no checkpoint inference or opening success claim",
+    "reset_count": 1,
+    "physics_seconds": 1.1645735000020068,
+    "file": "active_inspection.mp4",
+    "video_seconds": 13.15,
+    "total_wall_seconds": 7.588799916000426
+  },
+  {
+    "layout": "both sides blocked",
+    "seed": 42,
+    "scene": {
+      "scene_id": "sensor_demo_seed42_inspection_refusal",
+      "door_style": "oak-panel",
+      "handle_style": "lever",
+      "obstacles": [
+        {
+          "name": "wall_front",
+          "shape": "box",
+          "pos": [
+            0.48,
+            -0.62,
+            0.75
+          ],
+          "size": [
+            0.5,
+            0.07,
+            0.75
+          ],
+          "rgba": [
+            0.72,
+            0.74,
+            0.76,
+            1.0
+          ],
+          "euler_deg": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "name": "clutter_crate_a",
+          "shape": "box",
+          "pos": [
+            0.82,
+            -0.78,
+            0.22
+          ],
+          "size": [
+            0.22,
+            0.18,
+            0.22
+          ],
+          "rgba": [
+            0.59,
+            0.35,
+            0.18,
+            1.0
+          ],
+          "euler_deg": [
+            0.0,
+            0.0,
+            8.0
+          ]
+        },
+        {
+          "name": "obstacle_mirror_wall_front",
+          "shape": "box",
+          "pos": [
+            0.48,
+            0.62,
+            0.75
+          ],
+          "size": [
+            0.5,
+            0.07,
+            0.75
+          ],
+          "rgba": [
+            0.72,
+            0.74,
+            0.76,
+            1.0
+          ],
+          "euler_deg": [
+            0.0,
+            0.0,
+            -0.0
+          ]
+        },
+        {
+          "name": "obstacle_mirror_clutter_crate_a",
+          "shape": "box",
+          "pos": [
+            0.82,
+            0.78,
+            0.22
+          ],
+          "size": [
+            0.22,
+            0.18,
+            0.22
+          ],
+          "rgba": [
+            0.59,
+            0.35,
+            0.18,
+            1.0
+          ],
+          "euler_deg": [
+            0.0,
+            0.0,
+            -8.0
+          ]
+        }
+      ],
+      "wall_layout": "front-cross-wall",
+      "expected_open_side": "back",
+      "handle_faces": [
+        "front",
+        "back"
+      ],
+      "handle_x": 0.8,
+      "handle_z": 0.85,
+      "friction": 0.8,
+      "handle_friction": 0.1,
+      "hinge_resistance": 1.2,
+      "description": "Oak panel door, lever, front wall and crate"
+    },
+    "inspection": {
+      "attempted": true,
+      "success": true,
+      "collision": false,
+      "unsafe_abort": false,
+      "query": {
+        "path_found": true,
+        "reason": "collision_checked_path",
+        "path": [
+          [
+            0.6,
+            -1.65,
+            1.5707963267948966
+          ],
+          [
+            0.6,
+            -1.65,
+            -1.5707963267948966
+          ],
+          [
+            0.12,
+            -1.41,
+            -1.5707963267948966
+          ],
+          [
+            -0.36,
+            -0.69,
+            -1.5707963267948966
+          ],
+          [
+            -0.36,
+            0.75,
+            -1.5707963267948966
+          ],
+          [
+            0.6,
+            1.65,
+            -1.5707963267948966
+          ]
+        ],
+        "geometric_length_m": 4.157891352678986,
+        "checks": 4122,
+        "distance_checks": 36108
+      },
+      "execution": {
+        "success": true,
+        "stop_reason": "arrived",
+        "collision": false,
+        "first_contact": null,
+        "start_time_s": 0.0,
+        "end_time_s": 31.35600000001534,
+        "wall_seconds": 0.4365962500014575,
+        "start_base_pose": [
+          0.6,
+          -1.65,
+          1.5707963267948966
+        ],
+        "end_base_pose": [
+          0.5999999999872813,
+          1.6499999999567527,
+          -1.5707963263548157
+        ],
+        "arm_error_max": 2.1892627710684565e-09,
+        "xy_error_m": 4.507864905766548e-11,
+        "yaw_error_rad": 4.4008086064195595e-10
+      },
+      "path_length_m": 4.157907744184878,
+      "duration_s": 31.35600000001534,
+      "wall_seconds": 1.0450200839986792,
+      "actual_base_pose": [
+        0.5999999999872813,
+        1.6499999999567527,
+        -1.5707963263548157
+      ]
+    },
+    "allowed_station_ids": [],
+    "sweep_checks": [
+      {
+        "allowed": false,
+        "base_id": 0,
+        "first_blocked_angle_deg": 34.0,
+        "pair": "handle_bar:wall_front",
+        "signed_distance_m": -0.0025484557576521006,
+        "distance_checks": 513,
+        "step_deg": 1.0,
+        "penetration_tolerance_m": 0.001,
+        "scope": "known-map door assembly/static obstacles and commanded base box"
+      },
+      {
+        "allowed": false,
+        "base_id": 1,
+        "first_blocked_angle_deg": 34.0,
+        "pair": "handle_bar:wall_front",
+        "signed_distance_m": -0.0025484557576521006,
+        "distance_checks": 519,
+        "step_deg": 1.0,
+        "penetration_tolerance_m": 0.001,
+        "scope": "known-map door assembly/static obstacles and commanded base box"
+      },
+      {
+        "allowed": false,
+        "base_id": 2,
+        "first_blocked_angle_deg": 34.0,
+        "pair": "back_handle_bar:obstacle_mirror_wall_front",
+        "signed_distance_m": -0.0025484557576521006,
+        "distance_checks": 517,
+        "step_deg": 1.0,
+        "penetration_tolerance_m": 0.001,
+        "scope": "known-map door assembly/static obstacles and commanded base box"
+      },
+      {
+        "allowed": false,
+        "base_id": 3,
+        "first_blocked_angle_deg": 34.0,
+        "pair": "back_handle_bar:obstacle_mirror_wall_front",
+        "signed_distance_m": -0.0025484557576521006,
+        "distance_checks": 523,
+        "step_deg": 1.0,
+        "penetration_tolerance_m": 0.001,
+        "scope": "known-map door assembly/static obstacles and commanded base box"
+      }
+    ],
+    "decision": "REFUSE: all candidate door sweeps blocked",
+    "scope": "Fresh physical inspection, known-map sweep decision; no checkpoint inference or opening success claim",
+    "reset_count": 1,
+    "physics_seconds": 1.0888453750012559,
+    "file": "inspection_refusal.mp4",
+    "video_seconds": 13.5,
+    "total_wall_seconds": 7.5551232079997135
+  }
+]

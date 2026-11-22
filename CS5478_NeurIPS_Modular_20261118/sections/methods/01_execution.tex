@@ -1,0 +1,16 @@
+% !TeX root = ../../main.tex
+\subsection{Continuous Execution and Grasp Preparation}
+An episode initializes the simulator once. I first chooses whether to navigate
+to the inspection pose; P then selects a permitted station or refuses. At
+station arrival, calibrated depth backprojection and a gold-color RGB mask
+localize the handle by fitting a vertical cylinder with known nominal radius.
+G ranks the two grasp commands constructed from this estimate. Arm preparation
+first tests a direct joint-space path, then uses a bounded RRT search
+\citep{lavalle1998rrt} with 180 samples if needed. Position servos execute the
+path before contact-based opening begins. Joint positions and velocities pass
+continuously between stages, and each movement is followed by a real camera
+observation. Figure~\ref{fig:active_motion} illustrates the inspection prefix
+and the change in the reached view.
+\ifshowfigures
+\input{figures/blocks/F04_active_motion}
+\fi

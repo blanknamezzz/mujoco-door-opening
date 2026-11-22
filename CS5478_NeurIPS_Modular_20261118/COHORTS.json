@@ -1,0 +1,98 @@
+{
+  "cohorts": {
+    "A": {
+      "archive_id": "v6",
+      "run": "runs/mobile_inspection_regret_evaluation_seed42_20261110",
+      "primary_policy": "joint_regret",
+      "seed": 42,
+      "test_scenes": 72,
+      "test_groups": 18,
+      "template_families": 9,
+      "correct_decisions": 68,
+      "feasible_scenes": 48,
+      "openings": 47,
+      "correct_refusals": 21,
+      "manifest_sha256": "7cab1ea9650ba28f80eda83bad381350897d41aee93874e9d7015881cb971639",
+      "report_sha256": "5d6bb2c47b7ea8eb0f4feb8d616a0c20bf98f64beca9eb320b16dc6cc29c81a3"
+    },
+    "B": {
+      "archive_id": "v8",
+      "run": "runs/mobile_branch_balance_evaluation_seed42_20261110",
+      "primary_policy": "paired_ce",
+      "seed": 42,
+      "test_scenes": 72,
+      "test_groups": 18,
+      "template_families": 9,
+      "correct_decisions": 72,
+      "feasible_scenes": 53,
+      "openings": 53,
+      "correct_refusals": 19,
+      "manifest_sha256": "3e506223e2fc6bf8e59da03b132398e5f91de4dddaa4af624017986e4fe62c7e",
+      "report_sha256": "10e3bcb74897066c3242cf68b0e0b9349f56528768e70302ed869acc3e841078"
+    },
+    "C": {
+      "archive_id": "v10",
+      "run": "runs/mobile_partial_workspace_seed42_20261109/runs/p10t_seed42_20261111",
+      "primary_policy": "standard",
+      "seed": 42,
+      "test_scenes": 72,
+      "test_groups": 18,
+      "template_families": 9,
+      "correct_decisions": 70,
+      "feasible_scenes": 52,
+      "openings": 50,
+      "correct_refusals": 20,
+      "manifest_sha256": "a3b5a06985660761991a3f3b9201bfe2348fc3b9bfa99810ff8c797a2e4e35f8",
+      "report_sha256": "e643b6ccdec9f997b76129093c861216ec6b68dd278f4ab22cc84f453a01862f"
+    }
+  },
+  "initialization_lineage": [
+    {
+      "stage": "Continuation initialization",
+      "protocol": "runs/mobile_partial_workspace_seed42_20261109/runs/p10_recovery_seed42_20261111/protocol.json",
+      "protocol_sha256": "8baff43774024bd2ea97fa402ea468ac085b7b9e8efb02c356b789e2a67eed73",
+      "checkpoint": "runs/mobile_partial_workspace_seed42_20261109/runs/mobile_partial_training_seed42_20261109/depth_features/selected_pg.pt",
+      "sha256": "fafec5f893f2963dbe24a82645de313382b3b24f59bb6fb2c971f1bb2bc17a70"
+    },
+    {
+      "stage": "Partial-map stage input",
+      "protocol": "runs/mobile_partial_training_seed42_20261109/protocol.json",
+      "protocol_sha256": "31676368a1ccaa752ff321035591c1da5f92705625ca93fc4bd30af2cab2f9ff",
+      "checkpoint": "runs/mobile_outcome_workspace_seed42_20261109/runs/mobile_outcome_seed42_20261109/factorized/selected.pt",
+      "sha256": "387b7bf919f99918db307225b533f0fe78592bbb8a210624b822e82b02b19ce9"
+    },
+    {
+      "stage": "Outcome-supervision stage input",
+      "protocol": "runs/mobile_outcome_seed42_20261109/protocol.json",
+      "protocol_sha256": "9219765632520cfdd6a5e821e537caba4c2c1f6815707edfdb60ce92bfcb5e10",
+      "checkpoint": "runs/mobile_active_workspace_seed42_20261109/runs/mobile_active_seed42_20261109/view_free/selected.pt",
+      "sha256": "2201726ba8c871d1973cd9ca2f57026546582b7ff36a99a2c0fed113597d1852"
+    }
+  ],
+  "partial_map_pg_selected_step": 0,
+  "figure3": {
+    "cohort": "C",
+    "archive_id": "v10",
+    "policy": "standard",
+    "scene_id": "mobile_retention_v10_20261111_test_g000_front_blocked",
+    "selection_rule": "first test scene with front_blocked layout",
+    "camera_poses_match_replay": true,
+    "path_m": 4.620968862524261,
+    "episode_duration_s": 61.9919999999792,
+    "door_span_m": [
+      0.0,
+      0.9
+    ],
+    "camera_shape": [
+      224,
+      224,
+      3
+    ],
+    "initial_rgb_sha256": "812c33336ffc5d3dfbc15f594b6980c9d9e9f7dfc717a7d8530d1e845dddc545",
+    "reached_rgb_sha256": "83b2f7c51ebfabd63e3b30b392ed9eb82eef37ebfcc3f34cf72304fab4127a2a",
+    "checkpoint_sha256": "671e116abe97e150ec94953753666057cc10b5141001196cb696651a64d590e9",
+    "branch": 1,
+    "base_id": 2,
+    "grasp_id": 0
+  }
+}

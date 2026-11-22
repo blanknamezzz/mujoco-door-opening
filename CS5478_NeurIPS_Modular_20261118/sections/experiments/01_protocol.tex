@@ -1,0 +1,26 @@
+% !TeX root = ../../main.tex
+\subsection{Protocol and Baselines}
+Training and validation contain 72 and 36 scenes in 18 and 9 parameter groups.
+Each group has four obstacle layouts: front blocked, rear blocked, both
+blocked, and free. Nine templates vary door appearance, handle configuration,
+friction, resistance, and geometry. Each final evaluation uses a new
+18-group, 72-scene test with disjoint group and geometry identities.
+The three test cohorts are named A, B, and C in collection order, with C the
+latest cohort.
+Validation determines checkpoints and decision thresholds before test
+collection. The implementation and experiment records are available in
+the project repository.\footnote{\url{https://github.com/blanknamezzz/mujoco-door-opening},
+revision \texttt{0ae4c4d}.}
+
+A scene is \emph{candidate-feasible} if at least one of its 16 physical
+candidate records succeeds. Task correctness counts a successful opening in
+a feasible scene or a refusal in a library-infeasible scene. Opening and
+correct-refusal fractions use their respective scene counts as denominators.
+We also measure collisions, false refusals, actual inspections, whole-episode
+simulated duration, base path length, and net utility from
+Equations~\ref{eq:utility}--\ref{eq:advantage}.
+
+The primary comparison holds the frozen continuation and depth constraints
+fixed while varying learned, always, and never inspection. For cohort C,
+1152 physical candidate trials and 288 policy replays cover four
+distinct deployed policies.

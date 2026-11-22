@@ -1,0 +1,57 @@
+% !TeX root = ../main.tex
+\section{Task and Simulation Setup}
+\label{sec:setup}
+\subsection{Physical Task and Success Criteria}
+The MuJoCo environment \citep{todorov2012mujoco} contains a passive hinged
+door, a fixed vertical handle, and a mobile manipulator with a lift joint,
+shoulder, elbow, wrist, and parallel two-finger gripper. An ideal holonomic
+base moves in $x$, $y$, and yaw, then remains at its selected station during
+opening. The mobile controller uses a 6~N actuator limit per finger, a
+10-second opening command, and a 2-second hold phase. The target opening is
+$90^\circ$ in the selected direction.
+
+Success requires bilateral grasp acquisition and, throughout the final
+second, a door angle within $2^\circ$ of the target, bilateral contact, and
+angular speed below $0.05$~rad/s. Unexpected collision, sustained slip, or
+contact loss terminates an ordinary trial. Slip monitoring uses relative
+motion and contact-point velocity; persistent loss of bilateral contact for
+0.1~s raises a contact-loss event. These checks distinguish reaching the
+handle, acquiring a grasp, and completing the opening.
+
+\subsection{Observations and Candidate Actions}
+The robot starts with calibrated RGB-D and a 19-dimensional state record.
+One optional inspection pose provides a physically reached second view. P
+chooses among four predefined stations, two on each side of the door, or
+refusal. After station arrival, G uses a fresh observation to select one of
+two approach offsets, $-15^\circ$ and $+22^\circ$, with a side-dependent yaw
+conversion. Grasp height, IK branch, grip force, and timing are fixed in the
+mobile policy.
+
+Opening constraints combine the door/robot CAD prior with observed depth.
+Four features describe each station: known base collision, observed
+obstruction, sampled free-space coverage, and normalized observed clearance.
+Observed obstruction can exclude a station before learned ranking. Unseen
+space remains unknown; navigation and arm preparation use a separate
+known-geometry service. Table~\ref{tab:information} specifies the information
+available at each decision.
+
+\begin{table}[H]
+\caption{Information and decisions along one episode. Reached images become
+available only after the corresponding physical movement.}
+\label{tab:information}
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lXX@{}}
+\toprule
+Stage & Available information & Decision or execution \\
+\midrule
+I & Initial RGB features, relative inspection goal, risk, initial depth features
+  & Inspect or continue directly \\
+P & Current visual features, relative station commands, current depth features
+  & Four stations or refusal \\
+G & Reached-station image and estimated handle geometry
+  & Two approach offsets \\
+Controller & Selected plan, joint state, known geometry, contact feedback
+  & Navigate, prepare arm, grasp, open, hold \\
+\bottomrule
+\end{tabularx}
+\end{table}

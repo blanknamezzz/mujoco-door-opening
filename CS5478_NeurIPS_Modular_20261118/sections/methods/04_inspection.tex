@@ -1,0 +1,35 @@
+% !TeX root = ../../main.tex
+\subsection{Learning When to Inspect}
+After selecting P/G, we freeze the continuation and compare its actual choices
+in the two physical branches. The measured inspection advantage is
+\begin{equation}
+ A=U_{\mathrm{inspect}}-C-U_{\mathrm{direct}},\qquad
+ C=0.2\frac{d}{6}+0.1\frac{t}{60},
+ \label{eq:advantage}
+\end{equation}
+where $d$ is inspection travel in meters and $t$ is inspection duration in
+simulated seconds. Both utilities come from the frozen policy's selected
+actions. I receives initial-view features, the relative inspection command,
+declared risk, and initial depth features. It predicts four outcome logits
+and a nonnegative softplus cost, giving a net value
+$\widehat V_I=\sum_c p_I(c)u_c-\widehat C$.
+
+The joint inspection objective combines outcome classification, cost fitting,
+and a decision term weighted by the magnitude of the measured advantage. With
+$z_s=(\widehat V_{I,s}-\widehat V_{D,s})/0.2$, it is
+\begin{align}
+ \mathcal L_I&=\mathcal L_{\mathrm{CE}}
+ +0.5\mathcal L_{\mathrm{MSE}}(\widehat C,C)+\mathcal L_{\mathrm{regret}},\\
+ \mathcal L_{\mathrm{regret}}&=
+ \frac{\sum_s w_s\,\mathrm{BCEWithLogits}
+ (z_s,\mathbf 1[A_s>0])}
+ {\max(\sum_s w_s,10^{-8})},\quad w_s=|A_s|e_s.
+ \label{eq:regret}
+\end{align}
+Here $\widehat V_D$ is the frozen direct branch's predicted best value and
+$e_s$ marks eligibility under the initial station mask. The decision term
+emphasizes inspection errors with greater downstream cost. At runtime, I
+compares its predicted net value with the best permitted station/refusal
+value. The executor immediately refuses if the initial mask excludes every
+station. Future observations and measured branch outcomes supply training
+targets; inference uses the currently available view.

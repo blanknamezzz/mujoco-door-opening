@@ -1,0 +1,12 @@
+% !TeX root = ../../main.tex
+\subsection{Physical Data Generation}
+For each scene, we execute both direct and inspection branches, four stations,
+and two grasp candidates, yielding $2\times4\times2=16$ physical candidate
+records. Each trial has its own initialized episode and a continuous execution
+prefix. A record stores scene/group identity, branch, station and grasp IDs,
+initial and reached RGB-D, robot state, terminal outcome, failure stage, and
+measured inspection distance and duration. The success predicate in
+Section~\ref{sec:setup} generates outcome labels. All successes and failures
+remain in the dataset; unavailable grasp observations are masked in G's
+training loss. Complete parameter groups stay within one split, and
+normalization is fitted on training data.

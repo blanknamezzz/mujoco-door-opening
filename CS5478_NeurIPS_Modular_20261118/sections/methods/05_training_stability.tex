@@ -1,0 +1,33 @@
+% !TeX root = ../../main.tex
+\subsection{Training Stages and Checkpoint Selection}
+The continuation experiments start from the validation-selected partial-map
+P/G checkpoint, inherited from an earlier outcome-supervised mobile policy.
+This two-level H-JEPA model already contains rank-8 LoRA and P/G outcome heads
+adapted to simulated door opening. We resume the adapters with scaling $\alpha=16$ and
+dropout 0.05 \citep{hu2021lora}. Table~\ref{tab:training} gives the latest
+continuation budget. AdamW uses weight decay 0.01 and gradient clipping at 1;
+P/G training uses BF16 autocast. Groups contain four related layouts, and the
+paired sampler draws two different layouts from one training group per update.
+
+\begin{table}[H]
+\caption{Latest continuation settings. Learning rates are for the standard arm;
+the low-rate controls multiply both P/G-stage rates by 0.1.}
+\label{tab:training}
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lXXX@{}}
+\toprule
+Stage & Trainable parameters & Updates and batch & Learning rate \\
+\midrule
+P/G & Existing LoRA and P/G heads & 320; 2 scenes; target refresh every 40
+ & Heads \mbox{$3\times10^{-4}$}\newline LoRA \mbox{$2\times10^{-5}$} \\
+I & Inspection head & 1600; up to 32 training rows & $3\times10^{-4}$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+P/G checkpoint selection compares direct and always-inspect validation
+branches: fewer collisions first, then inspected-branch correctness, direct
+correctness, total openings, net utility, and path length. Strict improvement
+retains the earlier checkpoint on ties. We then freeze all non-I parameters
+and select I using validation task outcomes and cost. Python, NumPy, Torch,
+and CUDA use seed 42.

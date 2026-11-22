@@ -1,0 +1,27 @@
+% !TeX root = ../../main.tex
+\subsection{Training Studies and Grasping Baselines}
+\label{sec:exploratory}
+The standard policy scores $71/72$ on training, $35/36$ on validation, and
+$70/72$ on the latest test. Four continuation arms compare
+standard learning rates, rates scaled by 0.1, output retention, and their
+combination. Retention adds
+$\mathrm{KL}(p_{\mathrm{teacher}}\Vert p_{\mathrm{student}})$ at temperature
+1 on training inputs, using a fixed teacher and the original visibility masks.
+All four arms achieve $35/36$ on validation, and the prespecified tie-break
+selects standard. Its selected weights and those of both low-rate arms match
+the previous policy; retention selects
+different P/G weights at update 280. On cohort C, retention corrects one additional
+scene ($71/72$) and uses two fewer inspections (Table~\ref{tab:latest}).
+
+The branch-gradient study compares summed gradients with PCGrad
+\citep{yu2020pcgrad} under matched initialization, batches, and budgets. PCGrad
+projects 12 of 320 updates. Both arms select P/G update 0 and I update 40,
+recovering the same deployed model and $35/36$ validation correctness.
+
+A separate fixed-base grasp study evaluates 21 approach angles at 36/12/24
+training/validation/test poses, with PRM pregrasp checking
+\citep{kavraki1996prm}. Supervised selection opens $9/24$ test poses for each
+of three seeds (42, 43, 44); REINFORCE \citep{williams1992reinforce} opens
+10, 9, and 9; a training-selected fixed $+18^\circ$ opens $10/24$.
+All 1512 candidate preparations use direct paths. This study supplies an
+independent grasping baseline alongside the mobile system's two-angle library.

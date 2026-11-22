@@ -1,0 +1,34 @@
+% !TeX root = ../../main.tex
+\begin{samepage}
+\subsection{Downstream Supervision for Positioning and Grasping}
+P and G predict probabilities for success, other failure, and collision. We
+score their outputs by expected terminal utility,
+\begin{equation}
+ V=\sum_c p(c)u_c,\qquad
+ u=(1,-1,-1-\rho,0),
+ \label{eq:utility}
+\end{equation}
+where the fourth entry denotes refusal and $\rho=1$ at deployment. P masks
+excluded stations and appends a zero-valued refusal action. The heads are
+trained by class cross-entropy.
+\end{samepage}
+
+Let $C_{s,b,p,g}$ be the recorded outcome of grasp $g$ at station $p$ in
+branch $b$ of scene $s$. G learns these candidate outcomes directly. P's target
+uses the grasp that the current G policy selects:
+\begin{equation}
+ \hat g_{s,b,p}=\arg\max_g V_G(s,b,p,g),\qquad
+ y_P(s,b,p)=C_{s,b,p,\hat g_{s,b,p}}.
+ \label{eq:pg_target}
+\end{equation}
+This makes the supervision reflect the deployed continuation. For example,
+if only the second grasp succeeds but G selects the first, P receives the
+first grasp's failure label for that station. Improving G can subsequently
+change P's target.
+
+For each branch, the objective is P cross-entropy plus $0.5$ times the
+cross-entropy of visible G records. The two branch losses are summed, with
+unsafe post-inspection P decisions masked. Targets refresh every 40 updates
+using training predictions. The chosen IDs and outcome-table lookups form
+detached labels. Encoder LoRA and P/G heads update together while the original
+H-JEPA core stays frozen.

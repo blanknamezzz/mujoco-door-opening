@@ -1,0 +1,13 @@
+% !TeX root = ../main.tex
+\section{Conclusion}
+\label{sec:conclusion}
+We implemented a continuous mobile door-opening system in which inspection,
+positioning, and grasp selection learn from downstream physical outcomes.
+Current-grasp-conditioned station labels and fixed-continuation inspection
+targets connect the decisions through staged LoRA and task-head training.
+On the latest test, the selected policy achieves $70/72$
+correct decisions and matches always-inspect task outcomes with 43 rather
+than 72 inspections and 38.31 rather than 55.68 simulated seconds per episode.
+Three disjoint cohorts yield $210/216$ correct decisions. The next priorities
+are stronger handle estimation, better candidate exclusion, and broader
+actions with contact-aware recovery.

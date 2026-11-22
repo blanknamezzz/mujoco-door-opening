@@ -1,0 +1,9 @@
+# Local LaTeX compilation intermediates.
+*.aux
+*.log
+*.blg
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+.build/

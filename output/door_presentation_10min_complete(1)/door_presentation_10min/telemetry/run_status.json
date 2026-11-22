@@ -1,0 +1,21 @@
+{
+  "session": 39712,
+  "estimated_seconds": 120,
+  "queue_seconds": 0,
+  "deadline_unix": 1794483801.89287,
+  "evidence": "Previous telemetry renders took 3.45 and 4.08 seconds; 11 new longer clips plus encoding reserve.",
+  "seed": null,
+  "randomness": "No RNG: preserved physical records replayed",
+  "initial_outputs": [
+    [
+      "nominal.mp4",
+      268683
+    ],
+    [
+      "no_grip.mp4",
+      48
+    ]
+  ],
+  "completed": true,
+  "verified_unix": 1794484084.9291399
+}

@@ -1,0 +1,23 @@
+% !TeX root = ../main.tex
+\section{Approach and Training}
+\label{sec:training}
+The system couples three learned decisions through the physical continuation
+they induce. Figure~\ref{fig:system} separates the episode's forward flow from
+the supervision that connects G, P, and I.
+\ifshowfigures
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/methods/report_system.pdf}
+\caption{Shared encoding, execution, and supervision. H-JEPA visual features
+feed I/P/G; inspection and navigation provide the views used at each stage.
+Executed outcomes train G, the current G choice determines P's target, and
+frozen P/G continuations determine I's target. The two training stages adapt
+LoRA/P/G, then freeze the continuation and fit I.}
+\label{fig:system}
+\end{figure}
+\fi
+\input{sections/methods/01_execution}
+\input{sections/methods/02_data_generation}
+\input{sections/methods/03_pg_supervision}
+\input{sections/methods/04_inspection}
+\input{sections/methods/05_training_stability}

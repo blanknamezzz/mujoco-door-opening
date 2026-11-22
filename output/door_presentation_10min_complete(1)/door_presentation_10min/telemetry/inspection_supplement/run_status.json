@@ -1,0 +1,13 @@
+{
+  "session": 51418,
+  "estimate_seconds": 120,
+  "queue_seconds": 0,
+  "deadline_unix": 1794484024.968401,
+  "seed": 42,
+  "basis": "Historical local candidate simulations plus measured 3-7 second renders; conservative navigation reserve",
+  "remote_checked": "origin/main 0ae4c4d",
+  "source_logs_found": false,
+  "model_inference": false,
+  "completed": true,
+  "verified_unix": 1794484084.929363
+}

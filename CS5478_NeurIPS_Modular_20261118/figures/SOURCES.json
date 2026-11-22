@@ -1,0 +1,794 @@
+{
+  "review_date": "2026-11-18",
+  "github_revision": "0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0",
+  "scope": "Existing images copied unmodified; static evidence review, no new physics or training.",
+  "figures": [
+    {
+      "id": "F01",
+      "key": "joint_limit",
+      "title": "A grasp can succeed while the opening continuation fails",
+      "sources": [
+        "output/pdf/all_sensor_demos/joint_limit_stop_final.png"
+      ],
+      "group": "failures",
+      "target": "Section 1.1: Problem and Motivation",
+      "tier": "Main report",
+      "why": "Motivates preparing for the full door arc instead of judging only handle reachability.",
+      "caption": "A grasp can succeed while the opening continuation fails. The door stops at $42.51^\\circ$ with bilateral contact and a measured elbow angle of $-163.59^\\circ$. The controller rejects the next IK target because it exceeds the joint range.",
+      "caution": "A single diagnostic case, not a failure rate. Contact forces are simulated measurements; the actuator cap is a separate quantity.",
+      "evidence": [
+        "results/workspace_limit/workspace_limit_diagnosis.json",
+        "results/workspace_limit/workspace_limit.json",
+        "results/workspace_limit/workspace_limit.csv",
+        "runs/sensor_demos_20261112/manifest.json"
+      ],
+      "assets": [
+        {
+          "source_path": "output/pdf/all_sensor_demos/joint_limit_stop_final.png",
+          "package_path": "figures/failures/F01_joint_limit.png",
+          "sha256": "48b725da87a1fe71afb273f454df0419bb8995c28dfb34edf94d18a52a46d13f",
+          "pixels": [
+            1280,
+            800
+          ],
+          "origin": "local preserved demo"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "results/workspace_limit/workspace_limit_diagnosis.json",
+          "sha256": "91fa26be054b5a4fcdec52fb0ed178016233024b4bb496fd5411cdfc50a8ccaa",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/results/workspace_limit/workspace_limit_diagnosis.json"
+        },
+        {
+          "path": "results/workspace_limit/workspace_limit.json",
+          "sha256": "2a3afeb399c572a0112c0954e6a1a472d85aea74983613e6f1546c4b0c5b31ee",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/results/workspace_limit/workspace_limit.json"
+        },
+        {
+          "path": "results/workspace_limit/workspace_limit.csv",
+          "sha256": "2a3de945abfcc6d0713df63eb5a89f34ad0f0cd366dd1734d42b6c8bff338593",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/results/workspace_limit/workspace_limit.csv"
+        },
+        {
+          "path": "runs/sensor_demos_20261112/manifest.json",
+          "sha256": "0efc25bc804c267847fa2b70e5f5c5f425227d1352dc16078043d4aa9ce96434",
+          "scope": "read locally; no simulation rerun"
+        }
+      ],
+      "block": "figures/blocks/F01_joint_limit.tex"
+    },
+    {
+      "id": "F02",
+      "key": "nominal_opening",
+      "title": "The physical opening task",
+      "sources": [
+        "results/nominal/opening_sequence.png"
+      ],
+      "group": "setup",
+      "target": "Section 3.1: Physical Task and Success Criteria",
+      "tier": "Optional",
+      "why": "Shows approach, grasp, opening, and hold in a simple scene; useful when the reader has not seen the presentation.",
+      "caption": "Nominal fixed-station demonstration: approach, closure, opening, and hold. The preserved result records $89.679^\\circ$ final opening, bilateral acquisition, and a successful hold. This is one illustrative trial, not the mobile-policy evaluation.",
+      "caution": "Historical grasp demonstration; do not identify it as a v10 learned-policy rollout or generalization result.",
+      "evidence": [
+        "results/nominal/nominal.json",
+        "results/nominal/nominal.csv"
+      ],
+      "assets": [
+        {
+          "source_path": "results/nominal/opening_sequence.png",
+          "package_path": "figures/setup/F02_nominal_opening.png",
+          "sha256": "e9712552add3ae357de80a9552b699064c16097e60ffd3e13fe909f15882eb03",
+          "pixels": [
+            1440,
+            1080
+          ],
+          "origin": "verified GitHub blob",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/results/nominal/opening_sequence.png"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "results/nominal/nominal.json",
+          "sha256": "1b819945caaa952a068fb848e92b695c8d83b035f50f0125cf57fbfaa0723568",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/results/nominal/nominal.json"
+        },
+        {
+          "path": "results/nominal/nominal.csv",
+          "sha256": "2f1f1c2b6716779456925f13b1120aee5422792011200f8c09e53b0b93e59089",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/results/nominal/nominal.csv"
+        }
+      ],
+      "block": "figures/blocks/F02_nominal_opening.tex"
+    },
+    {
+      "id": "F03",
+      "key": "handle_detection",
+      "title": "What the handle estimator actually identifies",
+      "sources": [
+        "results/handle_detection.png"
+      ],
+      "group": "setup",
+      "target": "Section 4.1: Continuous Execution and Grasp Preparation",
+      "tier": "Optional",
+      "why": "Makes the perception-to-grasp interface concrete: estimated handle geometry is used to construct candidate commands.",
+      "caption": "Existing handle-detection overlay from the calibrated RGB-D estimator. The implementation uses a gold-color mask, depth backprojection, and a known vertical-cylinder model. It is a geometric estimator with appearance assumptions, not evidence of learned segmentation.",
+      "caution": "One successful detection does not establish robustness to new colors, dimensions, or occlusion. No detection accuracy is estimated from this image.",
+      "evidence": [
+        "results/handle_estimate.json",
+        "perception.py"
+      ],
+      "assets": [
+        {
+          "source_path": "results/handle_detection.png",
+          "package_path": "figures/setup/F03_handle_detection.png",
+          "sha256": "b66a678f144ffa434b5d8c7eaaa494936c45fb5fb74ffe1abbb7fd059fcf9230",
+          "pixels": [
+            960,
+            720
+          ],
+          "origin": "verified GitHub blob",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/results/handle_detection.png"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "results/handle_estimate.json",
+          "sha256": "082a423bc71b027011a850d2387fea884615074b8c869fdbc5e8f3f082539e0a",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/results/handle_estimate.json"
+        },
+        {
+          "path": "perception.py",
+          "sha256": "b8b58de768b8af11a1dc6023fe726eba26d947cfa68dadbf5fd9ab1b7ef59a9e",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/perception.py"
+        }
+      ],
+      "block": "figures/blocks/F03_handle_detection.tex"
+    },
+    {
+      "id": "F04",
+      "key": "active_motion",
+      "title": "Physical inspection connects observations to execution",
+      "sources": [
+        "docs/mobile_active_motion.png"
+      ],
+      "group": "methods",
+      "target": "Section 4.1: Continuous Execution and Grasp Preparation",
+      "tier": "Main report",
+      "why": "Connects the observation module to physical navigation and the downstream opening, using actual reached views.",
+      "caption": "Physical inspection and newly acquired views in a recorded v3 episode. The base travels to the inspection pose, acquires a clearer view, then navigates to an opening station. The complete episode covers 4.62~m in 63.73 simulated seconds.",
+      "caution": "Earlier v3 policy and cohort. Its path and time are for this entire episode, not an average or solely the inspection cost. Full raw v3 replay was not rerun for this figure review.",
+      "evidence": [
+        "docs/mobile_active_continuation.md"
+      ],
+      "assets": [
+        {
+          "source_path": "docs/mobile_active_motion.png",
+          "package_path": "figures/methods/F04_active_motion.png",
+          "sha256": "a78d056c262ea34d565f22ad1f882dc872500b985b30c707e2657b069a277efd",
+          "pixels": [
+            1471,
+            922
+          ],
+          "origin": "verified GitHub blob",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/docs/mobile_active_motion.png"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "docs/mobile_active_continuation.md",
+          "sha256": "2c8b90ebf348069e486bcceec1291407e40d968b1c372ed3827816d139ce0516",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/docs/mobile_active_continuation.md"
+        }
+      ],
+      "block": "figures/blocks/F04_active_motion.tex"
+    },
+    {
+      "id": "F05",
+      "key": "v6_inspection_regret",
+      "title": "Matched evidence for lower observation cost",
+      "sources": [
+        "docs/mobile_inspection_regret_results.png"
+      ],
+      "group": "results",
+      "target": "Section 5.2: Task Outcomes and Observation Cost",
+      "tier": "Main report",
+      "why": "The strongest existing plot for the claim that the new inspection objective reduces cost while retaining matched task outcomes.",
+      "caption": "Matched inspection-policy comparison on the frozen v6 cohort: 72 scenes in 18 groups, seed 42. Outcome supervision and joint regret both yield 68/72 correct decisions, including correct refusals, while inspections decrease from 49 to 43. The continuation and constraints are held fixed. These are v6 results, separate from the v10 cohort.",
+      "caution": "68/72 is task correctness, not the opening rate. v6 has 48 candidate-feasible and 24 library-infeasible scenes. The exploratory uncertainty interval for utility improvement crosses zero.",
+      "evidence": [
+        "docs/mobile_inspection_regret_results.md"
+      ],
+      "assets": [
+        {
+          "source_path": "docs/mobile_inspection_regret_results.png",
+          "package_path": "figures/results/F05_v6_inspection_regret.png",
+          "sha256": "d473003c0b2a500c79e832facfd2e5300edb3fc6e3d27b9fc67ecca520b8fc2f",
+          "pixels": [
+            2720,
+            1040
+          ],
+          "origin": "verified GitHub blob",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/docs/mobile_inspection_regret_results.png"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "docs/mobile_inspection_regret_results.md",
+          "sha256": "39e5b4c9c1786f790707853831aba50f5211dd38dd2b035fec6101fbb8a76b84",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/docs/mobile_inspection_regret_results.md"
+        }
+      ],
+      "block": "figures/blocks/F05_v6_inspection_regret.tex"
+    },
+    {
+      "id": "F06",
+      "key": "slip_contact_loss",
+      "title": "Slip and subsequent contact loss have different signals",
+      "sources": [
+        "output/pdf/all_sensor_demos/slip_and_contact_loss_final.png"
+      ],
+      "group": "failures",
+      "target": "Section 5.3: Physical Demonstrations and Failure Analysis",
+      "tier": "Main report",
+      "why": "Shows why a contact-aware failure analysis needs force, bilateral contact, and relative motion instead of door angle alone.",
+      "caption": "Diagnostic low-friction replay ($\\mu=0.005$). A slip alarm occurs at approximately 3.77 s and persistent contact loss at 4.73 s. At the displayed 5.49 s sample, both contact forces are zero and the relative separation is about 122.4 mm. Execution deliberately continues after the slip alarm; separation after release is not ongoing surface slip.",
+      "caution": "An extreme fault demonstration, not a typical-frequency estimate. The image shows simulated telemetry, not hardware sensors. Its 122.4 mm drift is a displayed sample, not the maximum over the entire diagnostic trace.",
+      "evidence": [
+        "results/low_friction/low_friction.json",
+        "results/low_friction/low_friction.csv",
+        "runs/sensor_demos_20261112/manifest.json"
+      ],
+      "assets": [
+        {
+          "source_path": "output/pdf/all_sensor_demos/slip_and_contact_loss_final.png",
+          "package_path": "figures/failures/F06_slip_contact_loss.png",
+          "sha256": "46b48411779a18a80e4354f2043cad5f5130ac962cf437fe615ecae6b1aa4b4e",
+          "pixels": [
+            1280,
+            800
+          ],
+          "origin": "local preserved demo"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "results/low_friction/low_friction.json",
+          "sha256": "671392d49751f9f8b29b1169823ea1dc28683f53efd7f8baf95f3579bfd3a196",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/results/low_friction/low_friction.json"
+        },
+        {
+          "path": "results/low_friction/low_friction.csv",
+          "sha256": "da165baa9262257ef7349a908497f3266743da744af9c82f40b630c0006ff0d0",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/results/low_friction/low_friction.csv"
+        },
+        {
+          "path": "runs/sensor_demos_20261112/manifest.json",
+          "sha256": "0efc25bc804c267847fa2b70e5f5c5f425227d1352dc16078043d4aa9ce96434",
+          "scope": "read locally; no simulation rerun"
+        }
+      ],
+      "block": "figures/blocks/F06_slip_contact_loss.tex"
+    },
+    {
+      "id": "F07",
+      "key": "v8_generalization",
+      "title": "An additional geometry cohort for the same selected policy",
+      "sources": [
+        "docs/mobile_branch_balance_results.png"
+      ],
+      "group": "results",
+      "target": "Section 5.2 or supplementary material: additional cohort",
+      "tier": "Optional",
+      "why": "Shows repeated evaluation on another held-out geometry cohort, if there is space to explain policy identity.",
+      "caption": "Frozen v8 test on 72 new scenes: the primary policy makes 72/72 correct decisions, comprising 53 openings and 19 correct refusals. Learned inspection uses 39 observations versus 72 for always inspecting. The primary model tensors equal the earlier v6 policy; this is additional evaluation, not a measured gain from new LoRA training.",
+      "caution": "Do not use 72/72 as the v10 score or write that all 72 scenes opened. Cohorts differ, so v6-to-v8 is not a training curve.",
+      "evidence": [
+        "docs/mobile_branch_balance_results.md"
+      ],
+      "assets": [
+        {
+          "source_path": "docs/mobile_branch_balance_results.png",
+          "package_path": "figures/results/F07_v8_generalization.png",
+          "sha256": "7de7ac5661f3649938527966981598d6481832dc0db260601c7022e7a5e60894",
+          "pixels": [
+            2560,
+            928
+          ],
+          "origin": "verified GitHub blob",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/docs/mobile_branch_balance_results.png"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "docs/mobile_branch_balance_results.md",
+          "sha256": "c23120934828a6173bc1053ca23f5a46d85f9c480dfbfc6e23914572707abc58",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/docs/mobile_branch_balance_results.md"
+        }
+      ],
+      "block": "figures/blocks/F07_v8_generalization.tex"
+    },
+    {
+      "id": "F08",
+      "key": "pcgrad_validation",
+      "title": "Training difficulty and a negative intervention result",
+      "sources": [
+        "docs/mobile_branch_pcgrad_results.png"
+      ],
+      "group": "training",
+      "target": "Section 5.4: Exploratory Studies; Section 6.1: Coordination Difficulties",
+      "tier": "Optional",
+      "why": "Supports a concrete discussion of direct/post-inspection gradient conflict and why an intervention did not improve the selected policy.",
+      "caption": "PCGrad exploration on training and validation data. The tasks are direct and post-inspection execution. Twelve of 320 updates involve projection, but both arms select PG step 0 and I step 40 and retain the same deployed policy. The new test for this experiment was not read.",
+      "caution": "Validation plots are not independent test performance. This does not isolate P-versus-G gradients or prove that conflict caused poor performance.",
+      "evidence": [
+        "docs/mobile_branch_pcgrad_results.md"
+      ],
+      "assets": [
+        {
+          "source_path": "docs/mobile_branch_pcgrad_results.png",
+          "package_path": "figures/training/F08_pcgrad_validation.png",
+          "sha256": "fe3ebabfb395faa53235a9517ce80024b0614e2ae310b7a42ea9aba4aa598c46",
+          "pixels": [
+            2550,
+            1563
+          ],
+          "origin": "verified GitHub blob",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/docs/mobile_branch_pcgrad_results.png"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "docs/mobile_branch_pcgrad_results.md",
+          "sha256": "5873136c46ef52d3820646c15c1c964ea70f21a0a8d1a81f0e95a5efcb781aab",
+          "scope": "read locally; no simulation rerun",
+          "github_url": "https://github.com/blanknamezzz/mujoco-door-opening/blob/0ae4c4ddc84fd50ab15e7ed73f12878a6584b4a0/docs/mobile_branch_pcgrad_results.md"
+        }
+      ],
+      "block": "figures/blocks/F08_pcgrad_validation.tex"
+    },
+    {
+      "id": "F09",
+      "key": "force_low",
+      "title": "Manual force-cap comparison: low-force failure",
+      "sources": [
+        "output/pdf/all_sensor_demos/force_before_final.png"
+      ],
+      "group": "optional_grasping",
+      "target": "Section 6.3: Next Steps; optional grasping discussion",
+      "tier": "Optional",
+      "why": "Motivates learning or adapting another grasp parameter after identifying its physical effect.",
+      "caption": "Manually configured force-cap example at $\\mu=0.2$: a 2 N per-finger cap produces a slip alarm and terminates the attempt. Compare with the matched 25 N example (F10). The cap is a command limit, not identical to the measured contact force.",
+      "caution": "This is not an RL-trained force policy. The record says slip_detected=true but contact_lost=false; do not describe the displayed low-force trial as confirmed detachment.",
+      "evidence": [
+        "runs/presentation_demos_20261112/force_before.json",
+        "runs/presentation_demos_20261112/force_before.csv",
+        "output/pdf/all_sensor_demos/manifest.json"
+      ],
+      "assets": [
+        {
+          "source_path": "output/pdf/all_sensor_demos/force_before_final.png",
+          "package_path": "figures/optional_grasping/F09_force_low.png",
+          "sha256": "bf45d608193bf51019f97ef4173c3a4263f70129e7f06903b4183ddb4a5ecbf9",
+          "pixels": [
+            1280,
+            800
+          ],
+          "origin": "local preserved demo"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "runs/presentation_demos_20261112/force_before.json",
+          "sha256": "e1be7a23d58ae3a527921ed0b3899e1d28df02b6c0501e806f4bf1231de094fc",
+          "scope": "read locally; no simulation rerun"
+        },
+        {
+          "path": "runs/presentation_demos_20261112/force_before.csv",
+          "sha256": "947630ef494709312d1ce7dee2a92ac4fd0a3d2527c9b991609e6b8002ffdcbd",
+          "scope": "read locally; no simulation rerun"
+        },
+        {
+          "path": "output/pdf/all_sensor_demos/manifest.json",
+          "sha256": "cd706f39da4076beb4d20d35c709a4181816f22db3758c40b249c656066fc754",
+          "scope": "read locally; no simulation rerun"
+        }
+      ],
+      "block": "figures/blocks/F09_force_low.tex"
+    },
+    {
+      "id": "F10",
+      "key": "force_high",
+      "title": "Manual force-cap comparison: successful continuation",
+      "sources": [
+        "output/pdf/all_sensor_demos/force_after_final.png"
+      ],
+      "group": "optional_grasping",
+      "target": "Section 6.3: Next Steps; optional grasping discussion",
+      "tier": "Optional",
+      "why": "Pairs with F09 to show that a force choice can change execution under this particular controlled setting.",
+      "caption": "Matched manually configured example with a 25 N per-finger cap, the same $0^\\circ$ approach and $\\mu=0.2$. The stored result reaches $89.679^\\circ$ and holds without a slip alarm. This is a controlled parameter example, not evidence of learned force control.",
+      "caution": "Do not infer that increasing force always improves safety or success. The current mobile candidate selector still uses its fixed 6 N cap.",
+      "evidence": [
+        "runs/presentation_demos_20261112/force_after.json",
+        "runs/presentation_demos_20261112/force_after.csv",
+        "output/pdf/all_sensor_demos/manifest.json"
+      ],
+      "assets": [
+        {
+          "source_path": "output/pdf/all_sensor_demos/force_after_final.png",
+          "package_path": "figures/optional_grasping/F10_force_high.png",
+          "sha256": "9d8f51b158d5f4aa17c2f795f32eb48d3c54ce9095bad34464aaff9f8eb2f542",
+          "pixels": [
+            1280,
+            800
+          ],
+          "origin": "local preserved demo"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "runs/presentation_demos_20261112/force_after.json",
+          "sha256": "759b19a8db26fcb0a5225120ed86a88777cc2e2fa78c9d9e7a059f5f8911fbfe",
+          "scope": "read locally; no simulation rerun"
+        },
+        {
+          "path": "runs/presentation_demos_20261112/force_after.csv",
+          "sha256": "b446d677f2eabaabaf2c549d143e8277c24a4b3591c42076acea4e75d77ccaf1",
+          "scope": "read locally; no simulation rerun"
+        },
+        {
+          "path": "output/pdf/all_sensor_demos/manifest.json",
+          "sha256": "cd706f39da4076beb4d20d35c709a4181816f22db3758c40b249c656066fc754",
+          "scope": "read locally; no simulation rerun"
+        }
+      ],
+      "block": "figures/blocks/F10_force_high.tex"
+    },
+    {
+      "id": "F11",
+      "key": "geometry_inspection",
+      "title": "Supplemental inspection demonstration with known geometry",
+      "sources": [
+        "output/pdf/all_sensor_demos/inspection_supplement/active_inspection_final.png"
+      ],
+      "group": "optional_inspection",
+      "target": "Optional illustration near Section 4.4; prefer F04 in the main report",
+      "tier": "Optional",
+      "why": "Shows a physical move to acquire a new view, with base velocity, path length, and unchanged door angle.",
+      "caption": "Supplemental seed-42 physical inspection demo with the front side blocked. The known-map sweep permits station 2 after inspection. No learned checkpoint is queried and opening has not been executed; this image illustrates movement and a geometric decision only.",
+      "caution": "Do not attach v6/v10 learned-policy success rates to this demo, or describe it as a completed opening.",
+      "evidence": [
+        "output/pdf/all_sensor_demos/inspection_supplement/active_inspection/report.json"
+      ],
+      "assets": [
+        {
+          "source_path": "output/pdf/all_sensor_demos/inspection_supplement/active_inspection_final.png",
+          "package_path": "figures/optional_inspection/F11_geometry_inspection.png",
+          "sha256": "67e718f07b5b20da518110be356a50200ae6ada69d4a607cae93a411f962fe22",
+          "pixels": [
+            1280,
+            800
+          ],
+          "origin": "local preserved demo"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "output/pdf/all_sensor_demos/inspection_supplement/active_inspection/report.json",
+          "sha256": "a36bbdc9256230c4af657263a58150aebac6d30efa0d1365268cb48cf410db25",
+          "scope": "read locally; no simulation rerun"
+        }
+      ],
+      "block": "figures/blocks/F11_geometry_inspection.tex"
+    },
+    {
+      "id": "F12",
+      "key": "geometry_refusal",
+      "title": "Supplemental refusal demonstration with known geometry",
+      "sources": [
+        "output/pdf/all_sensor_demos/inspection_supplement/inspection_refusal_final.png"
+      ],
+      "group": "optional_inspection",
+      "target": "Section 5.3 or Section 6.2: refusal semantics",
+      "tier": "Optional",
+      "why": "Distinguishes refusing a tested candidate set from an attempted opening that fails.",
+      "caption": "Supplemental seed-42 inspection demo with both sides blocked. The known-map sweep rejects all four candidate stations, and the system refuses without starting an opening. This is a geometric baseline illustration, not learned-policy inference or a proof of global impossibility.",
+      "caution": "The decision concerns the configured candidate sweeps. No grasping attempt or learned checkpoint evaluation is shown.",
+      "evidence": [
+        "output/pdf/all_sensor_demos/inspection_supplement/inspection_refusal/report.json"
+      ],
+      "assets": [
+        {
+          "source_path": "output/pdf/all_sensor_demos/inspection_supplement/inspection_refusal_final.png",
+          "package_path": "figures/optional_inspection/F12_geometry_refusal.png",
+          "sha256": "12a85ab99192563f32cbb31abef8abc056b95ef479dc28e8914ec88e6d6e5c75",
+          "pixels": [
+            1280,
+            800
+          ],
+          "origin": "local preserved demo"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "output/pdf/all_sensor_demos/inspection_supplement/inspection_refusal/report.json",
+          "sha256": "9ba042bd1c5f93ed635e154e1e8613445a8af46b18beb2ac94dcc5cfa5543d8b",
+          "scope": "read locally; no simulation rerun"
+        }
+      ],
+      "block": "figures/blocks/F12_geometry_refusal.tex"
+    },
+    {
+      "id": "F13",
+      "key": "prm_detour",
+      "title": "Independent PRM demonstration: preparation before contact opening",
+      "sources": [
+        "reproduced/prm_examples/detour_preparation.png",
+        "reproduced/prm_examples/detour_opened.png"
+      ],
+      "group": "optional_prm",
+      "target": "Section 5.4: historical grasping/PRM study, if retained",
+      "tier": "Optional",
+      "why": "Separates reaching the pregrasp pose through a roadmap detour from subsequently completing physical opening.",
+      "caption": "Independent PRM demonstration. Left: preparation follows a roadmap path around a configured obstacle (500 valid sampled nodes, five path points). Right: the subsequent physical grasp-and-open trial succeeds. This illustrative detour is separate from the 1512-record PRM training dataset, whose preparations all used direct paths, and from the mobile RRT planner.",
+      "caution": "Finite-step collision checking and finite sampling are not continuous-path or global-infeasibility proofs. This demo cannot establish a PRM learning-performance gain.",
+      "evidence": [
+        "reproduced/prm_examples/REPORT.md",
+        "reproduced/prm_examples/detour/analysis.json",
+        "reproduced/prm_examples/detour/opening.json"
+      ],
+      "assets": [
+        {
+          "source_path": "reproduced/prm_examples/detour_preparation.png",
+          "package_path": "figures/optional_prm/F13_prm_detour_1.png",
+          "sha256": "9de080cc1c69b21d528bd1e0ad42ac446e80d966ebe5851256589b3185e54ab4",
+          "pixels": [
+            640,
+            480
+          ],
+          "origin": "local preserved demo"
+        },
+        {
+          "source_path": "reproduced/prm_examples/detour_opened.png",
+          "package_path": "figures/optional_prm/F13_prm_detour_2.png",
+          "sha256": "302cf77693d1bede0d6b8cf8b4df6f1ff35e68333913cb6257d03c3884d3f9b9",
+          "pixels": [
+            640,
+            480
+          ],
+          "origin": "local preserved demo"
+        }
+      ],
+      "evidence_records": [
+        {
+          "path": "reproduced/prm_examples/REPORT.md",
+          "sha256": "497e14cb7090710e5d870a9bac84c1ccdaa05340c943ee03a1995fb56839ddef",
+          "scope": "read locally; no simulation rerun"
+        },
+        {
+          "path": "reproduced/prm_examples/detour/analysis.json",
+          "sha256": "c44fecea26e43842364ef5ac20bdcb3472a0631f266f51f5c41a55f43e01e502",
+          "scope": "read locally; no simulation rerun"
+        },
+        {
+          "path": "reproduced/prm_examples/detour/opening.json",
+          "sha256": "9ab3d79fce5ef872f2a283dc2b4949943aab5a82ce21ac45634ef71aa064ed57",
+          "scope": "read locally; no simulation rerun"
+        }
+      ],
+      "block": "figures/blocks/F13_prm_detour.tex"
+    }
+  ],
+  "telemetry_manifest_checks": [
+    {
+      "source": "results/low_friction/low_friction.npz",
+      "sha256": "e635a806d4dcac75c24955e88d73e01c7d8358c37ed241cf02e820df84b4c02d",
+      "manifest_match": true
+    },
+    {
+      "source": "results/low_friction/low_friction.csv",
+      "sha256": "da165baa9262257ef7349a908497f3266743da744af9c82f40b630c0006ff0d0",
+      "manifest_match": true
+    },
+    {
+      "source": "results/low_friction/low_friction.json",
+      "sha256": "671392d49751f9f8b29b1169823ea1dc28683f53efd7f8baf95f3579bfd3a196",
+      "manifest_match": true
+    },
+    {
+      "source": "results/workspace_limit/workspace_limit.npz",
+      "sha256": "4485c7c7e9a2c398f5e155b175ad2f89edc0142dde6bb1fe40c4551296c64136",
+      "manifest_match": true
+    },
+    {
+      "source": "results/workspace_limit/workspace_limit.csv",
+      "sha256": "2a3de945abfcc6d0713df63eb5a89f34ad0f0cd366dd1734d42b6c8bff338593",
+      "manifest_match": true
+    },
+    {
+      "source": "results/workspace_limit/workspace_limit.json",
+      "sha256": "2a3afeb399c572a0112c0954e6a1a472d85aea74983613e6f1546c4b0c5b31ee",
+      "manifest_match": true
+    },
+    {
+      "source": "runs/presentation_demos_20261112/force_before.npz",
+      "sha256": "d1b9d11b8dc68ca8ba6749773b2708701f7689bd42b5a46f2f630b286f802fca",
+      "manifest_match": true
+    },
+    {
+      "source": "runs/presentation_demos_20261112/force_before.csv",
+      "sha256": "947630ef494709312d1ce7dee2a92ac4fd0a3d2527c9b991609e6b8002ffdcbd",
+      "manifest_match": true
+    },
+    {
+      "source": "runs/presentation_demos_20261112/force_before.json",
+      "sha256": "e1be7a23d58ae3a527921ed0b3899e1d28df02b6c0501e806f4bf1231de094fc",
+      "manifest_match": true
+    },
+    {
+      "source": "runs/presentation_demos_20261112/force_after.npz",
+      "sha256": "db9ab65110cb8fc2859b5d96526b21cc7575ef17faf8b4b83049dcdd9c8f700c",
+      "manifest_match": true
+    },
+    {
+      "source": "runs/presentation_demos_20261112/force_after.csv",
+      "sha256": "b446d677f2eabaabaf2c549d143e8277c24a4b3591c42076acea4e75d77ccaf1",
+      "manifest_match": true
+    },
+    {
+      "source": "runs/presentation_demos_20261112/force_after.json",
+      "sha256": "759b19a8db26fcb0a5225120ed86a88777cc2e2fa78c9d9e7a059f5f8911fbfe",
+      "manifest_match": true
+    }
+  ],
+  "final_report_revision": "2026-11-21",
+  "final_report_figures": [
+    "report_joint_limit",
+    "report_system",
+    "report_active_motion",
+    "report_inspection_cost"
+  ],
+  "new_vector_assets": [
+    {
+      "path": "figures/failures/report_joint_limit.pdf",
+      "sha256": "bb8ce8340690cb8c0a0912b590ce9a1205aba8bb355d3ae8fc5b1a595a4c0ab4",
+      "generator": "scripts/build_report_figures.py"
+    },
+    {
+      "path": "figures/methods/report_system.pdf",
+      "sha256": "c0fd56c058adf1cb1e6df8c2859bc366eae03411b8b228a84dfa6d49125dd34c",
+      "generator": "scripts/build_report_figures.py"
+    },
+    {
+      "path": "figures/methods/report_active_motion.pdf",
+      "sha256": "ca1bb924798bf0ae57e441f49503e9b5b1b4e6a8747cddcce2fffadfaddb8999",
+      "generator": "scripts/build_report_figures.py"
+    },
+    {
+      "path": "figures/results/report_inspection_cost.pdf",
+      "sha256": "e2afa30ee0bb3911942492a645ed69dd82cbd2664841299a9b5709fb4ccd6497",
+      "generator": "scripts/build_report_figures.py"
+    }
+  ],
+  "polished_revision": "2026-11-22",
+  "legacy_catalog_scope": "figures[] preserves the original PNG catalogue; polished_report_figures documents the active report.",
+  "polished_report_figures": [
+    {
+      "figure": "Figure 1",
+      "asset": "figures/failures/report_joint_limit.pdf",
+      "sha256": "bb8ce8340690cb8c0a0912b590ce9a1205aba8bb355d3ae8fc5b1a595a4c0ab4"
+    },
+    {
+      "figure": "Figure 2",
+      "asset": "figures/methods/report_system.pdf",
+      "sha256": "c0fd56c058adf1cb1e6df8c2859bc366eae03411b8b228a84dfa6d49125dd34c"
+    },
+    {
+      "figure": "Figure 3",
+      "asset": "figures/methods/report_active_motion.pdf",
+      "sha256": "ca1bb924798bf0ae57e441f49503e9b5b1b4e6a8747cddcce2fffadfaddb8999"
+    },
+    {
+      "figure": "Figure 4",
+      "asset": "figures/results/report_inspection_cost.pdf",
+      "sha256": "e2afa30ee0bb3911942492a645ed69dd82cbd2664841299a9b5709fb4ccd6497"
+    }
+  ],
+  "polished_data_sources": {
+    "input_sha256": {
+      "results\\workspace_limit\\workspace_limit_diagnosis.json": "8edae99b281d9fce21d7b32a9738fad2ff0a6bd3e5b3797422b2cd6ca8d87c52",
+      "results\\workspace_limit\\workspace_limit.npz": "4485c7c7e9a2c398f5e155b175ad2f89edc0142dde6bb1fe40c4551296c64136",
+      "results\\workspace_limit\\workspace_limit.csv": "2a3de945abfcc6d0713df63eb5a89f34ad0f0cd366dd1734d42b6c8bff338593",
+      "runs\\mobile_partial_workspace_seed42_20261109\\runs\\p10t_seed42_20261111\\report.json": "e643b6ccdec9f997b76129093c861216ec6b68dd278f4ab22cc84f453a01862f",
+      "runs\\mobile_partial_workspace_seed42_20261109\\runs\\p10t_seed42_20261111\\manifest.json": "a3b5a06985660761991a3f3b9201bfe2348fc3b9bfa99810ff8c797a2e4e35f8",
+      "runs\\mobile_partial_workspace_seed42_20261109\\runs\\p10t_seed42_20261111\\policy_results\\standard\\replays\\mobile_retention_v10_20261111_test_g000_front_blocked\\trace.json": "4da0f09e89427fa0f9f5ab62f336e2d25abc6f32dc32ad3784c46de25f848ad8",
+      "runs\\mobile_partial_workspace_seed42_20261109\\runs\\p10t_seed42_20261111\\policy_results\\standard\\replays\\mobile_retention_v10_20261111_test_g000_front_blocked\\result.json": "d8ee88c56a4aa3651a1bde8cf5805dc1007c97c7ee6e98f96d102aaef38a0b01",
+      "runs\\mobile_partial_workspace_seed42_20261109\\runs\\p10t_seed42_20261111\\data\\mobile_retention_v10_20261111_test_g000_front_blocked\\1\\observations.npz": "bd4f6cf3e31a33205f5d51b47316d5c17883f71cf75a9ce5250c8e19e43e955e",
+      "runs\\mobile_partial_workspace_seed42_20261109\\runs\\p10t_seed42_20261111\\source\\scene.xml": "855d9cefca34a2ff8f88fe03ff9ecf65c25ceb3bd4b4077741145427de269787"
+    },
+    "figure1": {
+      "stop_time_s": 8.401000000000783,
+      "door_deg": 42.505084386970125,
+      "elbow_margin_deg": 1.4109706623038676,
+      "bilateral_contact_during_opening": true
+    },
+    "figure3": {
+      "cohort": "C",
+      "archive_id": "v10",
+      "policy": "standard",
+      "scene_id": "mobile_retention_v10_20261111_test_g000_front_blocked",
+      "selection_rule": "first test scene with front_blocked layout",
+      "camera_poses_match_replay": true,
+      "path_m": 4.620968862524261,
+      "episode_duration_s": 61.9919999999792,
+      "door_span_m": [
+        0.0,
+        0.9
+      ],
+      "camera_shape": [
+        224,
+        224,
+        3
+      ],
+      "initial_rgb_sha256": "812c33336ffc5d3dfbc15f594b6980c9d9e9f7dfc717a7d8530d1e845dddc545",
+      "reached_rgb_sha256": "83b2f7c51ebfabd63e3b30b392ed9eb82eef37ebfcc3f34cf72304fab4127a2a"
+    },
+    "figure4": {
+      "cohort": "C",
+      "archive_id": "v10",
+      "modes": {
+        "frozen_v9_never": {
+          "duration_s": 12.38148611110956,
+          "correct_decisions": 50,
+          "accuracy_percent": 69.44444444444444
+        },
+        "standard": {
+          "duration_s": 38.31026388888478,
+          "correct_decisions": 70,
+          "accuracy_percent": 97.22222222222223
+        },
+        "frozen_v9_always": {
+          "duration_s": 55.682388888871344,
+          "correct_decisions": 70,
+          "accuracy_percent": 97.22222222222223
+        }
+      },
+      "time_reduction_percent": 31.198598599383264
+    },
+    "original_inputs_unchanged": true
+  },
+  "diagnostic_frame": {
+    "path": "figures/failures/report_joint_limit_scene.png",
+    "sha256": "6b159cf43777b5915cc9a6322504757646ee6f4ebc07cb28da44653a9d2b5eef",
+    "render": {
+      "source": "results\\workspace_limit\\workspace_limit.npz",
+      "source_sha256": "4485c7c7e9a2c398f5e155b175ad2f89edc0142dde6bb1fe40c4551296c64136",
+      "scene_xml_sha256": "855d9cefca34a2ff8f88fe03ff9ecf65c25ceb3bd4b4077741145427de269787",
+      "time_s": 8.401000000000783,
+      "door_deg": 42.505084386970125,
+      "elbow_deg": -163.58901410901402,
+      "mujoco_version": "3.16.0",
+      "rendering_only": true,
+      "dynamics_steps": 0,
+      "output": "figures\\failures\\report_joint_limit_scene.png"
+    },
+    "generator": "scripts/render_diagnostic_frame.py"
+  },
+  "language_revision": "2026-11-22",
+  "alignment_revision": "2026-11-22",
+  "cohort_mapping": "../COHORTS.json"
+}

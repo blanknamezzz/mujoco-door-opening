@@ -1,0 +1,26 @@
+% !TeX root = ../main.tex
+\section{Related Work}
+\label{sec:related}
+Joint-embedding predictive architectures learn by predicting representations.
+I-JEPA predicts target image-block embeddings from a context block
+\citep{assran2023ijepa}; H-JEPA extends action-conditioned prediction across
+levels and timescales for visual planning \citep{zhang2026hjepa}. We build on
+the released two-level H-JEPA architecture and adapt its visual features to
+door-task outcome prediction. In the evaluated mobile policy, observation
+encoding feeds candidate-scoring heads; physical execution supplies the
+continuation outcomes used for supervision.
+
+Sequential Dexterity uses transition feasibility to coordinate manipulation
+policies \citep{chen2023sequential}. Our station labels similarly depend on
+the grasp policy that follows them: a station is useful when the selected
+grasp completes the opening. Active perception treats sensing as an action
+chosen to support a task \citep{bajcsy1988active}. Here, the inspection decision
+learns from the difference between two executed continuations, including the
+cost of reaching the additional view.
+
+LoRA \citep{hu2021lora} provides low-rank parameter updates while preserving
+the original model. We use it with task heads and validation-based checkpoint
+selection. Our training studies also examine PCGrad
+\citep{yu2020pcgrad} for interference between execution branches and an
+output-retention objective inspired by distillation and Learning without
+Forgetting \citep{hinton2015distilling,li2016lwf}.

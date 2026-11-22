@@ -1,0 +1,182 @@
+[
+  {
+    "name": "nominal",
+    "title": "Full opening with stable contact",
+    "file": "nominal.mp4",
+    "seconds": 9.25,
+    "render_seconds": 5.270654167001339,
+    "stop_reason": "full_open_and_hold",
+    "source_sha256": {
+      "results/nominal/nominal.npz": "98af2f6cc1813bb2801c1fe919cc1fc6e415f32e3bd6c649c60cebf77eb0940c",
+      "results/nominal/nominal.csv": "2f1f1c2b6716779456925f13b1120aee5422792011200f8c09e53b0b93e59089",
+      "results/nominal/nominal.json": "1b819945caaa952a068fb848e92b695c8d83b035f50f0125cf57fbfaa0723568"
+    },
+    "missing": null
+  },
+  {
+    "name": "no_grip",
+    "title": "No grasp acquired: the door remains closed",
+    "file": "no_grip.mp4",
+    "seconds": 9.25,
+    "render_seconds": 5.2289397079985065,
+    "stop_reason": "grasp_not_acquired",
+    "source_sha256": {
+      "results/no_grip/no_grip.npz": "536d1ef42e60762ff0d1c01b7e3b08294fbabf4f07d6723f8ec5c33650e6f67b",
+      "results/no_grip/no_grip.csv": "4b89c065b6bf29868d09696d1f174f6bd7741400a559184377073ed290dd5f55",
+      "results/no_grip/no_grip.json": "0188223f1a1f2d38685a139b23db555809aa3eeb8a6f7ce79a1c81b48b8841f0"
+    },
+    "missing": null
+  },
+  {
+    "name": "angle_before",
+    "title": "Angle comparison: before | angle 0 deg, force cap 35 N",
+    "file": "angle_before.mp4",
+    "seconds": 8.1,
+    "render_seconds": 4.553730125000584,
+    "stop_reason": "unexpected_collision",
+    "source_sha256": {
+      "runs/presentation_demos_20261112/angle_before.npz": "69097783421a909dd431af041ea79dbc841826c65ac4c452171d7a829c18a4a2",
+      "runs/presentation_demos_20261112/angle_before.csv": "6186d74a6e4c09b4de49d60452a2e02494a5bd3fcfde3a54a0f1feb5ce317fc7",
+      "runs/presentation_demos_20261112/angle_before.json": "e4457e38fe8ab2de0f3e29a6c70dcad9b9332fc854fa09f43e5001ed0d881bbb"
+    },
+    "missing": null
+  },
+  {
+    "name": "angle_after",
+    "title": "Angle comparison: after | angle 8 deg, force cap 35 N",
+    "file": "angle_after.mp4",
+    "seconds": 9.25,
+    "render_seconds": 5.408229124997888,
+    "stop_reason": "full_open_and_hold",
+    "source_sha256": {
+      "runs/presentation_demos_20261112/angle_after.npz": "de9acd3588235562aec1806768cf64dc71fe294e81b9c292b36848f1321846f4",
+      "runs/presentation_demos_20261112/angle_after.csv": "4cf045728e51618ddb142655ab48cda464db0ebe588343e3e55c40adb1866019",
+      "runs/presentation_demos_20261112/angle_after.json": "69a5cf5fedd5a38514ce707004da4c203f6fe1e8c0c4d48c420f8046c7b64ac7"
+    },
+    "missing": null
+  },
+  {
+    "name": "force_before",
+    "title": "Force comparison: before | angle 0 deg, force cap 2 N",
+    "file": "force_before.mp4",
+    "seconds": 3.45,
+    "render_seconds": 1.8235097500000848,
+    "stop_reason": "slip_or_contact_loss",
+    "source_sha256": {
+      "runs/presentation_demos_20261112/force_before.npz": "d1b9d11b8dc68ca8ba6749773b2708701f7689bd42b5a46f2f630b286f802fca",
+      "runs/presentation_demos_20261112/force_before.csv": "947630ef494709312d1ce7dee2a92ac4fd0a3d2527c9b991609e6b8002ffdcbd",
+      "runs/presentation_demos_20261112/force_before.json": "e1be7a23d58ae3a527921ed0b3899e1d28df02b6c0501e806f4bf1231de094fc"
+    },
+    "missing": null
+  },
+  {
+    "name": "force_after",
+    "title": "Force comparison: after | angle 0 deg, force cap 25 N",
+    "file": "force_after.mp4",
+    "seconds": 9.25,
+    "render_seconds": 5.446127667000837,
+    "stop_reason": "full_open_and_hold",
+    "source_sha256": {
+      "runs/presentation_demos_20261112/force_after.npz": "db9ab65110cb8fc2859b5d96526b21cc7575ef17faf8b4b83049dcdd9c8f700c",
+      "runs/presentation_demos_20261112/force_after.csv": "b446d677f2eabaabaf2c549d143e8277c24a4b3591c42076acea4e75d77ccaf1",
+      "runs/presentation_demos_20261112/force_after.json": "759b19a8db26fcb0a5225120ed86a88777cc2e2fa78c9d9e7a059f5f8911fbfe"
+    },
+    "missing": null
+  },
+  {
+    "name": "speed_before",
+    "title": "Speed comparison: before | opening duration 2 s",
+    "file": "speed_before.mp4",
+    "seconds": 3.9,
+    "render_seconds": 1.9715199580023182,
+    "stop_reason": "slip_or_contact_loss",
+    "source_sha256": {
+      "runs/presentation_demos_20261112/speed_before.npz": "b554397b3bc0a73cc4b7977d2bcf82f48d00714e6df611389e767699fd465616",
+      "runs/presentation_demos_20261112/speed_before.csv": "cdbdc580464041a40a5558cefcfb079608c64122b4d8d217578aab15e33a6090",
+      "runs/presentation_demos_20261112/speed_before.json": "ff78b352ecd53c65eb028cdac5e9ccd0fc8df79d7822fb6b52851188df6b2a98"
+    },
+    "missing": null
+  },
+  {
+    "name": "speed_after",
+    "title": "Speed comparison: after | opening duration 14 s",
+    "file": "speed_after.mp4",
+    "seconds": 11.25,
+    "render_seconds": 6.882325333001063,
+    "stop_reason": "full_open_and_hold",
+    "source_sha256": {
+      "runs/presentation_demos_20261112/speed_after.npz": "c8625d3fd26e800d979800da6a72640c54bec429976e0e84b0588ebb7f8d3d28",
+      "runs/presentation_demos_20261112/speed_after.csv": "1953ed0dfdbb0ee42be124067243d1b05dc073ba8504b1cbbf5c47a96e32868a",
+      "runs/presentation_demos_20261112/speed_after.json": "8485043fd6e2e9b44a893763adefa3da694be9a89f291f2a45eece65e0996db0"
+    },
+    "missing": null
+  },
+  {
+    "name": "limit_before",
+    "title": "Limit comparison: before | angle 0 deg, force cap 25 N",
+    "file": "limit_before.mp4",
+    "seconds": 5.75,
+    "render_seconds": 3.044999249999819,
+    "stop_reason": "arm_workspace_limit",
+    "source_sha256": {
+      "runs/presentation_demos_20261112/limit_before.npz": "0ce3f8147e11ee9b57143afae2d855fa0b2040f7a66ba18697ef1ad0eae3031d",
+      "runs/presentation_demos_20261112/limit_before.csv": "1f7a840425ffa2d34153f92c8bec0c48f36fe4200a8c8d0d848dab1646623594",
+      "runs/presentation_demos_20261112/limit_before.json": "e06cc21d9960a54d72334170e9984afd4f908525844834bcfe786c5ab8a67dd7"
+    },
+    "missing": null
+  },
+  {
+    "name": "limit_after",
+    "title": "Limit comparison: after | angle 0 deg, force cap 35 N",
+    "file": "limit_after.mp4",
+    "seconds": 5.75,
+    "render_seconds": 3.041483791999781,
+    "stop_reason": "arm_workspace_limit",
+    "source_sha256": {
+      "runs/presentation_demos_20261112/limit_after.npz": "0ce3f8147e11ee9b57143afae2d855fa0b2040f7a66ba18697ef1ad0eae3031d",
+      "runs/presentation_demos_20261112/limit_after.csv": "1f7a840425ffa2d34153f92c8bec0c48f36fe4200a8c8d0d848dab1646623594",
+      "runs/presentation_demos_20261112/limit_after.json": "1186b678b484fbcb89e7704793cf7d93f86660cfdcafff6573e9bc4eed83bdb2"
+    },
+    "missing": null
+  },
+  {
+    "name": "prm_detour",
+    "title": "PRM obstacle avoidance, grasp and full opening",
+    "file": "prm_detour.mp4",
+    "seconds": 12.45,
+    "render_seconds": 7.210463291001361,
+    "stop_reason": "full_open_and_hold",
+    "source_sha256": {
+      "runs/presentation_demos_20261112/prm/detour/preparation.npz": "45e70798c61db82ea3e3b116828331b9564148f626940fee1cf764a72cf54dd4",
+      "runs/presentation_demos_20261112/prm/detour/preparation.csv": "614d8a778518f59676858931cdbf919834c172438c876a1c410dc3ea1d463af9",
+      "runs/presentation_demos_20261112/prm/detour/opening.npz": "e17ec04b6cc3cb7b89a9623702bc3f56dc702e4daa7d90b690a0ae68aaba7d25",
+      "runs/presentation_demos_20261112/prm/detour/opening.csv": "8e1fd6482080b24af9ec20624ca5209a7bb24b0db0da0ca3db9b679826180378",
+      "runs/presentation_demos_20261112/prm/detour/scene.xml": "306f4c6d9a4c2ebb0ac062f7cb0068d7cb5791a84f1543ee8f071809b821a69b"
+    },
+    "missing": "PRM preparation force/contact flags unrecorded"
+  },
+  {
+    "name": "slip_and_contact_loss",
+    "title": "Slip and contact loss (0.5x)",
+    "file": "slip_and_contact_loss.mp4",
+    "source": "/Users/andy/python/mujoco-door-contact/runs/sensor_demos_20261112/manifest.json"
+  },
+  {
+    "name": "joint_limit_stop",
+    "title": "Joint target rejection (1x)",
+    "file": "joint_limit_stop.mp4",
+    "source": "/Users/andy/python/mujoco-door-contact/runs/sensor_demos_20261112/manifest.json"
+  },
+  {
+    "name": "active_inspection",
+    "title": "front side blocked (NEW geometry baseline)",
+    "file": "inspection_supplement/active_inspection.mp4",
+    "source": "New seed42 physical inspection; known-map geometric decision, no learned-policy inference"
+  },
+  {
+    "name": "inspection_refusal",
+    "title": "both sides blocked (NEW geometry baseline)",
+    "file": "inspection_supplement/inspection_refusal.mp4",
+    "source": "New seed42 physical inspection; known-map geometric decision, no learned-policy inference"
+  }
+]

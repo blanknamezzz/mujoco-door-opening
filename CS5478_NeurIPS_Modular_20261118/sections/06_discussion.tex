@@ -1,0 +1,29 @@
+% !TeX root = ../main.tex
+\section{Discussion and Future Work}
+\label{sec:discussion}
+\paragraph{What connects the modules.}
+The main coordination mechanism is explicit in the targets: P learns the
+outcome of G's current choice, and I learns the benefit of the selected P/G
+continuation. This aligns preparation with the policy that actually follows.
+The matched inspection comparisons show the clearest practical benefit:
+selective observation maintains task outcomes while reducing travel and time.
+The continuation studies also reveal a branch tradeoff. For example, one
+continuation checkpoint reaches $26/36$ direct validation correctness but reduces the
+inspected branch from $35/36$ to $30/36$. Evaluating both branches during
+selection protects the useful inspected continuation.
+
+\paragraph{Current operating range.}
+The experiments use nine familiar templates, one mobile training seed,
+ideal base servos, known-geometry navigation, and a calibrated handle
+estimator with color, axis, and radius priors. Four stations and two grasps
+define the mobile candidate library.
+
+\paragraph{Next experiments.}
+Three comparisons follow directly from the results. First, hold the candidate
+library and controller fixed while comparing current-G-conditioned P labels
+with independently defined station labels. Second, replace estimated handle
+geometry and depth exclusions separately with geometric reference inputs to
+measure how much error each interface contributes. Third, expand one action
+dimension at a time and add recovery triggered by low joint margin or contact
+loss. Multiple training seeds and frozen new-template tests would then measure
+how these changes carry beyond the current scene families.

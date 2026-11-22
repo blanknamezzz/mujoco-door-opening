@@ -1,0 +1,20 @@
+% !TeX root = ../../main.tex
+\subsection{Failure Analysis}
+Cohort A contains four incorrect decisions. Three layouts in one geometry
+group lead to attempted continuations that end with
+\texttt{handle\_not\_detected}; none of the recorded candidates succeeds in
+those scenes. The fourth is a false refusal: the observed-depth mask excludes
+a station whose recorded grasp completes the opening. Cohort C
+contains two false refusals on candidate-feasible scenes. Together these
+errors identify handle estimation and candidate exclusion as practical
+bottlenecks upstream of final action scoring.
+
+Physical diagnostics explain additional failure mechanisms. In
+Figure~\ref{fig:joint_limit}, the elbow reaches $-163.59^\circ$ with
+$1.41^\circ$ remaining to its lower bound; the next target is rejected while
+both fingers still contact the handle. A separate low-friction diagnostic
+($\mu=0.005$) raises a slip alarm at approximately 3.77~s and persistent
+contact loss at 4.73~s. Its diagnostic continuation separates the initial
+slip from the subsequent release. These traces motivate monitoring joint
+margin and contact state throughout opening, in addition to predicting the
+initial grasp outcome.

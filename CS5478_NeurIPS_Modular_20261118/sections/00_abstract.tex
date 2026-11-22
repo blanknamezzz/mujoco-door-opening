@@ -1,0 +1,19 @@
+% !TeX root = ../main.tex
+\begin{abstract}
+Reaching a door handle is only the beginning of a successful opening: the
+chosen station must preserve arm workspace, the grasp must sustain contact,
+and the available view must reveal relevant obstacles. We develop a continuous
+MuJoCo system that connects inspection (I), positioning (P), and grasp selection
+(G) through downstream physical outcomes. A shared H-JEPA visual encoder is
+adapted with rank-8 LoRA and task heads. Grasp outcomes supervise G, the grasp
+selected by G supplies P's target, and fixed P/G continuations teach I whether
+an additional observation justifies its travel and time. On the latest held-out
+72-scene test, the selected policy achieves 70 correct decisions, opening
+50 of 52 candidate-feasible scenes and correctly refusing all 20 remaining
+scenes, with zero observed collisions. It matches the task outcomes of always
+inspecting while reducing inspections from 72 to 43 and mean episode time from
+55.68 to 38.31 simulated seconds. Three disjoint test cohorts yield 210/216
+correct decisions within nine scene templates. The results demonstrate
+task-aware preparation and selective observation for a finite action library
+in simulation.
+\end{abstract}

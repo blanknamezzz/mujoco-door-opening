@@ -1,0 +1,62 @@
+[
+  {
+    "file": "nominal.mp4",
+    "decoded": true
+  },
+  {
+    "file": "no_grip.mp4",
+    "decoded": true
+  },
+  {
+    "file": "angle_before.mp4",
+    "decoded": true
+  },
+  {
+    "file": "angle_after.mp4",
+    "decoded": true
+  },
+  {
+    "file": "force_before.mp4",
+    "decoded": true
+  },
+  {
+    "file": "force_after.mp4",
+    "decoded": true
+  },
+  {
+    "file": "speed_before.mp4",
+    "decoded": true
+  },
+  {
+    "file": "speed_after.mp4",
+    "decoded": true
+  },
+  {
+    "file": "limit_before.mp4",
+    "decoded": true
+  },
+  {
+    "file": "limit_after.mp4",
+    "decoded": true
+  },
+  {
+    "file": "prm_detour.mp4",
+    "decoded": true
+  },
+  {
+    "file": "slip_and_contact_loss.mp4",
+    "decoded": true
+  },
+  {
+    "file": "joint_limit_stop.mp4",
+    "decoded": true
+  },
+  {
+    "file": "inspection_supplement/active_inspection.mp4",
+    "decoded": true
+  },
+  {
+    "file": "inspection_supplement/inspection_refusal.mp4",
+    "decoded": true
+  }
+]
