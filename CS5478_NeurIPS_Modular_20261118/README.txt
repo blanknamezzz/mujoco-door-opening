@@ -34,4 +34,4 @@ FIGURES
 
 OVERLEAF
   See OVERLEAF_UPDATE.md. Preserve the folder hierarchy when uploading.
-  README_CN.md provides Chinese editing and build instructions.
+  README.md provides detailed editing and build instructions.

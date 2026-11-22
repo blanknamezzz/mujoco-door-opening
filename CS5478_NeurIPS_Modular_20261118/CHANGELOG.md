@@ -1,5 +1,17 @@
 # Changes
 
+## 2026-11-22 - English documentation
+
+- Translated the detailed README and Overleaf instructions into English.
+- Renamed README_CN.md to README.md and updated the reference in README.txt.
+- Scanned all report source files for remaining Chinese text and comments.
+
+## 2026-11-22 - Inspection terminology and repository access
+
+- Clarified that the 40.3% reduction counts additional inspections.
+- Added a clickable GitHub repository link to the bottom-left notice on page 1.
+- Kept the revision-specific repository footnote in Section 5.1.
+
 ## 2026-11-22 - Aligned cohorts, execution example, and initialization
 
 - Named the three test cohorts A/B/C throughout the paper; archived run identifiers remain in evidence records.
